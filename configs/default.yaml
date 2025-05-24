@@ -1,0 +1,58 @@
+SUPER_CONFIG_PATH:          # super (father) config path
+
+# Seed:
+SEED: 42
+
+# System Settings:
+NUM_WORKERS: 6
+PREFETCH_FACTOR: 6
+DEVICE: cuda
+
+# Outputs settings:
+OUTPUTS_DIR: ./outputs/                # outputs directory
+USE_WANDB: False             # use wandb or not
+EXP_OWNER: 1020134037-shanghai-jiao-tong-university
+EXP_PROJECT: SoccerVisualBackbone
+EXP_GROUP: SoccerVisualBackbone
+EXP_NAME:
+SAVE_CHECKPOINT_PER_EPOCH: 1
+MULTI_LAST_CHECKPOINTS: 0
+
+# Dataset settings:
+DATA_ROOT: ./datasets/
+TASKS: [Tracking]
+DATASETS: [SoccerNetGSR]
+DATASET_SPLITS: train
+
+SoccerNetGSR_SUB_DIR: SN-GSR-2024
+SoccerNetGSR_DATA_SPLITS: train
+
+# Data augmentation settings:
+# 1. image sizes:
+AUG_RESIZE_SCALES: [512]
+KEEP_ASPECT_RATIO: False
+AUG_MAX_SIZE: 512
+AUG_RANDOM_RESIZE: [400, 500, 600]
+AUG_RANDOM_CROP_MIN: 384
+AUG_RANDOM_CROP_MAX: 600
+# 2. random shift:
+AUG_MAX_SHIFT_RATIO: 0.06
+# 3. bounding box overflow:
+AUG_OVERFLOW_BBOX: False
+# 4. color jitter:
+AUG_BRIGHTNESS: 0.4
+AUG_CONTRAST: 0.4
+AUG_SATURATION: 0.4
+AUG_HUE: 0.2
+AUG_COLOR_JITTER_V2: False
+# 5. for id biding:
+AUG_NUM_GROUPS: 6
+AUG_TRAJECTORY_OCCLUSION_PROB: 0.5
+AUG_TRAJECTORY_SWITCH_PROB: 0.5
+# 6. mean and std:
+# imagenet
+# AUG_MEAN = [0.485, 0.456, 0.406]
+# AUG_STD = [0.229, 0.224, 0.225]
+# siglip
+AUG_MEAN: [0.5, 0.5, 0.5]
+AUG_STD: [0.5, 0.5, 0.5]
