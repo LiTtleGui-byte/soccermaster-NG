@@ -19,13 +19,12 @@ from itertools import cycle
 from data.build import build_dataloader
 from data.sampler import DistributedBatchTaskBalancedSampler
 from utils import get_world_size, get_rank
+from utils.logger import TensorBoardLogger, MetricsTracker
 from models.multi_task import MultiTaskingSigLIP
 from runtime_option import runtime_option
 from utils.misc import set_seed
 from configs.util import load_super_config, update_config, yaml_to_dict
 from models.build import build_loss_fn
-
-# TODO: add logger (tensorboard)
 
 def train_engine(config: dict):
     # Init some settings:
@@ -47,8 +46,17 @@ def train_engine(config: dict):
     torch.multiprocessing.set_sharing_strategy('file_system')   # if not, raise error: too many open files.
     # torch.autograd.set_detect_anomaly(True)
     
-    # Init Logger:
-    # TODO: finish logger code
+    # Init TensorBoard Logger:
+    logger = None
+    if config.get("USE_TENSORBOARD", False):
+        log_dir = config.get("TENSORBOARD_LOG_DIR")
+        if log_dir is None:
+            log_dir = os.path.join(outputs_dir, "logs")
+        logger = TensorBoardLogger(
+            log_dir=log_dir,
+            accelerator=accelerator,
+            flush_secs=config.get("TENSORBOARD_FLUSH_SECS", 30)
+        )
     
     # Build training dataset:
     dataloader_train_dict, dataloader_test_dict = build_dataloader(config=config)
@@ -95,6 +103,7 @@ def train_engine(config: dict):
             loss_fn_dict=loss_fn_dict,
             model=model,
             optimizer=optimizer,
+            logger=logger,
             lr_warmup_epochs=config["LR_WARMUP_EPOCHS"],
             lr_warmup_tgt_lr=config["LR"],
             accumulate_steps=config["ACCUMULATE_STEPS"],
@@ -106,6 +115,12 @@ def train_engine(config: dict):
         
         scheduler.step()
     
+    # Close logger at the end of training
+    if logger:
+        logger.close()
+        if accelerator.is_main_process:
+            accelerator.print("Training completed. TensorBoard logger closed.")
+    
 def train_one_epoch(
         # Infos:
         config: dict,
@@ -116,8 +131,9 @@ def train_one_epoch(
         loss_fn_dict: dict[str, nn.Module],
         model,
         optimizer,
-        lr_warmup_epochs: int,
-        lr_warmup_tgt_lr: float,
+        logger: TensorBoardLogger = None,
+        lr_warmup_epochs: int = 0,
+        lr_warmup_tgt_lr: float = 1e-4,
         accumulate_steps: int = 1,
         separate_clip_norm: bool = True,
         max_clip_norm: float = 0.1,
@@ -130,6 +146,12 @@ def train_one_epoch(
     device = accelerator.device
     
     max_iterations = max(len(dataloader) for dataloader in dataloader_dict.values())
+    
+    # Initialize metrics tracker for epoch-level logging
+    epoch_metrics = MetricsTracker()
+    
+    if logger and accelerator.is_main_process:
+        accelerator.print(f"Training epoch {epoch} with {max_iterations} iterations...")
     
     # fetch data until one of the dataloaders is exhausted:
     # for iteration in range(max_iterations):
@@ -185,11 +207,45 @@ def train_one_epoch(
                     grad_norm = torch.nn.utils.clip_grad_norm_(model.parameters(), max_clip_norm)
                 optimizer.step()
                 optimizer.zero_grad()
+                
+                # Update global step
+                states["global_step"] += 1
+                
+                # Add logging
+                if logger and (cur_iter + 1) % logging_interval == 0:
+                    # Log losses
+                    logger.log_loss_dict(loss_dict, states["global_step"], prefix="train")
+                    
+                    # Log learning rate
+                    logger.log_learning_rate(optimizer, states["global_step"])
+                    
+                    # Log gradient norm
+                    logger.log_scalar("train/grad_norm", grad_norm, states["global_step"])
+                    
+                    # Log parameter and gradient statistics if enabled
+                    if config.get("LOG_PARAMS_GRADS", False):
+                        logger.log_model_parameters(model, states["global_step"])
+                    
+                    # Print progress
+                    total_loss = sum(loss_dict.values())
+                    if accelerator.is_main_process:
+                        accelerator.print(f"Epoch {epoch}, Iter {cur_iter+1}/{max_iterations}, "
+                                        f"Loss: {total_loss:.4f}, LR: {optimizer.param_groups[0]['lr']:.6f}")
+                
+                # Update metrics tracker
+                epoch_metrics.update(loss_dict)
+    
+    # Log epoch-level metrics
+    if logger:
+        epoch_avg_metrics = epoch_metrics.get_averages()
+        for key, value in epoch_avg_metrics.items():
+            logger.log_scalar(f"epoch/{key}", value, epoch)
         
-                # update optimizer:
-                optimizer.step()
-                optimizer.zero_grad()
+        # Flush logger at the end of epoch
+        logger.flush()
         
+        if accelerator.is_main_process:
+            accelerator.print(f"Epoch {epoch} completed. Average losses: {epoch_avg_metrics}")
        
 def lr_warmup(optimizer, epoch: int, curr_iter: int, tgt_lr: float, warmup_epochs: int, num_iter_per_epoch: int):
     # min_lr = 1e-8
@@ -226,4 +282,4 @@ if __name__ == '__main__':
     cfg = update_config(config=cfg, option=opt)
 
     # Call the "train_engine" function:
-    # train_engine(config=cfg)
+    train_engine(config=cfg)

@@ -11,6 +11,10 @@ DEVICE: cuda
 # Outputs settings:
 OUTPUTS_DIR: ./outputs/                # outputs directory
 USE_WANDB: False             # use wandb or not
+USE_TENSORBOARD: True        # use tensorboard logging
+TENSORBOARD_LOG_DIR:         # tensorboard log directory (if None, will use OUTPUTS_DIR/logs)
+TENSORBOARD_FLUSH_SECS: 30   # how often to flush tensorboard logs
+LOG_PARAMS_GRADS: False      # whether to log parameter and gradient statistics
 EXP_OWNER: 1020134037-shanghai-jiao-tong-university
 EXP_PROJECT: SoccerVisualBackbone
 EXP_GROUP: SoccerVisualBackbone
@@ -34,6 +38,8 @@ EPOCHS: 10
 ACCUMULATE_STEPS: 1
 USE_ACCELERATE_CLIP_NORM: True
 LOGGING_INTERVAL: 20
+SCHEDULER_MILESTONES: [7, 9]  # learning rate decay milestones
+SCHEDULER_GAMMA: 0.1          # learning rate decay factor
 
 # Dataset settings:
 DATA_ROOT: ./datasets/
