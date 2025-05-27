@@ -5,3 +5,19 @@ __pycache__/
 *$py.class
 
 tmp
+pretrained_models
+
+*.txt
+*.pth
+*.csv
+datasets
+outputs
+
+# Deformable attention compiled files
+*.so
+*.o
+*.a
+build/
+*.egg
+models/ops/MultiScaleDeformableAttention.egg-info/PKG-INFO
+models/deformable_detr/ops/MultiScaleDeformableAttention.egg-info/PKG-INFO

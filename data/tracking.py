@@ -421,7 +421,7 @@ class JointTrackingDataset(Dataset):
                 statistics.append(f"{dataset}.{split}, {num_sequences} sequences, {num_frames} frames.")
         return statistics
 
-def build_tracking_dataset(config: dict):
+def build_tracking_dataset(config: dict, split: str):
     dataset_names = config["DATASET_NAME"]
     datasets = [dataset_name for dataset_name in dataset_names if dataset_name in dataset_classes]
     assert len(datasets) > 0, "No valid dataset names provided for tracking task."
@@ -441,7 +441,7 @@ def build_tracking_dataset(config: dict):
     dataset = JointTrackingDataset(
         data_root=config["DATA_ROOT"],
         datasets=datasets,
-        splits=[config["DATASET_SPLITS"]] * len(datasets),
+        splits=[split] * len(datasets),
         transforms=build_transforms(transform_config),
     )
     return dataset

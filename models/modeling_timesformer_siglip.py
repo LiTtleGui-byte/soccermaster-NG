@@ -37,7 +37,7 @@ from transformers.utils import (
     replace_return_docstrings,
 )
 
-from .configuration_streamformer import StreamformerConfig
+from .configuration_soccer_backbone import SoccerBackboneConfig
 from transformers import CLIPTextModel, CLIPTextConfig, AutoTokenizer, CLIPConfig, SiglipTextModel, SiglipConfig
 _CONFIG_FOR_DOC = "TimesformerConfig"
 logger = logging.get_logger(__name__)
@@ -293,7 +293,7 @@ class TimeSformerDropPath(nn.Module):
         return "p={}".format(self.drop_prob)
 
 class TimesformerCausalSelfAttention(nn.Module):
-    def __init__(self, config: StreamformerConfig):
+    def __init__(self, config: SoccerBackboneConfig):
         super().__init__()
 
         num_heads = config.num_attention_heads
@@ -384,7 +384,7 @@ class TimesformerCausalSelfAttention(nn.Module):
 
         return outputs
 class TimesformerSelfAttention(nn.Module):
-    def __init__(self, config: StreamformerConfig):
+    def __init__(self, config: SoccerBackboneConfig):
         super().__init__()
 
         num_heads = config.num_attention_heads
@@ -476,7 +476,7 @@ class TimesformerSelfOutput(nn.Module):
     the layernorm applied before each block.
     """
 
-    def __init__(self, config: StreamformerConfig) -> None:
+    def __init__(self, config: SoccerBackboneConfig) -> None:
         super().__init__()
         self.dense = nn.Linear(config.hidden_size, config.hidden_size)
         self.dropout = nn.Dropout(config.hidden_dropout_prob)
@@ -512,7 +512,7 @@ class TimesformerSelfOutput(nn.Module):
         return hidden_states
 
 class TimeSformerCausalAttention(nn.Module):
-    def __init__(self, config: StreamformerConfig) -> None:
+    def __init__(self, config: SoccerBackboneConfig) -> None:
         super().__init__()
         self.attention = TimesformerCausalSelfAttention(config)
         self.output = TimesformerSelfOutput(config)
@@ -532,7 +532,7 @@ class TimeSformerCausalAttention(nn.Module):
         return outputs
     
 class TimeSformerAttention(nn.Module):
-    def __init__(self, config: StreamformerConfig) -> None:
+    def __init__(self, config: SoccerBackboneConfig) -> None:
         super().__init__()
         self.attention = TimesformerSelfAttention(config)
         self.output = TimesformerSelfOutput(config)
@@ -553,7 +553,7 @@ class TimeSformerAttention(nn.Module):
     
     
 class TimesformerIntermediate(nn.Module):
-    def __init__(self, config: StreamformerConfig) -> None:
+    def __init__(self, config: SoccerBackboneConfig) -> None:
         super().__init__()
         self.dense = nn.Linear(config.hidden_size, config.intermediate_size)
         self.dropout = nn.Dropout(config.hidden_dropout_prob)
@@ -572,7 +572,7 @@ class TimesformerIntermediate(nn.Module):
     
     
 class TimesformerOutput(nn.Module):
-    def __init__(self, config: StreamformerConfig) -> None:
+    def __init__(self, config: SoccerBackboneConfig) -> None:
         super().__init__()
         self.dense = nn.Linear(config.intermediate_size, config.hidden_size)
         self.dropout = nn.Dropout(config.hidden_dropout_prob)
@@ -584,7 +584,7 @@ class TimesformerOutput(nn.Module):
         return hidden_states
     
 class TimesformerLayerSigLIP(nn.Module):
-    def __init__(self, config: StreamformerConfig, layer_index: int) -> None:
+    def __init__(self, config: SoccerBackboneConfig, layer_index: int) -> None:
         super().__init__()
 
         attention_type = config.attention_type
@@ -727,7 +727,7 @@ class TimesformerLayerSigLIP(nn.Module):
             
             
 class TimesformerEncoder(nn.Module):
-    def __init__(self, config: StreamformerConfig) -> None:
+    def __init__(self, config: SoccerBackboneConfig) -> None:
         super().__init__()
         self.config = config
         self.layer = nn.ModuleList([TimesformerLayerSigLIP(config, ind) for ind in range(config.num_hidden_layers)])
@@ -781,7 +781,7 @@ class TimesformerPreTrainedModel(PreTrainedModel):
     models.
     """
 
-    config_class = StreamformerConfig
+    config_class = SoccerBackboneConfig
     base_model_prefix = "timesformer"
     main_input_name = "pixel_values"
     supports_gradient_checkpointing = True

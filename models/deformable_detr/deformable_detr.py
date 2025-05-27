@@ -22,8 +22,10 @@ from utils import box_ops
 from utils.nested_tensor import NestedTensor, nested_tensor_from_tensor_list
 from models.utils.misc import inverse_sigmoid, accuracy, interpolate
 from utils.misc import is_distributed, distributed_world_size
+from typing import Any, Dict, List, Tuple, Union, Generator
+from collections import defaultdict
 
-from models.deformable_detr.backbone import build_backbone
+
 from models.deformable_detr.position_encoding import build_position_encoding
 from .matcher import build_matcher
 from .segmentation import (DETRsegm, PostProcessPanoptic, PostProcessSegm,
@@ -38,7 +40,7 @@ def _get_clones(module, N):
 
 class DeformableDetrHead(nn.Module):
     """ This is the Deformable DETR module that performs object detection """
-    def __init__(self, position_encoding, transformer, num_classes, num_queries, num_feature_levels,
+    def __init__(self, position_encoding, transformer, num_classes, num_queries, num_feature_levels, backbone_strides, backbone_num_channels, 
                  aux_loss=True, with_box_refine=False, two_stage=False):
         """ Initializes the model.
         Parameters:
@@ -63,10 +65,10 @@ class DeformableDetrHead(nn.Module):
         if not two_stage:
             self.query_embed = nn.Embedding(num_queries, hidden_dim*2)
         if num_feature_levels > 1:
-            num_backbone_outs = len(backbone.strides)
+            num_backbone_outs = len(backbone_strides)
             input_proj_list = []
             for _ in range(num_backbone_outs):
-                in_channels = backbone.num_channels[_]
+                in_channels = backbone_num_channels[_]
                 input_proj_list.append(nn.Sequential(
                     nn.Conv2d(in_channels, hidden_dim, kernel_size=1),
                     nn.GroupNorm(32, hidden_dim),
@@ -81,7 +83,7 @@ class DeformableDetrHead(nn.Module):
         else:
             self.input_proj = nn.ModuleList([
                 nn.Sequential(
-                    nn.Conv2d(backbone.num_channels[0], hidden_dim, kernel_size=1),
+                    nn.Conv2d(backbone_num_channels[0], hidden_dim, kernel_size=1),
                     nn.GroupNorm(32, hidden_dim),
                 )])
         self.aux_loss = aux_loss
@@ -216,7 +218,7 @@ class SetCriterion(nn.Module):
         1) we compute hungarian assignment between ground truth boxes and the outputs of the model
         2) we supervise each pair of matched ground-truth / prediction (supervise class and box)
     """
-    def __init__(self, num_classes, matcher, weight_dict, losses, focal_alpha=0.25):
+    def __init__(self, num_classes, matcher, weight_dict, losses, focal_alpha=0.25, detr_loss_batch_len=10):
         """ Create the criterion.
         Parameters:
             num_classes: number of object categories, omitting the special no-object category
@@ -231,7 +233,8 @@ class SetCriterion(nn.Module):
         self.weight_dict = weight_dict
         self.losses = losses
         self.focal_alpha = focal_alpha
-
+        self.detr_loss_batch_len = detr_loss_batch_len
+        
     def loss_labels(self, outputs, targets, indices, num_boxes, log=True):
         """Classification loss (NLL)
         targets dicts must contain the key "labels" containing a tensor of dim [nb_target_boxes]
@@ -335,8 +338,9 @@ class SetCriterion(nn.Module):
         return batch_idx, tgt_idx
 
     def get_loss(self, loss, outputs, targets, indices, num_boxes, **kwargs):
-        assert "batch_len" in kwargs, f"batch_len is not in kwargs"
-        batch_len = kwargs["batch_len"]
+        # assert "batch_len" in kwargs, f"batch_len is not in kwargs"
+        # batch_len = kwargs["batch_len"]
+        batch_len = self.detr_loss_batch_len
         kwargs = {}     # to default setting
 
         loss_map = {
@@ -350,7 +354,6 @@ class SetCriterion(nn.Module):
         # Organize the batch data:
         loss_dict = {}
         iter_idxs = torch.tensor(list(range(0, len(targets))), dtype=torch.int64, device=outputs['pred_logits'].device)
-        from train import batch_iterator, tensor_dict_index_select
         for batch_iter_idxs, batch_targets, batch_indices in batch_iterator(
             batch_len, iter_idxs, targets, indices
         ):
@@ -379,23 +382,23 @@ class SetCriterion(nn.Module):
         outputs_without_aux = {k: v for k, v in outputs.items() if k != 'aux_outputs' and k != 'enc_outputs'}
 
         # Retrieve the matching between the outputs of the last layer and the targets
-        if "batch_len" not in kwargs:
+        if self.detr_loss_batch_len is None:
             indices = self.matcher(outputs_without_aux, targets)
         else:
             indices = []
             iter_idxs = torch.tensor(
                 list(range(0, len(targets))), dtype=torch.int64, device=outputs_without_aux['pred_logits'].device
             )
-            from train import batch_iterator, tensor_dict_index_select
             for batch_iter_idxs, batch_targets in batch_iterator(
-                    kwargs["batch_len"], iter_idxs, targets
+                    self.detr_loss_batch_len, iter_idxs, targets
             ):
                 batch_outputs_without_aux = tensor_dict_index_select(outputs_without_aux, batch_iter_idxs, dim=0)
                 _ = self.matcher(batch_outputs_without_aux, batch_targets)
                 indices += _
                 pass
 
-        batch_len = kwargs["batch_len"]         # HELLORPG Added
+        # batch_len = kwargs["batch_len"]         # HELLORPG Added
+        batch_len = self.detr_loss_batch_len
         # Compute the average number of target boxes accross all nodes, for normalization purposes
         num_boxes = sum(len(t["labels"]) for t in targets)
         num_boxes = torch.as_tensor([num_boxes], dtype=torch.float, device=next(iter(outputs.values())).device)
@@ -406,7 +409,7 @@ class SetCriterion(nn.Module):
         # Compute all the requested losses
         losses = {}
         for loss in self.losses:
-            kwargs = {"batch_len": kwargs["batch_len"]}         # HELLORPG Added
+            kwargs = {"batch_len": batch_len}         # HELLORPG Added
             losses.update(self.get_loss(loss, outputs, targets, indices, num_boxes, **kwargs))
 
         # In case of auxiliary losses, we repeat this process with the output of each intermediate layer.
@@ -443,6 +446,8 @@ class SetCriterion(nn.Module):
                 l_dict = self.get_loss(loss, enc_outputs, bin_targets, indices, num_boxes, **kwargs)
                 l_dict = {k + f'_enc': v for k, v in l_dict.items()}
                 losses.update(l_dict)
+                
+        losses = {k: (v * self.weight_dict[k] if k in self.weight_dict else v) for k, v in losses.items()}
 
         return losses, indices
 
@@ -496,32 +501,144 @@ class MLP(nn.Module):
             x = F.relu(layer(x)) if i < self.num_layers - 1 else layer(x)
         return x
 
+class Args:
+    """
+    This class represents a list of instances in an image.
+    It stores the attributes of instances (e.g., boxes, masks, labels, scores) as "fields".
+    All fields must have the same ``__len__`` which is the number of instances.
 
-def build(args):
-    # num_classes = 20 if args.dataset_file != 'coco' else 91
-    # if args.dataset_file == "coco_panoptic":
-    #     num_classes = 250
-    num_classes = args.num_classes
+    All other (non-field) attributes of this class are considered private:
+    they must start with '_' and are not modifiable by a user.
+
+    Some basic usage:
+
+    1. Set/get/check a field:
+
+       .. code-block:: python
+
+          instances.gt_boxes = Boxes(...)
+          print(instances.pred_masks)  # a tensor of shape (N, H, W)
+          print('gt_masks' in instances)
+
+    2. ``len(instances)`` returns the number of instances
+    3. Indexing: ``instances[indices]`` will apply the indexing on all the fields
+       and returns a new :class:`Instances`.
+       Typically, ``indices`` is a integer vector of indices,
+       or a binary mask of length ``num_instances``
+
+       .. code-block:: python
+
+          category_3_detections = instances[instances.pred_classes == 3]
+          confident_detections = instances[instances.scores > 0.9]
+    """
+
+    def __init__(self, **kwargs: Any):
+        """
+        Args:
+            kwargs: fields to add to this `Instances`.
+        """
+        self._fields: Dict[str, Any] = {}
+        for k, v in kwargs.items():
+            self.set(k, v)
+
+    def __setattr__(self, name: str, val: Any) -> None:
+        if name.startswith("_"):
+            super().__setattr__(name, val)
+        else:
+            self.set(name, val)
+
+    def __getattr__(self, name: str) -> Any:
+        if name == "_fields" or name not in self._fields:
+            raise AttributeError("Cannot find field '{}' in the given Instances!".format(name))
+        return self._fields[name]
+
+    def set(self, name: str, value: Any) -> None:
+        """
+        Set the field named `name` to `value`.
+        The length of `value` must be the number of instances,
+        and must agree with other existing fields in this object.
+        """
+        # with warnings.catch_warnings(record=True):
+        #     data_len = len(value)
+        # if len(self._fields):
+        #     assert (
+        #         len(self) == data_len
+        #     ), "Adding a field of length {} to a Instances of length {}".format(data_len, len(self))
+        self._fields[name] = value
+
+    def has(self, name: str) -> bool:
+        """
+        Returns:
+            bool: whether the field called `name` exists.
+        """
+        return name in self._fields
+
+    def remove(self, name: str) -> None:
+        """
+        Remove the field called `name`.
+        """
+        del self._fields[name]
+
+    def get(self, name: str) -> Any:
+        """
+        Returns the field called `name`.
+        """
+        return self._fields[name]
+
+def cvt_config_to_args(config: dict):
+    # Generate DETR args:
+    detr_args = Args()
+    # 1. transformer:
+    detr_args.num_classes = config["NUM_CLASSES"]
+    detr_args.device = config["DEVICE"]
+    detr_args.num_queries = config["DETR_NUM_QUERIES"]
+    detr_args.num_feature_levels = config["DETR_NUM_FEATURE_LEVELS"]
+    detr_args.aux_loss = config["DETR_AUX_LOSS"]
+    detr_args.with_box_refine = config["DETR_WITH_BOX_REFINE"]
+    detr_args.two_stage = config["DETR_TWO_STAGE"]
+    detr_args.hidden_dim = config["DETR_HIDDEN_DIM"]
+    detr_args.masks = config["DETR_MASKS"]
+    detr_args.position_embedding = config["DETR_POSITION_EMBEDDING"]
+    detr_args.nheads = config["DETR_NUM_HEADS"]
+    detr_args.enc_layers = config["DETR_ENC_LAYERS"]
+    detr_args.dec_layers = config["DETR_DEC_LAYERS"]
+    detr_args.dim_feedforward = config["DETR_DIM_FEEDFORWARD"]
+    detr_args.dropout = config["DETR_DROPOUT"]
+    detr_args.dec_n_points = config["DETR_DEC_N_POINTS"]
+    detr_args.enc_n_points = config["DETR_ENC_N_POINTS"]
+    detr_args.cls_loss_coef = config["DETR_CLS_LOSS_COEF"]
+    detr_args.bbox_loss_coef = config["DETR_BBOX_LOSS_COEF"]
+    detr_args.giou_loss_coef = config["DETR_GIOU_LOSS_COEF"]
+    detr_args.focal_alpha = config["DETR_FOCAL_ALPHA"]
+    detr_args.set_cost_class = config["DETR_SET_COST_CLASS"]
+    detr_args.set_cost_bbox = config["DETR_SET_COST_BBOX"]
+    detr_args.set_cost_giou = config["DETR_SET_COST_GIOU"]
+    
+    
+def build_deformable_detr_head(config: dict):
+    args = cvt_config_to_args(config)
     device = torch.device(args.device)
-
-    backbone = build_backbone(args)
-
-    transformer = build_deforamble_transformer(args)
-    model = DeformableDETR(
-        backbone,
-        transformer,
-        num_classes=num_classes,
+    
+    model = DeformableDetrHead(
+        position_encoding = build_position_encoding(args),
+        transformer = build_deforamble_transformer(args),
+        num_classes=args.num_classes,
         num_queries=args.num_queries,
         num_feature_levels=args.num_feature_levels,
+        backbone_strides=args.backbone_strides,
+        backbone_num_channels=args.backbone_num_channels,
         aux_loss=args.aux_loss,
         with_box_refine=args.with_box_refine,
         two_stage=args.two_stage,
     )
-    if args.masks:
-        model = DETRsegm(model, freeze_detr=(args.frozen_weights is not None))
-    matcher = build_matcher(args)
+    return model
+
+def build_deformable_detr_criterion(config: dict):
+    args = cvt_config_to_args(config)
+    
     weight_dict = {'loss_ce': args.cls_loss_coef, 'loss_bbox': args.bbox_loss_coef}
     weight_dict['loss_giou'] = args.giou_loss_coef
+    assert args.masks is False, "MASKS is not supported yet."
     if args.masks:
         weight_dict["loss_mask"] = args.mask_loss_coef
         weight_dict["loss_dice"] = args.dice_loss_coef
@@ -532,19 +649,35 @@ def build(args):
             aux_weight_dict.update({k + f'_{i}': v for k, v in weight_dict.items()})
         aux_weight_dict.update({k + f'_enc': v for k, v in weight_dict.items()})
         weight_dict.update(aux_weight_dict)
+    
+    detr_criterion = SetCriterion(
+        num_classes=args.num_classes,
+        matcher=build_matcher(config),
+        weight_dict=weight_dict,
+        losses = ['labels', 'boxes', 'cardinality'],
+    )
+    return detr_criterion
 
-    losses = ['labels', 'boxes', 'cardinality']
-    if args.masks:
-        losses += ["masks"]
-    # num_classes, matcher, weight_dict, losses, focal_alpha=0.25
-    criterion = SetCriterion(num_classes, matcher, weight_dict, losses, focal_alpha=args.focal_alpha)
-    criterion.to(device)
-    postprocessors = {'bbox': PostProcess()}
-    if args.masks:
-        postprocessors['segm'] = PostProcessSegm()
-        if args.dataset_file == "coco_panoptic":
-            is_thing_map = {i: i <= 90 for i in range(201)}
-            postprocessors["panoptic"] = PostProcessPanoptic(is_thing_map, threshold=0.85)
-
-    return model, criterion, postprocessors
-
+def batch_iterator(batch_size: int, *args) -> Generator[List[Any], None, None]:
+    assert len(args) > 0 and all(
+        len(a) == len(args[0]) for a in args
+    ), "Batched iteration must have inputs of all the same size."
+    n_batches = len(args[0]) // batch_size + int(len(args[0]) % batch_size != 0)
+    for b in range(n_batches):
+        yield [arg[b * batch_size: (b + 1) * batch_size] for arg in args]
+        
+def tensor_dict_index_select(tensor_dict, index, dim=0):
+    res_tensor_dict = defaultdict()
+    for k in tensor_dict.keys():
+        if isinstance(tensor_dict[k], torch.Tensor):
+            res_tensor_dict[k] = torch.index_select(tensor_dict[k], index=index, dim=dim).contiguous()
+        elif isinstance(tensor_dict[k], dict):
+            res_tensor_dict[k] = tensor_dict_index_select(tensor_dict[k], index=index, dim=dim)
+        elif isinstance(tensor_dict[k], list):
+            res_tensor_dict[k] = [
+                tensor_dict_index_select(tensor_dict[k][_], index=index, dim=dim)
+                for _ in range(len(tensor_dict[k]))
+            ]
+        else:
+            raise ValueError(f"Unsupported type {type(tensor_dict[k])} in the tensor dict index select.")
+    return dict(res_tensor_dict)
