@@ -4,7 +4,7 @@ SUPER_CONFIG_PATH:          # super (father) config path
 SEED: 42
 
 # System Settings:
-NUM_WORKERS: 6
+NUM_WORKERS: 2
 PREFETCH_FACTOR: 6
 DEVICE: cuda
 
@@ -18,12 +18,12 @@ LOG_PARAMS_GRADS: False      # whether to log parameter and gradient statistics
 EXP_OWNER: 1020134037-shanghai-jiao-tong-university
 EXP_PROJECT: SoccerVisualBackbone
 EXP_GROUP: SoccerVisualBackbone
-EXP_NAME:
+EXP_NAME: Default
 SAVE_CHECKPOINT_PER_EPOCH: 1
 MULTI_LAST_CHECKPOINTS: 0
 
 # Training strategies:
-BATCH_SIZE: 2
+BATCH_SIZE: 8
 LR: 1.0e-4
 # LR_BACKBONE_NAMES: [backbone.0]
 # LR_BACKBONE_SCALE: 0.1
@@ -34,7 +34,7 @@ LR: 1.0e-4
 LR_WARMUP_EPOCHS: 1
 WEIGHT_DECAY: 0.0005
 MAX_CLIP_NORM: 0.1
-EPOCHS: 10
+EPOCHS: 20
 ACCUMULATE_STEPS: 1
 USE_ACCELERATE_CLIP_NORM: True
 LOGGING_INTERVAL: 20
@@ -43,8 +43,8 @@ SCHEDULER_GAMMA: 0.1          # learning rate decay factor
 
 # Dataset settings:
 DATA_ROOT: ./datasets/
-TASKS: [SoccerNetGSR]
-DATASETS: [SoccerNetGSR]
+TASKS: [SoccerNetGSR_Detection]
+DATASETS: [SoccerNetGSR_Detection]
 DATASET_SPLITS: train
 
 SoccerNetGSR_SUB_DIR: SN-GSR-2024
@@ -55,9 +55,7 @@ SoccerNetGSR_DATA_SPLITS: train
 AUG_RESIZE_SCALES: [512]
 KEEP_ASPECT_RATIO: False
 AUG_MAX_SIZE: 512
-AUG_RANDOM_RESIZE: [400, 500, 600]
-AUG_RANDOM_CROP_MIN: 384
-AUG_RANDOM_CROP_MAX: 600
+AUG_RANDOM_RESIZE: [512]
 # 2. random shift:
 AUG_MAX_SHIFT_RATIO: 0.06
 # 3. bounding box overflow:
@@ -81,7 +79,8 @@ AUG_MEAN: [0.5, 0.5, 0.5]
 AUG_STD: [0.5, 0.5, 0.5]
 
 # BACKBONE:
-CKPT_PATH: ./pretrained/google/siglip2-base-patch16-512
+CKPT_PATH: ./pretrained_models/google/siglip2-base-patch16-512
+TRAIN_BACKBONE: True
 
 # DETR HEAD:
 NUM_CLASSES: 1 # person
@@ -108,4 +107,4 @@ DETR_FOCAL_ALPHA: 0.25
 DETR_SET_COST_CLASS: 2.0
 DETR_SET_COST_BBOX: 5.0
 DETR_SET_COST_GIOU: 2.0
-DETR_CRITERION_BATCH_LEN: 10
+DETR_CRITERION_BATCH_LEN: 5

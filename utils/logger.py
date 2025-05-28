@@ -3,8 +3,45 @@ import time
 from torch.utils.tensorboard import SummaryWriter
 from accelerate import Accelerator
 import torch
+from collections import deque
+from utils.misc import is_distributed
 
+class TPS:
+    """
+    Time Per Step.
+    """
+    def __init__(self, windows_size: int = 50):
+        self.tps_deque = deque(maxlen=windows_size)     # time per step.
 
+    def update(self, tps: float):
+        self.tps_deque.append(tps)
+
+    @property
+    def average(self):
+        tps_list = list(self.tps_deque)
+        _average = sum(tps_list) / len(tps_list)
+        if not is_distributed():
+            return _average
+        else:
+            _average = torch.tensor(_average, dtype=torch.float32, device="cuda")
+            torch.distributed.all_reduce(_average, op=torch.distributed.ReduceOp.AVG)
+            # print(_average)
+            return _average.item()
+
+    def eta(self, total_steps: int, current_steps: int):
+        return self.average * (total_steps - current_steps)
+
+    @classmethod
+    def timestamp(cls):
+        if torch.cuda.is_available():
+            torch.cuda.synchronize()
+        return time.time()
+
+    @classmethod
+    def format(cls, seconds: float):
+        m, s = divmod(seconds, 60)
+        h, m = divmod(m, 60)
+        return f"{int(h)}:{int(m)}:{int(s)}"
 class TensorBoardLogger:
     """TensorBoard Logger for training metrics"""
     

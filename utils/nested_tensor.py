@@ -84,6 +84,18 @@ def nested_tensor_from_tensor_list(tensor_list: List[torch.Tensor], size_divisib
         pad_mask[: input_tensor.shape[1], : input_tensor.shape[2]] = False
     return NestedTensor(tensors=tensor, mask=mask)
 
+def nested_tensor_from_tensor_list_during_training(tensor: torch.Tensor) -> NestedTensor:
+    """
+    Args:
+        tensor_list: List of tensors, each tensor should have shape (C, H, W)
+        size_divisibility:
+    Returns:
+    """
+    B, C, H, W = tensor.shape
+    mask = torch.ones((B, H, W), dtype=torch.bool, device=tensor.device)
+    # Fill the tensor and mask one by one:
+    return NestedTensor(tensors=tensor, mask=mask)
+
 
 def nested_tensor_index_select(nested_tensor: NestedTensor, dim: int, index: torch.Tensor):
     tensor, mask = nested_tensor.decompose()

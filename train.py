@@ -17,9 +17,7 @@ from collections import defaultdict
 from itertools import cycle
 
 from data.build import build_dataloader
-from data.sampler import DistributedBatchTaskBalancedSampler
-from utils import get_world_size, get_rank
-from utils.logger import TensorBoardLogger, MetricsTracker
+from utils.logger import TensorBoardLogger, MetricsTracker, TPS
 from models.multi_task import MultiTaskingSigLIP
 from runtime_option import runtime_option
 from utils.misc import set_seed
@@ -34,8 +32,11 @@ def train_engine(config: dict):
 
     # Init Accelerator at beginning:
     # accelerator = Accelerator()
+    # accelerator = Accelerator(
+    #     kwargs_handlers=[DistributedDataParallelKwargs(find_unused_parameters=True, broadcast_buffers=False)]
+    # )
     accelerator = Accelerator(
-        kwargs_handlers=[DistributedDataParallelKwargs(find_unused_parameters=True, broadcast_buffers=False)]
+        kwargs_handlers=[DistributedDataParallelKwargs(broadcast_buffers=False)]
     )
     state = PartialState()
     # Also, we set the seed:
@@ -83,8 +84,8 @@ def train_engine(config: dict):
     )
     
     model, optimizer = accelerator.prepare(model, optimizer)
-    dataloader_train_dict.values() = accelerator.prepare(dataloader_train_dict.values())
-    dataloader_test_dict.values() = accelerator.prepare(dataloader_test_dict.values())
+    dataloader_train_dict = {task: accelerator.prepare(dataloader) for task, dataloader in dataloader_train_dict.items()}
+    dataloader_test_dict = {task: accelerator.prepare(dataloader) for task, dataloader in dataloader_test_dict.items()}
     
     # Init the training states:
     train_states = {
@@ -93,6 +94,7 @@ def train_engine(config: dict):
     }
     
     for epoch in range(train_states["start_epoch"], config["EPOCHS"]):
+        epoch_start_timestamp = TPS.timestamp()
         # Train one epoch:
         train_one_epoch(
             config=config,
@@ -114,6 +116,7 @@ def train_engine(config: dict):
         )
         
         scheduler.step()
+        time_per_epoch = TPS.format(TPS.timestamp() - epoch_start_timestamp)
     
     # Close logger at the end of training
     if logger:
@@ -142,6 +145,8 @@ def train_one_epoch(
 ):
     current_last_checkpoint_idx = 0
     model.train()
+    tps = TPS()
+    step_timestamp = tps.timestamp()
     optimizer.zero_grad()
     device = accelerator.device
     
@@ -170,71 +175,83 @@ def train_one_epoch(
     for cur_iter in range(max_iterations):
         loss_dict = {}
         for task, dataloader in cycle_dataloader_dict.items():
-            batch = next(dataloader)
-            images, annotations, metas = batch
-            assert task == metas["task"]
-            
-            # Learning rate warmup:
-            if epoch < lr_warmup_epochs:
-                # Do warmup:
-                lr_warmup(
-                    optimizer=optimizer,
-                    epoch=epoch, curr_iter=cur_iter, tgt_lr=lr_warmup_tgt_lr,
-                    warmup_epochs=lr_warmup_epochs, num_iter_per_epoch=max_iterations,
-                )
+            with accelerator.autocast():
+                batch = next(dataloader)
+                images, annotations, metas = batch.values()
                 
-            # TODO: prepare DETR annotations to GT
-
-            # forward pass:
-            outputs = model(images, task)
-            
-            # TODO: compute loss
-            loss_task = loss_fn_dict[task](outputs, annotations)
-            loss_dict.update({f"{task}_{k}": v for k, v in loss_task.items()})
+                # Learning rate warmup:
+                if epoch < lr_warmup_epochs:
+                    # Do warmup:
+                    lr_warmup(
+                        optimizer=optimizer,
+                        epoch=epoch, curr_iter=cur_iter, tgt_lr=lr_warmup_tgt_lr,
+                        warmup_epochs=lr_warmup_epochs, num_iter_per_epoch=max_iterations,
+                    )
+                    
+                # forward pass:
+                outputs = model(images, task)
+                
+                loss_output = loss_fn_dict[task](outputs[task], annotations)
+                if task == "SoccerNetGSR_Detection":
+                    loss_task, _ = loss_output
+                else:
+                    loss_task = loss_output
+                
+                loss_dict.update({f"{task}_{k}": v for k, v in loss_task.items()})
             
         # backward pass:
                 # Backward:
-        with accelerator.autocast():
-            loss = sum(loss_dict.values())
-            loss /= accumulate_steps
-            accelerator.backward(loss)
+        # with accelerator.autocast():
+        loss = sum(loss_dict.values())
+        loss /= accumulate_steps
+        accelerator.backward(loss)
+        
+        if (cur_iter + 1) % accumulate_steps == 0:
+            if use_accelerate_clip_norm:
+                grad_norm = accelerator.clip_grad_norm_(model.parameters(), max_norm=max_clip_norm)
+            else:
+                accelerator.unscale_gradients()
+                grad_norm = torch.nn.utils.clip_grad_norm_(model.parameters(), max_clip_norm)
+            optimizer.step()
+            optimizer.zero_grad()
+                
+        # Update global step
+        states["global_step"] += 1
+        tps.update(TPS.timestamp() - step_timestamp)
+        step_timestamp = TPS.timestamp()
+        
+        # Add logging
+        if logger and (cur_iter + 1) % logging_interval == 0:
+            # Log losses
+            logger.log_loss_dict(loss_dict, states["global_step"], prefix="train")
             
-            if (cur_iter + 1) % accumulate_steps == 0:
-                if use_accelerate_clip_norm:
-                    grad_norm = accelerator.clip_grad_norm_(model.parameters(), max_norm=max_clip_norm)
-                else:
-                    accelerator.unscale_gradients()
-                    grad_norm = torch.nn.utils.clip_grad_norm_(model.parameters(), max_clip_norm)
-                optimizer.step()
-                optimizer.zero_grad()
-                
-                # Update global step
-                states["global_step"] += 1
-                
-                # Add logging
-                if logger and (cur_iter + 1) % logging_interval == 0:
-                    # Log losses
-                    logger.log_loss_dict(loss_dict, states["global_step"], prefix="train")
-                    
-                    # Log learning rate
-                    logger.log_learning_rate(optimizer, states["global_step"])
-                    
-                    # Log gradient norm
-                    logger.log_scalar("train/grad_norm", grad_norm, states["global_step"])
-                    
-                    # Log parameter and gradient statistics if enabled
-                    if config.get("LOG_PARAMS_GRADS", False):
-                        logger.log_model_parameters(model, states["global_step"])
-                    
-                    # Print progress
-                    total_loss = sum(loss_dict.values())
-                    if accelerator.is_main_process:
-                        accelerator.print(f"Epoch {epoch}, Iter {cur_iter+1}/{max_iterations}, "
-                                        f"Loss: {total_loss:.4f}, LR: {optimizer.param_groups[0]['lr']:.6f}")
-                
-                # Update metrics tracker
-                epoch_metrics.update(loss_dict)
+            # Log learning rate
+            logger.log_learning_rate(optimizer, states["global_step"])
+            
+            # Log gradient norm
+            logger.log_scalar("train/grad_norm", grad_norm, states["global_step"])
+            
+            # Log parameter and gradient statistics if enabled
+            if config.get("LOG_PARAMS_GRADS", False):
+                logger.log_model_parameters(model, states["global_step"])
+            
+            # Print progress
+            total_loss = sum(loss_dict.values())
+            if accelerator.is_main_process:
+                accelerator.print(f"Epoch {epoch}, Iter {cur_iter+1}/{max_iterations}, "
+                                f"Loss: {total_loss:.4f}, LR: {optimizer.param_groups[0]['lr']:.6f}")
+            
+            # Update metrics tracker
+            epoch_metrics.update(loss_dict)
+            
+            eta = tps.eta(total_steps=max_iterations, current_steps=cur_iter)
+            eta = TPS.format(eta)
+            accelerator.print(f"Epoch {epoch}, Iter {cur_iter+1}/{max_iterations}, "
+                            f"Loss: {total_loss:.4f}, LR: {optimizer.param_groups[0]['lr']:.6f}, "
+                            f"Time: {tps.format(TPS.timestamp() - step_timestamp)}, "
+                            f"ETA: {eta}")
     
+    states["start_epoch"] += 1
     # Log epoch-level metrics
     if logger:
         epoch_avg_metrics = epoch_metrics.get_averages()

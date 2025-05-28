@@ -2,7 +2,6 @@
 # Copyright (c) Ruopeng Gao. All Rights Reserved.
 
 import argparse
-from utils.misc import yaml_to_dict
 import yaml
 
 def yaml_to_dict(path: str):

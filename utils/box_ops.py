@@ -46,6 +46,16 @@ def box_cxcywh_to_xywh(boxes: torch.Tensor) -> torch.Tensor:
     return torch.stack(boxes, dim=-1)
 
 
+def bbox_xywh_to_cxcywh(boxes: torch.Tensor) -> torch.Tensor:
+    x, y, w, h = boxes.unbind(-1)
+    boxes = [
+        (x + 0.5 * w),
+        (y + 0.5 * h),
+        w,
+        h
+    ]
+    return torch.stack(boxes, dim=-1)
+
 def box_xywh_to_xyxy(boxes: torch.Tensor) -> torch.Tensor:
     x, y, w, h = boxes.unbind(-1)
     boxes = [

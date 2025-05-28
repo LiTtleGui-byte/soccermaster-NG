@@ -43,6 +43,7 @@ class MultiTaskingSigLIP(nn.Module):
         self.backbone = SiglipBackbone(config['CKPT_PATH'], config['TRAIN_BACKBONE'], False)
         
         # multi-task heads
+        self.multi_task_head = nn.ModuleDict()
         tasks = config["TASKS"]
         for task in tasks:
             if task == "SoccerNetGSR_Detection":

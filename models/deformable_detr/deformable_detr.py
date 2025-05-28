@@ -19,7 +19,7 @@ from torch import nn
 import math
 
 from utils import box_ops
-from utils.nested_tensor import NestedTensor, nested_tensor_from_tensor_list
+from utils.nested_tensor import NestedTensor, nested_tensor_from_tensor_list, nested_tensor_from_tensor_list_during_training
 from models.utils.misc import inverse_sigmoid, accuracy, interpolate
 from utils.misc import is_distributed, distributed_world_size
 from typing import Any, Dict, List, Tuple, Union, Generator
@@ -118,7 +118,7 @@ class DeformableDetrHead(nn.Module):
             for box_embed in self.bbox_embed:
                 nn.init.constant_(box_embed.layers[-1].bias.data[2:], 0.0)
 
-    def forward(self, global_features, local_features):
+    def forward(self, backbone_outputs):
         """ The forward expects a NestedTensor, which consists of:
                - samples.tensor: batched images, of shape [batch_size x 3 x H x W]
                - samples.mask: a binary mask of shape [batch_size x H x W], containing 1 on padded pixels
@@ -133,15 +133,19 @@ class DeformableDetrHead(nn.Module):
                - "aux_outputs": Optional, only returned when auxilary losses are activated. It is a list of
                                 dictionnaries containing the two above keys for each decoder layer.
         """
+        global_features, local_features = backbone_outputs['global_features'], backbone_outputs['local_features']
         N, L, D = local_features.shape
         local_features = local_features.permute(0, 2, 1).contiguous()
         Hf = Wf = int(math.sqrt(L))
         local_features = local_features.reshape(N, D, Hf, Wf)
         features = local_features
+        
+        # TODO: this will lead to a error, and can not backward gradient
+        features = [nested_tensor_from_tensor_list_during_training(features)]
 
-        samples = nested_tensor_from_tensor_list(features)
-
-        pos = self.position_encoding(features)
+        pos = []
+        for x in features:
+            pos.append(self.position_encoding(x).to(x.tensors.dtype))
         
         srcs = []
         masks = []
@@ -157,7 +161,7 @@ class DeformableDetrHead(nn.Module):
                     src = self.input_proj[l](features[-1].tensors)
                 else:
                     src = self.input_proj[l](srcs[-1])
-                m = samples.mask
+                m = features.mask
                 mask = F.interpolate(m[None].float(), size=src.shape[-2:]).to(torch.bool)[0]
                 pos_l = self.backbone[1](NestedTensor(src, mask)).to(src.dtype)
                 srcs.append(src)
@@ -613,13 +617,17 @@ def cvt_config_to_args(config: dict):
     detr_args.set_cost_class = config["DETR_SET_COST_CLASS"]
     detr_args.set_cost_bbox = config["DETR_SET_COST_BBOX"]
     detr_args.set_cost_giou = config["DETR_SET_COST_GIOU"]
+    detr_args.backbone_strides = [16]
+    detr_args.backbone_num_channels = [768]
+    
+    return detr_args
     
     
 def build_deformable_detr_head(config: dict):
     args = cvt_config_to_args(config)
     device = torch.device(args.device)
     
-    model = DeformableDetrHead(
+    head = DeformableDetrHead(
         position_encoding = build_position_encoding(args),
         transformer = build_deforamble_transformer(args),
         num_classes=args.num_classes,
@@ -631,13 +639,12 @@ def build_deformable_detr_head(config: dict):
         with_box_refine=args.with_box_refine,
         two_stage=args.two_stage,
     )
-    return model
+    return head
 
 def build_deformable_detr_criterion(config: dict):
     args = cvt_config_to_args(config)
     
-    weight_dict = {'loss_ce': args.cls_loss_coef, 'loss_bbox': args.bbox_loss_coef}
-    weight_dict['loss_giou'] = args.giou_loss_coef
+    weight_dict = {'loss_ce': args.cls_loss_coef, 'loss_bbox': args.bbox_loss_coef, 'loss_giou': args.giou_loss_coef}
     assert args.masks is False, "MASKS is not supported yet."
     if args.masks:
         weight_dict["loss_mask"] = args.mask_loss_coef
@@ -652,7 +659,7 @@ def build_deformable_detr_criterion(config: dict):
     
     detr_criterion = SetCriterion(
         num_classes=args.num_classes,
-        matcher=build_matcher(config),
+        matcher=build_matcher(args),
         weight_dict=weight_dict,
         losses = ['labels', 'boxes', 'cardinality'],
     )

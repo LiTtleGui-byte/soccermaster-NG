@@ -26,7 +26,7 @@ from PIL import Image
 from triton.language import dtype
 import numpy as np
 from torch.utils.data import DataLoader
-from utils.box_ops import box_xywh_to_xyxy, box_xyxy_to_cxcywh
+from utils.box_ops import box_xywh_to_xyxy, box_xyxy_to_cxcywh, box_cxcywh_to_xywh, bbox_xywh_to_cxcywh
 
 class SoccerNetGSR_Detection(Dataset):
     def __init__(
@@ -170,7 +170,7 @@ class SoccerNetGSR_Detection(Dataset):
         """
         self.sample_position = list()
         for sequence_name in self.annotations:
-            for frame_idx in self.annotations[sequence_name]:
+            for frame_idx in range(len(self.annotations[sequence_name])):
                 if self.annotations[sequence_name][frame_idx]["is_legal"]:
                     self.sample_position.append((sequence_name, frame_idx))
         return
@@ -183,23 +183,19 @@ class SoccerNetGSR_Detection(Dataset):
         image_path = self.image_paths[sequence_name][frame_idx]
         image = Image.open(image_path).convert("RGB")
         annotation = self.annotations[sequence_name][frame_idx]
-        
-        # used for DETR loss:
-        annotation['boxes'] = annotation['bbox']
-        annotation['labels'] = annotation['category']
-        
-        metas = [
-            {
-                "dataset": 'SoccerNetGSR_Detection',
+        metas = {"task": 'SoccerNetGSR_Detection',
                 "split": self.split,
                 "sequence": sequence_name,
                 "frame_idx": frame_idx,
                 "is_static": self.sequence_infos[sequence_name]["is_static"],
-                "size_divisibility": 1,
-            }
-        ]
+                "size_divisibility": 1,}
         if self.transforms is not None:
-            image, annotation = self.transforms(image, annotation, metas)
+            image, annotation, metas = self.transforms(image, annotation, metas)
+            
+        # used for DETR loss:
+        annotation['boxes'] = annotation['bbox']
+        annotation['labels'] = annotation['category']
+            
         return image, annotation, metas
 
 def build_gsr_detection_dataset(config: dict, split: str):
@@ -214,7 +210,7 @@ def build_gsr_detection_dataset(config: dict, split: str):
 
 def build_gsr_detection_dataloader(config: dict, split: str):
     dataset = build_gsr_detection_dataset(config, split)
-    return DataLoader(dataset, batch_size=config["BATCH_SIZE"], shuffle=True, collate_fn=collate_fn)
+    return DataLoader(dataset, batch_size=config["BATCH_SIZE"], shuffle=True, collate_fn=collate_fn, num_workers=config["NUM_WORKERS"])
 
 def is_legal(annotation: dict):
     assert "id" in annotation, "Annotation must have 'id' field."
@@ -282,6 +278,56 @@ class Normalize:
         annotation["bbox"] = annotation["bbox"] / torch.tensor([w, h, w, h])
         return image, annotation, metas
 
+def get_image_hw(image: torch.Tensor | list | Image.Image):
+    if isinstance(image, torch.Tensor):
+        return image.shape[-2], image.shape[-1]
+    elif isinstance(image, list):
+        return get_image_hw(image[0])
+    elif isinstance(image, Image.Image):
+        return image.height, image.width
+    else:
+        raise NotImplementedError("The input image type is not supported.")
+
+class RandomResize:
+    def __init__(self, sizes: list, max_size: int | None = None, keep_aspect_ratio: bool = True):
+        self.sizes = sizes
+        self.max_size = max_size
+        self.keep_aspect_ratio = keep_aspect_ratio
+
+    def __call__(self, image, annotation, metas):
+        new_size = random.choice(self.sizes)  # choose the size for images
+
+        def get_new_hw(_curr_hw: list, _new_size) -> tuple[int, int]:
+            _curr_h, _curr_w = _curr_hw
+            if self.keep_aspect_ratio:
+                if self.max_size is not None:  # need to restrict the longer side length
+                    _min_hw, _max_hw = float(min(_curr_h, _curr_w)), float(max(_curr_h, _curr_w))
+                    if _max_hw / _min_hw * _new_size > self.max_size:  # need to restrict the resize size
+                        _new_size = int(floor(self.max_size * _min_hw / _max_hw))
+                # Calculate the new height and width while maintaining aspect ratio:
+                if _curr_w < _curr_h:
+                    _new_w = _new_size
+                    _new_h = int(round(_new_size * _curr_h / _curr_w))
+                else:
+                    _new_h = _new_size
+                    _new_w = int(round(_new_size * _curr_w / _curr_h))
+                return _new_h, _new_w
+            else:
+                # When not keeping aspect ratio, just use the same size for both dimensions
+                return _new_size, _new_size
+
+        new_hw = get_new_hw(get_image_hw(image), _new_size=new_size)    # new yx
+        scale_ratio_x = new_hw[1] / get_image_hw(image)[1]
+        scale_ratio_y = new_hw[0] / get_image_hw(image)[0]
+        # Resize images:
+        if isinstance(image, torch.Tensor):
+            image = v2.functional.resize(image, new_hw)
+        else:
+            raise NotImplementedError(f"The input image type {type(image)} is not supported.")
+        # Resize annotations:
+        annotation["bbox"] = annotation["bbox"] * torch.as_tensor([scale_ratio_x, scale_ratio_y] * 2)
+        return image, annotation, metas
+
 class ToTensor:
     def __init__(self):
         return
@@ -291,15 +337,50 @@ class ToTensor:
         image = v2.functional.to_image(image)
         return image, annotation, metas
 
+class BoxXYWHtoXYXY:
+    def __init__(self):
+        return
+
+    def __call__(self, image, annotation, metas):
+        annotation["bbox"] = box_xywh_to_xyxy(annotation["bbox"])
+        return image, annotation, metas
+
+
+class BoxXYXYtoCXCYWH:
+    def __init__(self):
+        return
+
+    def __call__(self, image, annotation, metas):
+        annotation["bbox"] = box_xyxy_to_cxcywh(annotation["bbox"])
+        return image, annotation, metas
+
+class BoxCXCYWHtoXYWH:
+    def __init__(self):
+        return
+
+    def __call__(self, image, annotation, metas):
+        annotation["bbox"] = box_cxcywh_to_xywh(annotation["bbox"])
+        return image, annotation, metas
+
+class BoxXYWHtoCXCYWH:
+    def __init__(self):
+        return
+
+    def __call__(self, image, annotation, metas):
+        annotation["bbox"] = bbox_xywh_to_cxcywh(annotation["bbox"])
+        return image, annotation, metas
+
 def build_transforms(config: dict):
 
     return Compose([
         ToTensor(),
+        RandomResize(sizes=config["AUG_RANDOM_RESIZE"], max_size=config["AUG_MAX_SIZE"], keep_aspect_ratio=config["KEEP_ASPECT_RATIO"]),
         Normalize(mean=config["AUG_MEAN"], std=config["AUG_STD"]),
+        BoxXYWHtoCXCYWH(),
     ])
     
 def collate_fn(batch):
-    images, annotations, metas = zip(*batch)    # (B, H, W)
+    images, annotations, metas = zip(*batch)
     _B = len(batch)
     images = torch.stack(images)
     

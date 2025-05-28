@@ -28,8 +28,6 @@ class SiglipBackbone(nn.Module):
                  use_lora: bool):
         super().__init__()
         self.model = SiglipVisionModel.from_pretrained(ckpt_path, device_map="cpu").vision_model
-        self.strides = [16]
-        self.num_channels = [768]
         
         if train_backbone:
             for name, param in self.model.named_parameters():
