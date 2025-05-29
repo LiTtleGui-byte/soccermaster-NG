@@ -105,6 +105,19 @@ class SoccerNetGSR_Detection(Dataset):
     def _get_image_path(sequence_dir, frame_idx):
         return str(os.path.join(sequence_dir, "img1", f"{frame_idx+1:06d}.jpg"))    # the image name is 1-indexed
             
+    def _init_annotations(self, sequence_names):
+        annotations = dict()
+        for sequence_name in sequence_names:
+            annotations[sequence_name] = []
+            for i in range(self.sequence_infos[sequence_name]["length"]):
+                annotations[sequence_name].append({
+                    "id": [],
+                    "category": [],
+                    "bbox": [],
+                    "visibility": [],
+                })
+        return annotations
+    
     def _get_annotations(self):
         sequence_names = self._get_sequence_names()
         # Init the annotations:
@@ -123,13 +136,28 @@ class SoccerNetGSR_Detection(Dataset):
                 x, y, w, h = anno['bbox_image']['x'], anno['bbox_image']['y'], anno['bbox_image']['w'], anno['bbox_image']['h']
                 bbox = [x, y, w, h]
                 category, visibility = 0, 1.0
-                annotations[sequence_name][frame_idx] = append_annotation(
-                    annotation=annotations[sequence_name][frame_idx],
-                    obj_id=obj_id,
-                    category=category,
-                    bbox=bbox,
-                    visibility=visibility,
-                )
+                
+                # Append to lists instead of using torch.cat
+                annotations[sequence_name][frame_idx]["id"].append(obj_id)
+                annotations[sequence_name][frame_idx]["category"].append(category)
+                annotations[sequence_name][frame_idx]["bbox"].append(bbox)
+                annotations[sequence_name][frame_idx]["visibility"].append(visibility)
+        
+        # Convert lists to tensors in a single operation per frame
+        for sequence_name in sequence_names:
+            for i in range(self.sequence_infos[sequence_name]["length"]):
+                frame_annotation = annotations[sequence_name][i]
+                if len(frame_annotation["id"]) > 0:
+                    frame_annotation["id"] = torch.tensor(frame_annotation["id"], dtype=torch.int64)
+                    frame_annotation["category"] = torch.tensor(frame_annotation["category"], dtype=torch.int64)
+                    frame_annotation["bbox"] = torch.tensor(frame_annotation["bbox"], dtype=torch.float32)
+                    frame_annotation["visibility"] = torch.tensor(frame_annotation["visibility"], dtype=torch.float32)
+                else:
+                    # Empty frame
+                    frame_annotation["id"] = torch.zeros((0, ), dtype=torch.int64)
+                    frame_annotation["category"] = torch.zeros((0, ), dtype=torch.int64)
+                    frame_annotation["bbox"] = torch.zeros((0, 4), dtype=torch.float32)
+                    frame_annotation["visibility"] = torch.zeros((0, ), dtype=torch.float32)
             
         # Determine whether each annotation is legal:
         for sequence_name in sequence_names:
@@ -151,19 +179,6 @@ class SoccerNetGSR_Detection(Dataset):
             )
         return decoupled_is_legal_in_tensor
 
-    def _init_annotations(self, sequence_names):
-        annotations = dict()
-        for sequence_name in sequence_names:
-            annotations[sequence_name] = []
-            for i in range(self.sequence_infos[sequence_name]["length"]):
-                annotations[sequence_name].append({
-                    "id": torch.zeros((0, ), dtype=torch.int64),
-                    "category": torch.zeros((0, ), dtype=torch.int64),
-                    "bbox": torch.zeros((0, 4), dtype=torch.float32),
-                    "visibility": torch.zeros((0, ), dtype=torch.float32),
-                })
-        return annotations
-    
     def set_sample_position(self):
         """
         Set the position of each legal sample.

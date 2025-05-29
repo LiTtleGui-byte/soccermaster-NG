@@ -190,13 +190,11 @@ def train_one_epoch(
                         warmup_epochs=lr_warmup_epochs, num_iter_per_epoch=max_iterations,
                     )
                     
-                # forward pass:
                 outputs = model(images, task)
-                
                 loss_output = loss_fn_dict[task](outputs[task], annotations)
                 if task == "SoccerNetGSR_Detection":
                     loss_task_raw, weight_dict, _ = loss_output
-                    unweighted_loss_dict.update({f"{task}_{k}": v for k, v in loss_task_raw.items()})
+                    unweighted_loss_dict.update({f"{task}_{k}": v for k, v in loss_task_raw.items() if k in weight_dict})
                     loss_task = {k: (v * weight_dict[k]) for k, v in loss_task_raw.items() if k in weight_dict}
                     log_only_loss_dict.update({f"{task}_{k}": v for k, v in loss_task_raw.items() if k not in weight_dict})
                 else:
@@ -215,10 +213,26 @@ def train_one_epoch(
         
         if (cur_iter + 1) % accumulate_steps == 0:
             if use_accelerate_clip_norm:
-                grad_norm = accelerator.clip_grad_norm_(model.parameters(), max_norm=max_clip_norm)
+                # Clip gradients separately for backbone and each head
+                # Use model.module to access original model attributes when using DDP
+                original_model = model.module if hasattr(model, 'module') else model
+                backbone_grad_norm = accelerator.clip_grad_norm_(original_model.backbone.parameters(), max_norm=max_clip_norm)
+                head_grad_norms = {}
+                for task_name, head in original_model.multi_task_head.items():
+                    head_grad_norms[task_name] = accelerator.clip_grad_norm_(head.parameters(), max_norm=max_clip_norm)
+                # For logging purposes, we can use the backbone grad norm as the main grad_norm
+                grad_norm = backbone_grad_norm
             else:
                 accelerator.unscale_gradients()
-                grad_norm = torch.nn.utils.clip_grad_norm_(model.parameters(), max_clip_norm)
+                # Clip gradients separately for backbone and each head
+                # Use model.module to access original model attributes when using DDP
+                original_model = model.module if hasattr(model, 'module') else model
+                backbone_grad_norm = torch.nn.utils.clip_grad_norm_(original_model.backbone.parameters(), max_clip_norm)
+                head_grad_norms = {}
+                for task_name, head in original_model.multi_task_head.items():
+                    head_grad_norms[task_name] = torch.nn.utils.clip_grad_norm_(head.parameters(), max_clip_norm)
+                # For logging purposes, we can use the backbone grad norm as the main grad_norm
+                grad_norm = backbone_grad_norm
             optimizer.step()
             optimizer.zero_grad()
                 
@@ -229,16 +243,16 @@ def train_one_epoch(
         
         # Add logging
         if logger and (cur_iter + 1) % logging_interval == 0:
-            # Log weighted losses (used for backward)
             logger.log_loss_dict(loss_dict, states["global_step"], prefix="train_weighted")
-            # Log unweighted losses (original losses)
             logger.log_loss_dict(unweighted_loss_dict, states["global_step"], prefix="train_unweighted")
-            # Log other losses (log only)
             logger.log_loss_dict(log_only_loss_dict, states["global_step"], prefix="train_unweighted")
-            # Log learning rate
             logger.log_learning_rate(optimizer, states["global_step"])
             # Log gradient norm
-            logger.log_scalar("train/grad_norm", grad_norm, states["global_step"])
+            # logger.log_scalar("train/grad_norm", grad_norm, states["global_step"])
+            # Log separate gradient norms for backbone and each head
+            logger.log_scalar("train/backbone_grad_norm", backbone_grad_norm, states["global_step"])
+            for task_name, head_grad_norm in head_grad_norms.items():
+                logger.log_scalar(f"train/{task_name}_head_grad_norm", head_grad_norm, states["global_step"])
             # Log parameter and gradient statistics if enabled
             if config.get("LOG_PARAMS_GRADS", False):
                 logger.log_model_parameters(model, states["global_step"])
@@ -265,6 +279,10 @@ def train_one_epoch(
             _lr = optimizer.state_dict()["param_groups"][-1]["lr"]
             metrics["lr"].clear()
             metrics.update(name="lr", value=_lr)
+            # Add gradient norm metrics
+            metrics.update(name="backbone_grad_norm", value=backbone_grad_norm)
+            for task_name, head_grad_norm in head_grad_norms.items():
+                metrics.update(name=f"{task_name}_head_grad_norm", value=head_grad_norm)
             torch.cuda.synchronize()
             _cuda_memory = torch.cuda.max_memory_allocated(device) / 1024 / 1024
             _cuda_memory = torch.tensor([_cuda_memory], device=device)
@@ -283,11 +301,6 @@ def train_one_epoch(
                 global_step=states["global_step"],
             )
             
-            # logger.info(f"Epoch {epoch}, Iter {cur_iter+1}/{max_iterations}, "
-            #                 f"Loss: {total_loss:.4f}, LR: {optimizer.param_groups[0]['lr']:.6f}, "
-            #                 f"Time: {tps.format(TPS.timestamp() - step_timestamp)}, "
-            #                 f"ETA: {eta}")
-    
     states["start_epoch"] += 1
     # Log epoch-level metrics
     if logger:
