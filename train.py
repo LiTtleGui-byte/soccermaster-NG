@@ -173,7 +173,8 @@ def train_one_epoch(
     # fetch data until reaching max iterations
     cycle_dataloader_dict = {task: cycle(dataloader) for task, dataloader in dataloader_dict.items() }
     for cur_iter in range(max_iterations):
-        loss_dict = {}
+        loss_dict = {}  # 用于backward的加权loss
+        unweighted_loss_dict = {}  # 记录加权前的原始loss
         log_only_loss_dict = {}
         for task, dataloader in cycle_dataloader_dict.items():
             with accelerator.autocast():
@@ -194,14 +195,16 @@ def train_one_epoch(
                 
                 loss_output = loss_fn_dict[task](outputs[task], annotations)
                 if task == "SoccerNetGSR_Detection":
-                    loss_task, weight_dict, _ = loss_output
-                    loss_task = {k: (v * weight_dict[k]) for k, v in loss_task.items() if k in weight_dict}
-                    log_only_loss_dict.update({k: v for k, v in loss_task.items() if k not in weight_dict})
+                    loss_task_raw, weight_dict, _ = loss_output
+                    unweighted_loss_dict.update({f"{task}_{k}": v for k, v in loss_task_raw.items()})
+                    loss_task = {k: (v * weight_dict[k]) for k, v in loss_task_raw.items() if k in weight_dict}
+                    log_only_loss_dict.update({f"{task}_{k}": v for k, v in loss_task_raw.items() if k not in weight_dict})
                 else:
                     loss_task = loss_output
+                    # 对于其他任务，未加权和加权的loss相同
+                    unweighted_loss_dict.update({f"{task}_{k}": v for k, v in loss_task.items()})
                 
                 loss_dict.update({f"{task}_{k}": v for k, v in loss_task.items()})
-                log_only_loss_dict.update({f"{task}_{k}": v for k, v in log_only_loss_dict.items()})
             
         # backward pass:
                 # Backward:
@@ -226,9 +229,12 @@ def train_one_epoch(
         
         # Add logging
         if logger and (cur_iter + 1) % logging_interval == 0:
-            # Log losses
-            logger.log_loss_dict(loss_dict, states["global_step"], prefix="train")
-            logger.log_loss_dict(log_only_loss_dict, states["global_step"], prefix="train_log_only")
+            # Log weighted losses (used for backward)
+            logger.log_loss_dict(loss_dict, states["global_step"], prefix="train_weighted")
+            # Log unweighted losses (original losses)
+            logger.log_loss_dict(unweighted_loss_dict, states["global_step"], prefix="train_unweighted")
+            # Log other losses (log only)
+            logger.log_loss_dict(log_only_loss_dict, states["global_step"], prefix="train_unweighted")
             # Log learning rate
             logger.log_learning_rate(optimizer, states["global_step"])
             # Log gradient norm
@@ -239,15 +245,21 @@ def train_one_epoch(
             
             # Print progress
             total_loss = sum(loss_dict.values())
-            # Update metrics tracker (epoch metrics)
+            total_unweighted_loss = sum(unweighted_loss_dict.values())
+            
+            # Update metrics tracker (epoch metrics) - 记录所有类型的loss
             epoch_metrics.update(loss_dict)
+            epoch_metrics.update({f"unweighted_{k}": v for k, v in unweighted_loss_dict.items()})
             epoch_metrics.update(log_only_loss_dict)
 
             
             # Update metrics (iteration metrics)
-            metrics.update(name="total_loss", value=total_loss)
+            metrics.update(name="total_loss_weighted", value=total_loss)
+            metrics.update(name="total_loss_unweighted", value=total_unweighted_loss)
             for k, v in loss_dict.items():
-                metrics.update(name=k, value=v)
+                metrics.update(name=f"weighted_{k}", value=v)
+            for k, v in unweighted_loss_dict.items():
+                metrics.update(name=f"unweighted_{k}", value=v)
             for k, v in log_only_loss_dict.items():
                 metrics.update(name=k, value=v)
             _lr = optimizer.state_dict()["param_groups"][-1]["lr"]

@@ -148,6 +148,7 @@ class Metrics:
         for name, value in self.metrics.items():
             s += f"{name} = {value.fmt(fmt=fmt)}; "
         return s
+
 class Logger:
     """Logger for training metrics"""
     
