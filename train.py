@@ -171,27 +171,50 @@ def train_one_epoch(
     
     logger.info(f"Training epoch {epoch} with {max_iterations} iterations...")
     
-    # fetch data until one of the dataloaders is exhausted:
-    # for iteration in range(max_iterations):
-    #     is_exhausted = False
-    #     for task, dataloader in dataloader_dict.items():
-    #         try:
-    #             batch = next(dataloader)
-    #         except StopIteration:
-    #             is_exhausted = True
-    #             break
-    #     if is_exhausted:
-    #         break
-        
     # fetch data until reaching max iterations
-    cycle_dataloader_dict = {task: cycle(dataloader) for task, dataloader in dataloader_dict.items() }
+    # cycle will lead to memory leak, so we use iter instead
+    # cycle_dataloader_dict = {task: cycle(dataloader) for task, dataloader in dataloader_dict.items() }
+
+    # 备选方案：预计算采样策略 (适用于训练稳定后的优化)
+    # def create_balanced_sampling_plan(dataloader_lengths, max_iterations):
+    #     """创建平衡采样计划，避免运行时的动态重置"""
+    #     sampling_plan = {}
+    #     for task, length in dataloader_lengths.items():
+    #         # 计算每个任务需要重复多少轮
+    #         repeats = (max_iterations + length - 1) // length
+    #         indices = list(range(length)) * repeats
+    #         sampling_plan[task] = indices[:max_iterations]
+    #     return sampling_plan
+    # 
+    # # 使用示例：
+    # # sampling_plan = create_balanced_sampling_plan(dataloader_lengths, max_iterations)
+    # # 然后根据sampling_plan来索引数据
+
+    dataloader_iters = {task: iter(dataloader) for task, dataloader in dataloader_dict.items()}
+
+    # Track which dataloaders have been exhausted and reset
+    dataloader_lengths = {task: len(dataloader) for task, dataloader in dataloader_dict.items()}
+    dataloader_counters = {task: 0 for task in dataloader_dict.keys()}
+    logger.info(f"Dataloader lengths: {dataloader_lengths}")
+
     for cur_iter in range(max_iterations):
         loss_dict = {}  # 用于backward的加权loss
         unweighted_loss_dict = {}  # 记录加权前的原始loss
         log_only_loss_dict = {}
-        for task, dataloader in cycle_dataloader_dict.items():
+        # for task, dataloader in cycle_dataloader_dict.items():
+        for task, dataloader_iter in dataloader_iters.items():
             with accelerator.autocast():
-                batch = next(dataloader)
+                # batch = next(dataloader)
+                try:
+                    batch = next(dataloader_iter)
+                    dataloader_counters[task] += 1
+                except StopIteration:
+                    # Reset the dataloader iterator and counter when exhausted
+                    logger.info(f"Task {task} dataloader exhausted at iteration {cur_iter}, resetting...")
+                    dataloader_iters[task] = iter(dataloader_dict[task])
+                    dataloader_counters[task] = 1  # Reset counter to 1 (current batch)
+                    batch = next(dataloader_iters[task])
+                    
                 images, annotations, metas = batch.values()
                 
                 # Learning rate warmup:
@@ -224,20 +247,11 @@ def train_one_epoch(
         loss /= accumulate_steps
         accelerator.backward(loss)
         
-        # Log gradients for each layer in the backbone
-        # original_model = model.module if hasattr(model, 'module') else model
-        # for name, param in original_model.backbone.named_parameters():
-        #     if param.grad is not None:
-        #         logger.info(f"{name}: {param.grad.mean().item()}")
-        #     else:
-        #         logger.info(f"{name}: None")
-        # for task_name, head in original_model.multi_task_head.items():
-        #     for name, param in head.named_parameters():
-        #         if param.grad is not None:
-        #             logger.info(f"{name}: {param.grad.mean().item()}")
-        #         else:
-        #             logger.info(f"{name}: None")
-        # exit(0)
+        # 显式释放中间变量，防止显存泄漏
+        # del images, annotations, metas, outputs, loss_output
+        # if 'loss_task_raw' in locals():
+        #     del loss_task_raw
+        # del loss_task
         
         if (cur_iter + 1) % accumulate_steps == 0:
             if use_accelerate_clip_norm:
@@ -281,6 +295,14 @@ def train_one_epoch(
             logger.log_scalar("train_grad_norm/backbone_grad_norm", backbone_grad_norm, states["global_step"])
             for task_name, head_grad_norm in head_grad_norms.items():
                 logger.log_scalar(f"train_grad_norm/{task_name}_head_grad_norm", head_grad_norm, states["global_step"])
+            
+            # Log dataloader progress for each task
+            # for task_name, counter in dataloader_counters.items():
+            #     progress_ratio = counter / dataloader_lengths[task_name]
+            #     reset_count = counter // dataloader_lengths[task_name]
+            #     logger.log_scalar(f"dataloader_progress/{task_name}_progress", progress_ratio, states["global_step"])
+            #     logger.log_scalar(f"dataloader_progress/{task_name}_resets", reset_count, states["global_step"])
+            
             # Log parameter and gradient statistics if enabled
             if config.get("LOG_PARAMS_GRADS", False):
                 logger.log_model_parameters(model, states["global_step"])
@@ -296,21 +318,21 @@ def train_one_epoch(
 
             
             # Update metrics (iteration metrics)
-            metrics.update(name="weighted_total_loss", value=total_loss)
-            metrics.update(name="unweighted_total_loss", value=total_unweighted_loss)
+            metrics.update(name="weighted_total_loss", value=total_loss.detach())
+            metrics.update(name="unweighted_total_loss", value=total_unweighted_loss.detach())
             for k, v in loss_dict.items():
-                metrics.update(name=f"weighted_{k}", value=v)
+                metrics.update(name=f"weighted_{k}", value=v.detach())
             for k, v in unweighted_loss_dict.items():
-                metrics.update(name=f"unweighted_{k}", value=v)
+                metrics.update(name=f"unweighted_{k}", value=v.detach())
             for k, v in log_only_loss_dict.items():
-                metrics.update(name=k, value=v)
+                metrics.update(name=k, value=v.detach())
             _lr = optimizer.state_dict()["param_groups"][-1]["lr"]
             metrics["lr"].clear()
             metrics.update(name="lr", value=_lr)
             # Add gradient norm metrics
-            metrics.update(name="backbone_grad_norm", value=backbone_grad_norm)
+            metrics.update(name="backbone_grad_norm", value=backbone_grad_norm.detach())
             for task_name, head_grad_norm in head_grad_norms.items():
-                metrics.update(name=f"{task_name}_head_grad_norm", value=head_grad_norm)
+                metrics.update(name=f"{task_name}_head_grad_norm", value=head_grad_norm.detach())
             torch.cuda.synchronize()
             _cuda_memory = torch.cuda.max_memory_allocated(device) / 1024 / 1024
             _cuda_memory = torch.tensor([_cuda_memory], device=device)
@@ -328,7 +350,11 @@ def train_one_epoch(
                 metrics=metrics,
                 global_step=states["global_step"],
             )
-            
+        
+        # 清理当前iteration的变量，防止显存累积
+        # del loss_dict, unweighted_loss_dict, log_only_loss_dict, loss
+        # torch.cuda.empty_cache() if (cur_iter + 1) % (logging_interval * 5) == 0 else None  # 每隔一段时间清理一次缓存
+        
     states["start_epoch"] += 1
     # Log epoch-level metrics
     if logger:
