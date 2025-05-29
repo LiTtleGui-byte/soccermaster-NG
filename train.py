@@ -17,7 +17,7 @@ from collections import defaultdict
 from itertools import cycle
 
 from data.build import build_dataloader
-from utils.logger import TensorBoardLogger, MetricsTracker, TPS
+from utils.logger import Logger, MetricsTracker, TPS
 from models.multi_task import MultiTaskingSigLIP
 from runtime_option import runtime_option
 from utils.misc import set_seed
@@ -48,16 +48,15 @@ def train_engine(config: dict):
     # torch.autograd.set_detect_anomaly(True)
     
     # Init TensorBoard Logger:
-    logger = None
-    if config.get("USE_TENSORBOARD", False):
-        log_dir = config.get("TENSORBOARD_LOG_DIR")
-        if log_dir is None:
-            log_dir = os.path.join(outputs_dir, "logs")
-        logger = TensorBoardLogger(
-            log_dir=log_dir,
-            accelerator=accelerator,
-            flush_secs=config.get("TENSORBOARD_FLUSH_SECS", 30)
-        )
+    log_dir = os.path.join(outputs_dir, "logs")
+    logger = Logger(
+        log_dir=log_dir,
+        accelerator=accelerator,
+        config=config,
+        use_tensorboard=config.get("USE_TENSORBOARD", False),
+        tensorboard_flush_secs=config.get("TENSORBOARD_FLUSH_SECS", 30)
+    )
+    logger.config(config=config)
     
     # Build training dataset:
     dataloader_train_dict, dataloader_test_dict = build_dataloader(config=config)
@@ -120,9 +119,8 @@ def train_engine(config: dict):
     
     # Close logger at the end of training
     if logger:
-        logger.close()
-        if accelerator.is_main_process:
-            accelerator.print("Training completed. TensorBoard logger closed.")
+        logger.close_tb_writer()
+        logger.info("Training completed. TensorBoard logger closed.")
     
 def train_one_epoch(
         # Infos:
@@ -134,7 +132,7 @@ def train_one_epoch(
         loss_fn_dict: dict[str, nn.Module],
         model,
         optimizer,
-        logger: TensorBoardLogger = None,
+        logger: Logger = None,
         lr_warmup_epochs: int = 0,
         lr_warmup_tgt_lr: float = 1e-4,
         accumulate_steps: int = 1,
@@ -150,13 +148,14 @@ def train_one_epoch(
     optimizer.zero_grad()
     device = accelerator.device
     
+    assert accumulate_steps == 1, "accumulate_steps must be 1 for now."
+    
     max_iterations = max(len(dataloader) for dataloader in dataloader_dict.values())
     
     # Initialize metrics tracker for epoch-level logging
     epoch_metrics = MetricsTracker()
     
-    if logger and accelerator.is_main_process:
-        accelerator.print(f"Training epoch {epoch} with {max_iterations} iterations...")
+    logger.info(f"Training epoch {epoch} with {max_iterations} iterations...")
     
     # fetch data until one of the dataloaders is exhausted:
     # for iteration in range(max_iterations):
@@ -174,6 +173,7 @@ def train_one_epoch(
     cycle_dataloader_dict = {task: cycle(dataloader) for task, dataloader in dataloader_dict.items() }
     for cur_iter in range(max_iterations):
         loss_dict = {}
+        log_only_loss_dict = {}
         for task, dataloader in cycle_dataloader_dict.items():
             with accelerator.autocast():
                 batch = next(dataloader)
@@ -193,11 +193,14 @@ def train_one_epoch(
                 
                 loss_output = loss_fn_dict[task](outputs[task], annotations)
                 if task == "SoccerNetGSR_Detection":
-                    loss_task, _ = loss_output
+                    loss_task, weight_dict, _ = loss_output
+                    loss_task = {k: (v * weight_dict[k]) for k, v in loss_task.items() if k in weight_dict}
+                    log_only_loss_dict.update({k: v for k, v in loss_task.items() if k not in weight_dict})
                 else:
                     loss_task = loss_output
                 
                 loss_dict.update({f"{task}_{k}": v for k, v in loss_task.items()})
+                log_only_loss_dict.update({f"{task}_{k}": v for k, v in log_only_loss_dict.items()})
             
         # backward pass:
                 # Backward:
@@ -224,7 +227,7 @@ def train_one_epoch(
         if logger and (cur_iter + 1) % logging_interval == 0:
             # Log losses
             logger.log_loss_dict(loss_dict, states["global_step"], prefix="train")
-            
+            logger.log_loss_dict(log_only_loss_dict, states["global_step"], prefix="train_log_only")
             # Log learning rate
             logger.log_learning_rate(optimizer, states["global_step"])
             
@@ -237,16 +240,14 @@ def train_one_epoch(
             
             # Print progress
             total_loss = sum(loss_dict.values())
-            if accelerator.is_main_process:
-                accelerator.print(f"Epoch {epoch}, Iter {cur_iter+1}/{max_iterations}, "
-                                f"Loss: {total_loss:.4f}, LR: {optimizer.param_groups[0]['lr']:.6f}")
             
             # Update metrics tracker
             epoch_metrics.update(loss_dict)
+            epoch_metrics.update(log_only_loss_dict)
             
             eta = tps.eta(total_steps=max_iterations, current_steps=cur_iter)
             eta = TPS.format(eta)
-            accelerator.print(f"Epoch {epoch}, Iter {cur_iter+1}/{max_iterations}, "
+            logger.info(f"Epoch {epoch}, Iter {cur_iter+1}/{max_iterations}, "
                             f"Loss: {total_loss:.4f}, LR: {optimizer.param_groups[0]['lr']:.6f}, "
                             f"Time: {tps.format(TPS.timestamp() - step_timestamp)}, "
                             f"ETA: {eta}")
@@ -259,10 +260,8 @@ def train_one_epoch(
             logger.log_scalar(f"epoch/{key}", value, epoch)
         
         # Flush logger at the end of epoch
-        logger.flush()
-        
-        if accelerator.is_main_process:
-            accelerator.print(f"Epoch {epoch} completed. Average losses: {epoch_avg_metrics}")
+        logger.flush_tb_writer()
+        logger.info(f"Epoch {epoch} completed. Average losses: {epoch_avg_metrics}")
        
 def lr_warmup(optimizer, epoch: int, curr_iter: int, tgt_lr: float, warmup_epochs: int, num_iter_per_epoch: int):
     # min_lr = 1e-8

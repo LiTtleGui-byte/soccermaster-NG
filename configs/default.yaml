@@ -9,7 +9,7 @@ PREFETCH_FACTOR: 6
 DEVICE: cuda
 
 # Outputs settings:
-OUTPUTS_DIR: ./outputs/                # outputs directory
+OUTPUTS_DIR:                 # outputs directory
 USE_WANDB: False             # use wandb or not
 USE_TENSORBOARD: True        # use tensorboard logging
 TENSORBOARD_LOG_DIR:         # tensorboard log directory (if None, will use OUTPUTS_DIR/logs)

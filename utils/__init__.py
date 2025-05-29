@@ -1,3 +1,3 @@
 # Copyright (c) Ruopeng Gao. All Rights Reserved.
 
-from .logger import TensorBoardLogger, MetricsTracker, TPS
+from .logger import Logger, MetricsTracker, TPS

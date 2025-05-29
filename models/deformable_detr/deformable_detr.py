@@ -451,9 +451,9 @@ class SetCriterion(nn.Module):
                 l_dict = {k + f'_enc': v for k, v in l_dict.items()}
                 losses.update(l_dict)
                 
-        losses = {k: (v * self.weight_dict[k] if k in self.weight_dict else v) for k, v in losses.items()}
+        # losses = {k: (v * self.weight_dict[k] if k in self.weight_dict else v) for k, v in losses.items()}
 
-        return losses, indices
+        return losses, self.weight_dict, indices
 
 
 class PostProcess(nn.Module):
