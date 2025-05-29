@@ -92,7 +92,7 @@ def nested_tensor_from_tensor_list_during_training(tensor: torch.Tensor) -> Nest
     Returns:
     """
     B, C, H, W = tensor.shape
-    mask = torch.ones((B, H, W), dtype=torch.bool, device=tensor.device)
+    mask = torch.zeros((B, H, W), dtype=torch.bool, device=tensor.device)
     # Fill the tensor and mask one by one:
     return NestedTensor(tensors=tensor, mask=mask)
 

@@ -92,6 +92,19 @@ def train_engine(config: dict):
         "global_step": 0
     }
     
+    total_params = sum(p.numel() for p in model.parameters())
+    trainable_params = sum(p.numel() for p in model.parameters() if p.requires_grad)
+    trainable_percentage = (trainable_params / total_params) * 100
+    logger.info(f"Total parameters: {total_params:,}")
+    logger.info(f"Trainable parameters: {trainable_params:,} ({trainable_percentage:.2f}%)")
+    logger.info(f"Non-trainable parameters: {total_params - trainable_params:,} ({100 - trainable_percentage:.2f}%)")
+    
+    # Print names of non-trainable parameters
+    logger.info("Non-trainable layers:")
+    for name, param in model.named_parameters():
+        if not param.requires_grad:
+            logger.info(f"  {name}")
+    
     for epoch in range(train_states["start_epoch"], config["EPOCHS"]):
         epoch_start_timestamp = TPS.timestamp()
         # Train one epoch:
@@ -211,6 +224,21 @@ def train_one_epoch(
         loss /= accumulate_steps
         accelerator.backward(loss)
         
+        # Log gradients for each layer in the backbone
+        # original_model = model.module if hasattr(model, 'module') else model
+        # for name, param in original_model.backbone.named_parameters():
+        #     if param.grad is not None:
+        #         logger.info(f"{name}: {param.grad.mean().item()}")
+        #     else:
+        #         logger.info(f"{name}: None")
+        # for task_name, head in original_model.multi_task_head.items():
+        #     for name, param in head.named_parameters():
+        #         if param.grad is not None:
+        #             logger.info(f"{name}: {param.grad.mean().item()}")
+        #         else:
+        #             logger.info(f"{name}: None")
+        # exit(0)
+        
         if (cur_iter + 1) % accumulate_steps == 0:
             if use_accelerate_clip_norm:
                 # Clip gradients separately for backbone and each head
@@ -245,14 +273,14 @@ def train_one_epoch(
         if logger and (cur_iter + 1) % logging_interval == 0:
             logger.log_loss_dict(loss_dict, states["global_step"], prefix="train_weighted")
             logger.log_loss_dict(unweighted_loss_dict, states["global_step"], prefix="train_unweighted")
-            logger.log_loss_dict(log_only_loss_dict, states["global_step"], prefix="train_unweighted")
+            logger.log_loss_dict(log_only_loss_dict, states["global_step"], prefix="train_unweighted", count_sum=False)
             logger.log_learning_rate(optimizer, states["global_step"])
             # Log gradient norm
             # logger.log_scalar("train/grad_norm", grad_norm, states["global_step"])
             # Log separate gradient norms for backbone and each head
-            logger.log_scalar("train/backbone_grad_norm", backbone_grad_norm, states["global_step"])
+            logger.log_scalar("train_grad_norm/backbone_grad_norm", backbone_grad_norm, states["global_step"])
             for task_name, head_grad_norm in head_grad_norms.items():
-                logger.log_scalar(f"train/{task_name}_head_grad_norm", head_grad_norm, states["global_step"])
+                logger.log_scalar(f"train_grad_norm/{task_name}_head_grad_norm", head_grad_norm, states["global_step"])
             # Log parameter and gradient statistics if enabled
             if config.get("LOG_PARAMS_GRADS", False):
                 logger.log_model_parameters(model, states["global_step"])
@@ -268,8 +296,8 @@ def train_one_epoch(
 
             
             # Update metrics (iteration metrics)
-            metrics.update(name="total_loss_weighted", value=total_loss)
-            metrics.update(name="total_loss_unweighted", value=total_unweighted_loss)
+            metrics.update(name="weighted_total_loss", value=total_loss)
+            metrics.update(name="unweighted_total_loss", value=total_unweighted_loss)
             for k, v in loss_dict.items():
                 metrics.update(name=f"weighted_{k}", value=v)
             for k, v in unweighted_loss_dict.items():

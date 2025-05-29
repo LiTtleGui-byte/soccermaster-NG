@@ -240,7 +240,7 @@ class Logger:
         if self.tb_writer is not None:
             self.tb_writer.add_scalars(main_tag, tag_scalar_dict, step)
     
-    def log_loss_dict(self, loss_dict: dict, step: int, prefix: str = "train"):
+    def log_loss_dict(self, loss_dict: dict, step: int, prefix: str = "train", count_sum: bool = True):
         """
         Log loss dictionary to tensorboard
         
@@ -251,8 +251,9 @@ class Logger:
         """
         if self.tb_writer is not None:
             # Log total loss
-            total_loss = sum(v for v in loss_dict.values() if torch.is_tensor(v))
-            self.log_scalar(f"{prefix}/total_loss", total_loss.item() if torch.is_tensor(total_loss) else total_loss, step)
+            if count_sum:
+                total_loss = sum(v for v in loss_dict.values() if torch.is_tensor(v))
+                self.log_scalar(f"{prefix}/total_loss", total_loss.item() if torch.is_tensor(total_loss) else total_loss, step)
             
             # Log individual losses
             for key, value in loss_dict.items():
