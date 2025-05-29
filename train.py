@@ -17,7 +17,7 @@ from collections import defaultdict
 from itertools import cycle
 
 from data.build import build_dataloader
-from utils.logger import Logger, MetricsTracker, TPS
+from utils.logger import Logger, MetricsTracker, TPS, Metrics
 from models.multi_task import MultiTaskingSigLIP
 from runtime_option import runtime_option
 from utils.misc import set_seed
@@ -144,6 +144,7 @@ def train_one_epoch(
     current_last_checkpoint_idx = 0
     model.train()
     tps = TPS()
+    metrics = Metrics()
     step_timestamp = tps.timestamp()
     optimizer.zero_grad()
     device = accelerator.device
@@ -230,27 +231,50 @@ def train_one_epoch(
             logger.log_loss_dict(log_only_loss_dict, states["global_step"], prefix="train_log_only")
             # Log learning rate
             logger.log_learning_rate(optimizer, states["global_step"])
-            
             # Log gradient norm
             logger.log_scalar("train/grad_norm", grad_norm, states["global_step"])
-            
             # Log parameter and gradient statistics if enabled
             if config.get("LOG_PARAMS_GRADS", False):
                 logger.log_model_parameters(model, states["global_step"])
             
             # Print progress
             total_loss = sum(loss_dict.values())
-            
-            # Update metrics tracker
+            # Update metrics tracker (epoch metrics)
             epoch_metrics.update(loss_dict)
             epoch_metrics.update(log_only_loss_dict)
+
             
+            # Update metrics (iteration metrics)
+            metrics.update(name="total_loss", value=total_loss)
+            for k, v in loss_dict.items():
+                metrics.update(name=k, value=v)
+            for k, v in log_only_loss_dict.items():
+                metrics.update(name=k, value=v)
+            _lr = optimizer.state_dict()["param_groups"][-1]["lr"]
+            metrics["lr"].clear()
+            metrics.update(name="lr", value=_lr)
+            torch.cuda.synchronize()
+            _cuda_memory = torch.cuda.max_memory_allocated(device) / 1024 / 1024
+            _cuda_memory = torch.tensor([_cuda_memory], device=device)
+            _gathered_cuda_memory = accelerator.gather(_cuda_memory)
+            _max_cuda_memory = _gathered_cuda_memory.max().item()
+            accelerator.wait_for_everyone()
+            metrics["max_cuda_mem(MB)"].clear()
+            metrics.update(name="max_cuda_mem(MB)", value=_max_cuda_memory)
+            metrics.sync()
             eta = tps.eta(total_steps=max_iterations, current_steps=cur_iter)
             eta = TPS.format(eta)
-            logger.info(f"Epoch {epoch}, Iter {cur_iter+1}/{max_iterations}, "
-                            f"Loss: {total_loss:.4f}, LR: {optimizer.param_groups[0]['lr']:.6f}, "
-                            f"Time: {tps.format(TPS.timestamp() - step_timestamp)}, "
-                            f"ETA: {eta}")
+            logger.metrics(
+                log=f"[Epoch: {epoch}] [{cur_iter}/{max_iterations}] "
+                    f"[tps: {tps.average:.2f}s] [eta: {eta}] ",
+                metrics=metrics,
+                global_step=states["global_step"],
+            )
+            
+            # logger.info(f"Epoch {epoch}, Iter {cur_iter+1}/{max_iterations}, "
+            #                 f"Loss: {total_loss:.4f}, LR: {optimizer.param_groups[0]['lr']:.6f}, "
+            #                 f"Time: {tps.format(TPS.timestamp() - step_timestamp)}, "
+            #                 f"ETA: {eta}")
     
     states["start_epoch"] += 1
     # Log epoch-level metrics
