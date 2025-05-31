@@ -31,7 +31,8 @@ class SiglipBackbone(nn.Module):
         
         if train_backbone:
             for name, param in self.model.named_parameters():
-                param.requires_grad = not name.startswith('head')
+                # param.requires_grad = not name.startswith('head')
+                param.requires_grad = True
         else:
             for param in self.model.parameters():
                 param.requires_grad = False

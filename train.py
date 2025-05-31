@@ -231,8 +231,13 @@ def train_one_epoch(
                     outputs = model(images, task)
                     
                 loss_output = loss_fn_dict[task](outputs[task], annotations)
-                if task == "SoccerNetGSR_Detection":
+                if task in ["SoccerNetGSR_Detection", ]:
                     loss_task_raw, weight_dict, _ = loss_output
+                    unweighted_loss_dict.update({f"{task}_{k}": v for k, v in loss_task_raw.items() if k in weight_dict})
+                    loss_task = {k: (v * weight_dict[k]) for k, v in loss_task_raw.items() if k in weight_dict}
+                    log_only_loss_dict.update({f"{task}_{k}": v for k, v in loss_task_raw.items() if k not in weight_dict})
+                elif task in ["SoccerNetGSR_ReID"]:
+                    loss_task_raw, weight_dict = loss_output
                     unweighted_loss_dict.update({f"{task}_{k}": v for k, v in loss_task_raw.items() if k in weight_dict})
                     loss_task = {k: (v * weight_dict[k]) for k, v in loss_task_raw.items() if k in weight_dict}
                     log_only_loss_dict.update({f"{task}_{k}": v for k, v in loss_task_raw.items() if k not in weight_dict})

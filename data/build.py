@@ -1,5 +1,6 @@
 from data.tracking import build_tracking_dataset
 from data.SoccerNetGSR_Detection import build_gsr_detection_dataloader
+from data.SoccerNetGSR_ReID import build_gsr_reid_dataloader
 
 def build_dataloader(config: dict):
     dataloader_train_dict = {}
@@ -9,6 +10,9 @@ def build_dataloader(config: dict):
         if task == "SoccerNetGSR_Detection":
             dataloader_train_dict[task] = build_gsr_detection_dataloader(config=config, split="train")
             dataloader_test_dict[task] = build_gsr_detection_dataloader(config=config, split="test")
+        elif task == "SoccerNetGSR_ReID":
+            dataloader_train_dict[task] = build_gsr_reid_dataloader(config=config, split="train")
+            dataloader_test_dict[task] = None
         else:
             raise ValueError(f"Task {task} is not supported.")
 

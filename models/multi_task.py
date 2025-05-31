@@ -24,6 +24,7 @@ from transformers.utils import (
 
 from models.siglip2 import SiglipBackbone
 from models.deformable_detr.deformable_detr import build_deformable_detr_head
+from models.SoccerNetGSR_ReID import build_soccer_net_gsr_reid_head
 
 def build_backbone(config: dict):
     # position_embedding = build_position_encoding(args)
@@ -48,6 +49,8 @@ class MultiTaskingSigLIP(nn.Module):
         for task in tasks:
             if task == "SoccerNetGSR_Detection":
                 self.multi_task_head[task] = build_deformable_detr_head(config)
+            elif task == "SoccerNetGSR_ReID":
+                self.multi_task_head[task] = build_soccer_net_gsr_reid_head(config)
             else:
                 raise ValueError(f"Task {task} is not supported.")
 

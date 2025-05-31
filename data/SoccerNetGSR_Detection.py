@@ -13,20 +13,11 @@ from PIL import Image
 from torchvision.transforms import v2
 from collections import defaultdict
 from torch.utils.data import Dataset
-from utils.nested_tensor import nested_tensor_from_tensor_list
-import copy
-import math
-import torch
-import einops
 import random
-from torchvision.transforms import v2
-import torchvision.transforms as T
 from math import floor
-from PIL import Image
-from triton.language import dtype
-import numpy as np
 from torch.utils.data import DataLoader
 from utils.box_ops import box_xywh_to_xyxy, box_xyxy_to_cxcywh, box_cxcywh_to_xywh, bbox_xywh_to_cxcywh
+from data.utils import Compose, ToTensor, RandomResize, Normalize, get_image_hw
 
 class SoccerNetGSR_Detection(Dataset):
     def __init__(
@@ -272,37 +263,6 @@ def append_annotation(
     ])
     return annotation
 
-class Compose:
-    def __init__(self, transforms):
-        self.transforms = transforms
-
-    def __call__(self, image, annotation, metas):
-        for transform in self.transforms:
-            image, annotation, metas = transform(image, annotation, metas)
-        return image, annotation, metas
-
-class Normalize:
-    def __init__(self, mean, std):
-        self.mean = mean
-        self.std = std
-
-    def __call__(self, image, annotation, metas):
-        image = image.to(torch.float32).div(255)
-        image = v2.functional.normalize(image, mean=self.mean, std=self.std)
-        h, w = image.shape[-2:]
-        annotation["bbox"] = annotation["bbox"] / torch.tensor([w, h, w, h])
-        return image, annotation, metas
-
-def get_image_hw(image: torch.Tensor | list | Image.Image):
-    if isinstance(image, torch.Tensor):
-        return image.shape[-2], image.shape[-1]
-    elif isinstance(image, list):
-        return get_image_hw(image[0])
-    elif isinstance(image, Image.Image):
-        return image.height, image.width
-    else:
-        raise NotImplementedError("The input image type is not supported.")
-
 class RandomResize:
     def __init__(self, sizes: list, max_size: int | None = None, keep_aspect_ratio: bool = True):
         self.sizes = sizes
@@ -341,15 +301,6 @@ class RandomResize:
             raise NotImplementedError(f"The input image type {type(image)} is not supported.")
         # Resize annotations:
         annotation["bbox"] = annotation["bbox"] * torch.as_tensor([scale_ratio_x, scale_ratio_y] * 2)
-        return image, annotation, metas
-
-class ToTensor:
-    def __init__(self):
-        return
-
-    def __call__(self, image, annotation, metas):
-        assert isinstance(image, Image.Image)
-        image = v2.functional.to_image(image)
         return image, annotation, metas
 
 class BoxXYWHtoXYXY:
