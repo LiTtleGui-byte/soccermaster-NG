@@ -171,10 +171,6 @@ def train_one_epoch(
     
     logger.info(f"Training epoch {epoch} with {max_iterations} iterations...")
     
-    # fetch data until reaching max iterations
-    # cycle will lead to memory leak, so we use iter instead
-    # cycle_dataloader_dict = {task: cycle(dataloader) for task, dataloader in dataloader_dict.items() }
-
     # 备选方案：预计算采样策略 (适用于训练稳定后的优化)
     # def create_balanced_sampling_plan(dataloader_lengths, max_iterations):
     #     """创建平衡采样计划，避免运行时的动态重置"""
@@ -191,6 +187,7 @@ def train_one_epoch(
     # # 然后根据sampling_plan来索引数据
 
     dataloader_iters = {task: iter(dataloader) for task, dataloader in dataloader_dict.items()}
+    len_tasks = len(dataloader_iters)
 
     # Track which dataloaders have been exhausted and reset
     dataloader_lengths = {task: len(dataloader) for task, dataloader in dataloader_dict.items()}
@@ -201,7 +198,8 @@ def train_one_epoch(
         loss_dict = {}  # 用于backward的加权loss
         unweighted_loss_dict = {}  # 记录加权前的原始loss
         log_only_loss_dict = {}
-        # for task, dataloader in cycle_dataloader_dict.items():
+        
+        # 逐任务处理，每个任务计算完立即backward以减少显存占用
         for task, dataloader_iter in dataloader_iters.items():
             with accelerator.autocast():
                 # batch = next(dataloader)
@@ -225,8 +223,13 @@ def train_one_epoch(
                         epoch=epoch, curr_iter=cur_iter, tgt_lr=lr_warmup_tgt_lr,
                         warmup_epochs=lr_warmup_epochs, num_iter_per_epoch=max_iterations,
                     )
+                
+                # 可选：使用梯度检查点进一步减少显存（会增加计算时间）
+                if config.get("USE_GRADIENT_CHECKPOINTING", False):
+                    outputs = torch.utils.checkpoint.checkpoint(model, images, task, use_reentrant=False)
+                else:
+                    outputs = model(images, task)
                     
-                outputs = model(images, task)
                 loss_output = loss_fn_dict[task](outputs[task], annotations)
                 if task == "SoccerNetGSR_Detection":
                     loss_task_raw, weight_dict, _ = loss_output
@@ -240,19 +243,22 @@ def train_one_epoch(
                 
                 loss_dict.update({f"{task}_{k}": v for k, v in loss_task.items()})
             
-        # backward pass:
-                # Backward:
-        # with accelerator.autocast():
-        loss = sum(loss_dict.values())
-        loss /= accumulate_steps
-        accelerator.backward(loss)
+            # 立即对当前任务进行backward，减少显存占用
+            task_total_loss = sum(loss_task.values())
+            task_total_loss /= (accumulate_steps * len_tasks)  # 除以任务数量进行平均
+            accelerator.backward(task_total_loss)
+            
+            # 显式释放当前任务的中间变量，防止显存泄漏
+            # del images, annotations, metas, outputs, loss_output
+            # if 'loss_task_raw' in locals():
+            #     del loss_task_raw
+            # del loss_task, task_total_loss
+            
+            # 可选：每个任务后清理CUDA缓存（会影响性能，但最大化显存释放）
+            if config.get("AGGRESSIVE_MEMORY_CLEANUP", False):
+                torch.cuda.empty_cache()
         
-        # 显式释放中间变量，防止显存泄漏
-        # del images, annotations, metas, outputs, loss_output
-        # if 'loss_task_raw' in locals():
-        #     del loss_task_raw
-        # del loss_task
-        
+        # 梯度裁剪和参数更新
         if (cur_iter + 1) % accumulate_steps == 0:
             if use_accelerate_clip_norm:
                 # Clip gradients separately for backbone and each head
@@ -272,7 +278,7 @@ def train_one_epoch(
                 backbone_grad_norm = torch.nn.utils.clip_grad_norm_(original_model.backbone.parameters(), max_clip_norm)
                 head_grad_norms = {}
                 for task_name, head in original_model.multi_task_head.items():
-                    head_grad_norms[task_name] = torch.nn.utils.clip_grad_norm_(head.parameters(), max_clip_norm)
+                    head_grad_norms[task_name] = torch.nn.utils.clip_grad_norm_(head.parameters(), max_norm=max_clip_norm)
                 # For logging purposes, we can use the backbone grad norm as the main grad_norm
                 grad_norm = backbone_grad_norm
             optimizer.step()
@@ -330,9 +336,10 @@ def train_one_epoch(
             metrics["lr"].clear()
             metrics.update(name="lr", value=_lr)
             # Add gradient norm metrics
-            metrics.update(name="backbone_grad_norm", value=backbone_grad_norm.detach())
-            for task_name, head_grad_norm in head_grad_norms.items():
-                metrics.update(name=f"{task_name}_head_grad_norm", value=head_grad_norm.detach())
+            if 'backbone_grad_norm' in locals():
+                metrics.update(name="backbone_grad_norm", value=backbone_grad_norm.detach())
+                for task_name, head_grad_norm in head_grad_norms.items():
+                    metrics.update(name=f"{task_name}_head_grad_norm", value=head_grad_norm.detach())
             torch.cuda.synchronize()
             _cuda_memory = torch.cuda.max_memory_allocated(device) / 1024 / 1024
             _cuda_memory = torch.tensor([_cuda_memory], device=device)
@@ -352,8 +359,10 @@ def train_one_epoch(
             )
         
         # 清理当前iteration的变量，防止显存累积
-        # del loss_dict, unweighted_loss_dict, log_only_loss_dict, loss
-        # torch.cuda.empty_cache() if (cur_iter + 1) % (logging_interval * 5) == 0 else None  # 每隔一段时间清理一次缓存
+        # del loss_dict, unweighted_loss_dict, log_only_loss_dict
+        # 定期清理CUDA缓存
+        if (cur_iter + 1) % (logging_interval * 2) == 0:
+            torch.cuda.empty_cache()
         
     states["start_epoch"] += 1
     # Log epoch-level metrics

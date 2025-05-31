@@ -21,3 +21,4 @@ build/
 *.egg
 models/ops/MultiScaleDeformableAttention.egg-info/PKG-INFO
 models/deformable_detr/ops/MultiScaleDeformableAttention.egg-info/PKG-INFO
+memory_demo.py
