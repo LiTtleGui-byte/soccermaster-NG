@@ -24,6 +24,7 @@ from models.utils.misc import inverse_sigmoid, accuracy, interpolate
 from utils.misc import is_distributed, distributed_world_size
 from typing import Any, Dict, List, Tuple, Union, Generator
 from collections import defaultdict
+import copy
 
 
 from models.deformable_detr.position_encoding import build_position_encoding
@@ -31,7 +32,7 @@ from .matcher import build_matcher
 from .segmentation import (DETRsegm, PostProcessPanoptic, PostProcessSegm,
                            dice_loss, sigmoid_focal_loss)
 from .deformable_transformer import build_deforamble_transformer
-import copy
+from data.SoccerNetGSR_ReID import role_mapping
 
 
 def _get_clones(module, N):
@@ -61,6 +62,9 @@ class DeformableDetrHead(nn.Module):
         hidden_dim = transformer.d_model
         self.class_embed = nn.Linear(hidden_dim, num_classes)
         self.bbox_embed = MLP(hidden_dim, hidden_dim, 4, 3)
+        num_role_classes = len(role_mapping)
+        self.role_embed = nn.Linear(hidden_dim, num_role_classes)
+        self.num_role_classes = num_role_classes
         self.num_feature_levels = num_feature_levels
         if not two_stage:
             self.query_embed = nn.Embedding(num_queries, hidden_dim*2)
@@ -93,6 +97,7 @@ class DeformableDetrHead(nn.Module):
         prior_prob = 0.01
         bias_value = -math.log((1 - prior_prob) / prior_prob)
         self.class_embed.bias.data = torch.ones(num_classes) * bias_value
+        self.role_embed.bias.data = torch.ones(num_role_classes) * bias_value
         nn.init.constant_(self.bbox_embed.layers[-1].weight.data, 0)
         nn.init.constant_(self.bbox_embed.layers[-1].bias.data, 0)
         for proj in self.input_proj:
@@ -104,6 +109,7 @@ class DeformableDetrHead(nn.Module):
         if with_box_refine:
             self.class_embed = _get_clones(self.class_embed, num_pred)
             self.bbox_embed = _get_clones(self.bbox_embed, num_pred)
+            self.role_embed = _get_clones(self.role_embed, num_pred)
             nn.init.constant_(self.bbox_embed[0].layers[-1].bias.data[2:], -2.0)
             # hack implementation for iterative bounding box refinement
             self.transformer.decoder.bbox_embed = self.bbox_embed
@@ -111,6 +117,7 @@ class DeformableDetrHead(nn.Module):
             nn.init.constant_(self.bbox_embed.layers[-1].bias.data[2:], -2.0)
             self.class_embed = nn.ModuleList([self.class_embed for _ in range(num_pred)])
             self.bbox_embed = nn.ModuleList([self.bbox_embed for _ in range(num_pred)])
+            self.role_embed = nn.ModuleList([self.role_embed for _ in range(num_pred)])
             self.transformer.decoder.bbox_embed = None
         if two_stage:
             # hack implementation for two-stage
@@ -119,7 +126,7 @@ class DeformableDetrHead(nn.Module):
                 nn.init.constant_(box_embed.layers[-1].bias.data[2:], 0.0)
 
     def forward(self, backbone_outputs):
-        """ The forward expects a NestedTensor, which consists of:
+        """ The forward expects a NestedTensor, which consists of:
                - samples.tensor: batched images, of shape [batch_size x 3 x H x W]
                - samples.mask: a binary mask of shape [batch_size x H x W], containing 1 on padded pixels
 
@@ -175,6 +182,7 @@ class DeformableDetrHead(nn.Module):
 
         outputs_classes = []
         outputs_coords = []
+        outputs_roles = []
         for lvl in range(hs.shape[0]):
             if lvl == 0:
                 reference = init_reference
@@ -182,6 +190,7 @@ class DeformableDetrHead(nn.Module):
                 reference = inter_references[lvl - 1]
             reference = inverse_sigmoid(reference)
             outputs_class = self.class_embed[lvl](hs[lvl])
+            outputs_role = self.role_embed[lvl](hs[lvl])
             tmp = self.bbox_embed[lvl](hs[lvl])
             if reference.shape[-1] == 4:
                 tmp += reference
@@ -191,12 +200,14 @@ class DeformableDetrHead(nn.Module):
             outputs_coord = tmp.sigmoid()
             outputs_classes.append(outputs_class)
             outputs_coords.append(outputs_coord)
+            outputs_roles.append(outputs_role)
         outputs_class = torch.stack(outputs_classes)
         outputs_coord = torch.stack(outputs_coords)
+        outputs_role = torch.stack(outputs_roles)
 
-        out = {'pred_logits': outputs_class[-1], 'pred_boxes': outputs_coord[-1]}
+        out = {'pred_logits': outputs_class[-1], 'pred_boxes': outputs_coord[-1], 'pred_roles': outputs_role[-1]}
         if self.aux_loss:
-            out['aux_outputs'] = self._set_aux_loss(outputs_class, outputs_coord)
+            out['aux_outputs'] = self._set_aux_loss(outputs_class, outputs_coord, outputs_role)
 
         if self.two_stage:
             enc_outputs_coord = enc_outputs_coord_unact.sigmoid()
@@ -208,12 +219,12 @@ class DeformableDetrHead(nn.Module):
         return out
 
     @torch.jit.unused
-    def _set_aux_loss(self, outputs_class, outputs_coord):
+    def _set_aux_loss(self, outputs_class, outputs_coord, outputs_role):
         # this is a workaround to make torchscript happy, as torchscript
         # doesn't support dictionary with non-homogeneous values, such
         # as a dict having both a Tensor and a list.
-        return [{'pred_logits': a, 'pred_boxes': b}
-                for a, b in zip(outputs_class[:-1], outputs_coord[:-1])]
+        return [{'pred_logits': a, 'pred_boxes': b, 'pred_roles': c}
+                for a, b, c in zip(outputs_class[:-1], outputs_coord[:-1], outputs_role[:-1])]
 
 
 class SetCriterion(nn.Module):
@@ -233,6 +244,7 @@ class SetCriterion(nn.Module):
         """
         super().__init__()
         self.num_classes = num_classes
+        self.num_role_classes = len(role_mapping)
         self.matcher = matcher
         self.weight_dict = weight_dict
         self.losses = losses
@@ -263,6 +275,32 @@ class SetCriterion(nn.Module):
         if log:
             # TODO this should probably be a separate loss, not hacked in this one here
             losses['class_error'] = 100 - accuracy(src_logits[idx], target_classes_o)[0]
+        return losses
+
+    def loss_roles(self, outputs, targets, indices, num_boxes, log=True):
+        """Role classification loss (NLL)
+        targets dicts must contain the key "roles" containing a tensor of dim [nb_target_boxes]
+        """
+        assert 'pred_roles' in outputs
+        src_logits = outputs['pred_roles']
+
+        idx = self._get_src_permutation_idx(indices)
+        target_roles_o = torch.cat([t["roles"][J] for t, (_, J) in zip(targets, indices)])
+        target_roles = torch.full(src_logits.shape[:2], self.num_role_classes,
+                                    dtype=torch.int64, device=src_logits.device)
+        target_roles[idx] = target_roles_o
+
+        target_roles_onehot = torch.zeros([src_logits.shape[0], src_logits.shape[1], src_logits.shape[2] + 1],
+                                            dtype=src_logits.dtype, layout=src_logits.layout, device=src_logits.device)
+        target_roles_onehot.scatter_(2, target_roles.unsqueeze(-1), 1)
+
+        target_roles_onehot = target_roles_onehot[:,:,:-1]
+        loss_role = sigmoid_focal_loss(src_logits, target_roles_onehot, num_boxes, alpha=self.focal_alpha, gamma=2) * src_logits.shape[1]
+        losses = {'loss_role': loss_role}
+
+        if log:
+            # TODO this should probably be a separate loss, not hacked in this one here
+            losses['role_error'] = 100 - accuracy(src_logits[idx], target_roles_o)[0]
         return losses
 
     @torch.no_grad()
@@ -351,7 +389,8 @@ class SetCriterion(nn.Module):
             'labels': self.loss_labels,
             'cardinality': self.loss_cardinality,
             'boxes': self.loss_boxes,
-            'masks': self.loss_masks
+            'masks': self.loss_masks,
+            'roles': self.loss_roles
         }
         assert loss in loss_map, f'do you really want to compute {loss} loss?'
 
@@ -369,7 +408,7 @@ class SetCriterion(nn.Module):
                 else:
                     loss_dict[k] += v
         # Average the loss:
-        if loss == "labels" or loss == "boxes" or loss == "masks":
+        if loss == "labels" or loss == "boxes" or loss == "masks" or loss == "roles":
             for k in loss_dict.keys():
                 loss_dict[k] /= num_boxes
         pass
@@ -613,6 +652,7 @@ def cvt_config_to_args(config: dict):
     detr_args.cls_loss_coef = config["DETR_CLS_LOSS_COEF"]
     detr_args.bbox_loss_coef = config["DETR_BBOX_LOSS_COEF"]
     detr_args.giou_loss_coef = config["DETR_GIOU_LOSS_COEF"]
+    detr_args.role_loss_coef = config["DETR_ROLE_LOSS_COEF"]
     detr_args.focal_alpha = config["DETR_FOCAL_ALPHA"]
     detr_args.set_cost_class = config["DETR_SET_COST_CLASS"]
     detr_args.set_cost_bbox = config["DETR_SET_COST_BBOX"]
@@ -645,6 +685,9 @@ def build_deformable_detr_criterion(config: dict):
     args = cvt_config_to_args(config)
     
     weight_dict = {'loss_ce': args.cls_loss_coef, 'loss_bbox': args.bbox_loss_coef, 'loss_giou': args.giou_loss_coef}
+    # Add role loss coefficient
+    weight_dict['loss_role'] = args.role_loss_coef
+    
     assert args.masks is False, "MASKS is not supported yet."
     if args.masks:
         weight_dict["loss_mask"] = args.mask_loss_coef
@@ -661,7 +704,7 @@ def build_deformable_detr_criterion(config: dict):
         num_classes=args.num_classes,
         matcher=build_matcher(args),
         weight_dict=weight_dict,
-        losses = ['labels', 'boxes', 'cardinality'],
+        losses = ['labels', 'boxes', 'cardinality', 'roles'],
     )
     return detr_criterion
 

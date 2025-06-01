@@ -1,0 +1,4 @@
+SUPER_CONFIG_PATH: ./configs/default.yaml
+
+TASKS: [SoccerNetGSR_Detection, ]
+DATASETS: [SoccerNetGSR_Detection, ]

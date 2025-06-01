@@ -18,6 +18,7 @@ from math import floor
 from torch.utils.data import DataLoader
 from utils.box_ops import box_xywh_to_xyxy, box_xyxy_to_cxcywh, box_cxcywh_to_xywh, bbox_xywh_to_cxcywh
 from data.utils import Compose, ToTensor, RandomResize, Normalize, get_image_hw
+from data.SoccerNetGSR_ReID import role_mapping
 
 class SoccerNetGSR_Detection(Dataset):
     def __init__(
@@ -106,6 +107,7 @@ class SoccerNetGSR_Detection(Dataset):
                     "category": [],
                     "bbox": [],
                     "visibility": [],
+                    "role": [],
                 })
         return annotations
     
@@ -133,6 +135,7 @@ class SoccerNetGSR_Detection(Dataset):
                 annotations[sequence_name][frame_idx]["category"].append(category)
                 annotations[sequence_name][frame_idx]["bbox"].append(bbox)
                 annotations[sequence_name][frame_idx]["visibility"].append(visibility)
+                annotations[sequence_name][frame_idx]["role"].append(role_mapping[anno['attributes']['role']])
         
         # Convert lists to tensors in a single operation per frame
         for sequence_name in sequence_names:
@@ -143,13 +146,15 @@ class SoccerNetGSR_Detection(Dataset):
                     frame_annotation["category"] = torch.tensor(frame_annotation["category"], dtype=torch.int64)
                     frame_annotation["bbox"] = torch.tensor(frame_annotation["bbox"], dtype=torch.float32)
                     frame_annotation["visibility"] = torch.tensor(frame_annotation["visibility"], dtype=torch.float32)
+                    frame_annotation["role"] = torch.tensor(frame_annotation["role"], dtype=torch.int64)
                 else:
                     # Empty frame
                     frame_annotation["id"] = torch.zeros((0, ), dtype=torch.int64)
                     frame_annotation["category"] = torch.zeros((0, ), dtype=torch.int64)
                     frame_annotation["bbox"] = torch.zeros((0, 4), dtype=torch.float32)
                     frame_annotation["visibility"] = torch.zeros((0, ), dtype=torch.float32)
-            
+                    frame_annotation["role"] = torch.zeros((0, ), dtype=torch.int64)
+                    
         # Determine whether each annotation is legal:
         for sequence_name in sequence_names:
             for i in range(self.sequence_infos[sequence_name]["length"]):
@@ -201,6 +206,7 @@ class SoccerNetGSR_Detection(Dataset):
         # used for DETR loss:
         annotation['boxes'] = annotation['bbox']
         annotation['labels'] = annotation['category']
+        annotation['roles'] = annotation['role']
             
         return image, annotation, metas
 
