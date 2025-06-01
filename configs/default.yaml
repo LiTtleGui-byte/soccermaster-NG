@@ -19,7 +19,7 @@ EXP_OWNER: 1020134037-shanghai-jiao-tong-university
 EXP_PROJECT: SoccerVisualBackbone
 EXP_GROUP: SoccerVisualBackbone
 EXP_NAME: Default
-SAVE_CHECKPOINT_PER_EPOCH: 1
+SAVE_CHECKPOINT_PER_EPOCH: 5
 MULTI_LAST_CHECKPOINTS: 0
 
 # Training strategies:

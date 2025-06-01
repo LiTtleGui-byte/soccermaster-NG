@@ -32,12 +32,12 @@ def train_engine(config: dict):
 
     # Init Accelerator at beginning:
     # accelerator = Accelerator()
-    # accelerator = Accelerator(
-    #     kwargs_handlers=[DistributedDataParallelKwargs(find_unused_parameters=True, broadcast_buffers=False)]
-    # )
     accelerator = Accelerator(
-        kwargs_handlers=[DistributedDataParallelKwargs(broadcast_buffers=False)]
+        kwargs_handlers=[DistributedDataParallelKwargs(find_unused_parameters=True, broadcast_buffers=False)]
     )
+    # accelerator = Accelerator(
+    #     kwargs_handlers=[DistributedDataParallelKwargs(broadcast_buffers=False)]
+    # )
     state = PartialState()
     # Also, we set the seed:
     set_seed(config["SEED"])
@@ -106,7 +106,6 @@ def train_engine(config: dict):
             logger.info(f"  {name}")
     
     for epoch in range(train_states["start_epoch"], config["EPOCHS"]):
-        epoch_start_timestamp = TPS.timestamp()
         # Train one epoch:
         train_one_epoch(
             config=config,
@@ -126,9 +125,11 @@ def train_engine(config: dict):
             use_accelerate_clip_norm=config.get("USE_ACCELERATE_CLIP_NORM", True),
             logging_interval=config.get("LOGGING_INTERVAL", 20),
         )
-        
         scheduler.step()
-        time_per_epoch = TPS.format(TPS.timestamp() - epoch_start_timestamp)
+        
+    if (epoch + 1) % config["SAVE_CHECKPOINT_PER_EPOCH"] == 0:
+        # only save backbone weights
+        model.backbone.model.save_pretrained(os.path.join(outputs_dir, f"epoch_{epoch}"))
     
     # Close logger at the end of training
     if logger:
@@ -154,6 +155,7 @@ def train_one_epoch(
         use_accelerate_clip_norm: bool = True,
         logging_interval: int = 20,
 ):
+    epoch_start_timestamp = TPS.timestamp()
     current_last_checkpoint_idx = 0
     model.train()
     tps = TPS()
@@ -370,6 +372,7 @@ def train_one_epoch(
             torch.cuda.empty_cache()
         
     states["start_epoch"] += 1
+    time_per_epoch = TPS.format(TPS.timestamp() - epoch_start_timestamp)
     # Log epoch-level metrics
     if logger:
         epoch_avg_metrics = epoch_metrics.get_averages()
@@ -378,7 +381,7 @@ def train_one_epoch(
         
         # Flush logger at the end of epoch
         logger.flush_tb_writer()
-        logger.info(f"Epoch {epoch} completed. Average losses: {epoch_avg_metrics}")
+        logger.info(f"Epoch {epoch} completed. Average losses: {epoch_avg_metrics}, Time per epoch: {time_per_epoch}")
        
 def lr_warmup(optimizer, epoch: int, curr_iter: int, tgt_lr: float, warmup_epochs: int, num_iter_per_epoch: int):
     # min_lr = 1e-8

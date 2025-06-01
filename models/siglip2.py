@@ -27,7 +27,8 @@ class SiglipBackbone(nn.Module):
                  train_backbone: bool,
                  use_lora: bool):
         super().__init__()
-        self.model = SiglipVisionModel.from_pretrained(ckpt_path, device_map="cpu").vision_model
+        # self.model = SiglipVisionModel.from_pretrained(ckpt_path, device_map="cpu").vision_model
+        self.model = SiglipVisionModel.from_pretrained(ckpt_path, device_map="cpu")
         
         if train_backbone:
             for name, param in self.model.named_parameters():
