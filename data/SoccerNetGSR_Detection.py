@@ -16,6 +16,7 @@ from torch.utils.data import Dataset
 import random
 from math import floor
 from torch.utils.data import DataLoader
+import torch.nn.functional as F
 from utils.box_ops import box_xywh_to_xyxy, box_xyxy_to_cxcywh, box_cxcywh_to_xywh, bbox_xywh_to_cxcywh
 from data.utils import Compose, ToTensor, RandomResize, Normalize, get_image_hw
 from data.SoccerNetGSR_ReID import role_mapping
@@ -136,6 +137,30 @@ class SoccerNetGSR_Detection(Dataset):
                 annotations[sequence_name][frame_idx]["bbox"].append(bbox)
                 annotations[sequence_name][frame_idx]["visibility"].append(visibility)
                 annotations[sequence_name][frame_idx]["role"].append(role_mapping[anno['attributes']['role']])
+                
+            # Load the camera parameters:
+            camera_path = os.path.join(self.data_dir, "camera_params", self.split, f"{sequence_name}.json")
+            camera_params = json.load(open(camera_path))
+            for frame_id, value in camera_params.items():
+                frame_idx = int(frame_id[-6:]) - 1
+                
+                params = None
+                if value["ransac_params"] is None:
+                    params = value["all_points_params"]
+                else:
+                    all_reprojection_error_by_ransac = value["all_reprojection_error_by_ransac"]
+                    all_points_params_reprojection_error = value["all_points_params"]["reprojection_error"]
+                    if all_reprojection_error_by_ransac < all_points_params_reprojection_error:
+                        params = value["ransac_params"]
+                    else:
+                        params = value["all_points_params"]
+                assert params is not None, f"Camera parameters are not found for frame {frame_id} in sequence {sequence_name}."
+                
+                # annotations[sequence_name][frame_idx]["fxy"] = torch.tensor([params["x_focal_length"], params["y_focal_length"]])
+                # annotations[sequence_name][frame_idx]["pxy"] = torch.tensor(params["principal_point"])
+                annotations[sequence_name][frame_idx]["intrinsic"] = torch.tensor([[params["x_focal_length"], 0, params["principal_point"][0]], [0, params["y_focal_length"], params["principal_point"][1]], [0, 0, 1]])
+                annotations[sequence_name][frame_idx]["translation"] = torch.tensor(params["position_meters"])
+                annotations[sequence_name][frame_idx]["rotation_matrix"] = torch.tensor(params["rotation_matrix"])
         
         # Convert lists to tensors in a single operation per frame
         for sequence_name in sequence_names:
@@ -154,7 +179,14 @@ class SoccerNetGSR_Detection(Dataset):
                     frame_annotation["bbox"] = torch.zeros((0, 4), dtype=torch.float32)
                     frame_annotation["visibility"] = torch.zeros((0, ), dtype=torch.float32)
                     frame_annotation["role"] = torch.zeros((0, ), dtype=torch.int64)
-                    
+                if "intrinsic" not in frame_annotation:
+                    frame_annotation["valid_camera"] = torch.tensor(False, dtype=torch.bool)
+                    frame_annotation["intrinsic"] = torch.zeros((3, 3), dtype=torch.float32)
+                    frame_annotation["translation"] = torch.zeros((3, ), dtype=torch.float32)
+                    frame_annotation["rotation_matrix"] = torch.eye(3, dtype=torch.float32)
+                else:
+                    frame_annotation["valid_camera"] = torch.tensor(True, dtype=torch.bool)
+
         # Determine whether each annotation is legal:
         for sequence_name in sequence_names:
             for i in range(self.sequence_infos[sequence_name]["length"]):
@@ -207,7 +239,13 @@ class SoccerNetGSR_Detection(Dataset):
         annotation['boxes'] = annotation['bbox']
         annotation['labels'] = annotation['category']
         annotation['roles'] = annotation['role']
-            
+        # use for camera loss:
+        annotation['quaternion'] = mat_to_quat(annotation['rotation_matrix'].unsqueeze(0)).squeeze(0)
+        H, W = metas['image_size']
+        fov_h = 2 * torch.atan((H / 2) / annotation['intrinsic'][1, 1])
+        fov_w = 2 * torch.atan((W / 2) / annotation['intrinsic'][0, 0])
+        annotation['fov_hw'] = torch.stack([fov_h, fov_w])
+        
         return image, annotation, metas
 
 def build_gsr_detection_dataset(config: dict, split: str):
@@ -269,46 +307,6 @@ def append_annotation(
     ])
     return annotation
 
-class RandomResize:
-    def __init__(self, sizes: list, max_size: int | None = None, keep_aspect_ratio: bool = True):
-        self.sizes = sizes
-        self.max_size = max_size
-        self.keep_aspect_ratio = keep_aspect_ratio
-
-    def __call__(self, image, annotation, metas):
-        new_size = random.choice(self.sizes)  # choose the size for images
-
-        def get_new_hw(_curr_hw: list, _new_size) -> tuple[int, int]:
-            _curr_h, _curr_w = _curr_hw
-            if self.keep_aspect_ratio:
-                if self.max_size is not None:  # need to restrict the longer side length
-                    _min_hw, _max_hw = float(min(_curr_h, _curr_w)), float(max(_curr_h, _curr_w))
-                    if _max_hw / _min_hw * _new_size > self.max_size:  # need to restrict the resize size
-                        _new_size = int(floor(self.max_size * _min_hw / _max_hw))
-                # Calculate the new height and width while maintaining aspect ratio:
-                if _curr_w < _curr_h:
-                    _new_w = _new_size
-                    _new_h = int(round(_new_size * _curr_h / _curr_w))
-                else:
-                    _new_h = _new_size
-                    _new_w = int(round(_new_size * _curr_w / _curr_h))
-                return _new_h, _new_w
-            else:
-                # When not keeping aspect ratio, just use the same size for both dimensions
-                return _new_size, _new_size
-
-        new_hw = get_new_hw(get_image_hw(image), _new_size=new_size)    # new yx
-        scale_ratio_x = new_hw[1] / get_image_hw(image)[1]
-        scale_ratio_y = new_hw[0] / get_image_hw(image)[0]
-        # Resize images:
-        if isinstance(image, torch.Tensor):
-            image = v2.functional.resize(image, new_hw)
-        else:
-            raise NotImplementedError(f"The input image type {type(image)} is not supported.")
-        # Resize annotations:
-        annotation["bbox"] = annotation["bbox"] * torch.as_tensor([scale_ratio_x, scale_ratio_y] * 2)
-        return image, annotation, metas
-
 class BoxXYWHtoXYXY:
     def __init__(self):
         return
@@ -356,6 +354,9 @@ def collate_fn(batch):
     _B = len(batch)
     images = torch.stack(images)
     
+    # keys need to concat
+    # concat_keys = ['valid_camera', 'quaternion', 'translation', 'fov_hw']
+    
     # new_annotations = []
     # for key in annotations[0]:
     #     new_annotations[key] = torch.stack([anno[key] for anno in annotations])
@@ -366,3 +367,120 @@ def collate_fn(batch):
         # "annotations": new_annotations,
         "metas": metas,
     }
+    
+def quat_to_mat(quaternions: torch.Tensor) -> torch.Tensor:
+    """
+    Quaternion Order: XYZW or say ijkr, scalar-last
+
+    Convert rotations given as quaternions to rotation matrices.
+    Args:
+        quaternions: quaternions with real part last,
+            as tensor of shape (..., 4).
+
+    Returns:
+        Rotation matrices as tensor of shape (..., 3, 3).
+    """
+    i, j, k, r = torch.unbind(quaternions, -1)
+    # pyre-fixme[58]: `/` is not supported for operand types `float` and `Tensor`.
+    two_s = 2.0 / (quaternions * quaternions).sum(-1)
+
+    o = torch.stack(
+        (
+            1 - two_s * (j * j + k * k),
+            two_s * (i * j - k * r),
+            two_s * (i * k + j * r),
+            two_s * (i * j + k * r),
+            1 - two_s * (i * i + k * k),
+            two_s * (j * k - i * r),
+            two_s * (i * k - j * r),
+            two_s * (j * k + i * r),
+            1 - two_s * (i * i + j * j),
+        ),
+        -1,
+    )
+    return o.reshape(quaternions.shape[:-1] + (3, 3))
+    
+def mat_to_quat(matrix: torch.Tensor) -> torch.Tensor:
+    """
+    Convert rotations given as rotation matrices to quaternions.
+
+    Args:
+        matrix: Rotation matrices as tensor of shape (..., 3, 3).
+
+    Returns:
+        quaternions with real part last, as tensor of shape (..., 4).
+        Quaternion Order: XYZW or say ijkr, scalar-last
+    """
+    if matrix.size(-1) != 3 or matrix.size(-2) != 3:
+        raise ValueError(f"Invalid rotation matrix shape {matrix.shape}.")
+
+    batch_dim = matrix.shape[:-2]
+    m00, m01, m02, m10, m11, m12, m20, m21, m22 = torch.unbind(matrix.reshape(batch_dim + (9,)), dim=-1)
+
+    q_abs = _sqrt_positive_part(
+        torch.stack(
+            [1.0 + m00 + m11 + m22, 1.0 + m00 - m11 - m22, 1.0 - m00 + m11 - m22, 1.0 - m00 - m11 + m22], dim=-1
+        )
+    )
+
+    # we produce the desired quaternion multiplied by each of r, i, j, k
+    quat_by_rijk = torch.stack(
+        [
+            # pyre-fixme[58]: `**` is not supported for operand types `Tensor` and
+            #  `int`.
+            torch.stack([q_abs[..., 0] ** 2, m21 - m12, m02 - m20, m10 - m01], dim=-1),
+            # pyre-fixme[58]: `**` is not supported for operand types `Tensor` and
+            #  `int`.
+            torch.stack([m21 - m12, q_abs[..., 1] ** 2, m10 + m01, m02 + m20], dim=-1),
+            # pyre-fixme[58]: `**` is not supported for operand types `Tensor` and
+            #  `int`.
+            torch.stack([m02 - m20, m10 + m01, q_abs[..., 2] ** 2, m12 + m21], dim=-1),
+            # pyre-fixme[58]: `**` is not supported for operand types `Tensor` and
+            #  `int`.
+            torch.stack([m10 - m01, m20 + m02, m21 + m12, q_abs[..., 3] ** 2], dim=-1),
+        ],
+        dim=-2,
+    )
+
+    # We floor here at 0.1 but the exact level is not important; if q_abs is small,
+    # the candidate won't be picked.
+    flr = torch.tensor(0.1).to(dtype=q_abs.dtype, device=q_abs.device)
+    quat_candidates = quat_by_rijk / (2.0 * q_abs[..., None].max(flr))
+
+    # if not for numerical problems, quat_candidates[i] should be same (up to a sign),
+    # forall i; we pick the best-conditioned one (with the largest denominator)
+    out = quat_candidates[F.one_hot(q_abs.argmax(dim=-1), num_classes=4) > 0.5, :].reshape(batch_dim + (4,))
+
+    # Convert from rijk to ijkr
+    out = out[..., [1, 2, 3, 0]]
+
+    out = standardize_quaternion(out)
+
+    return out
+
+def _sqrt_positive_part(x: torch.Tensor) -> torch.Tensor:
+    """
+    Returns torch.sqrt(torch.max(0, x))
+    but with a zero subgradient where x is 0.
+    """
+    ret = torch.zeros_like(x)
+    positive_mask = x > 0
+    if torch.is_grad_enabled():
+        ret[positive_mask] = torch.sqrt(x[positive_mask])
+    else:
+        ret = torch.where(positive_mask, torch.sqrt(x), ret)
+    return ret
+
+def standardize_quaternion(quaternions: torch.Tensor) -> torch.Tensor:
+    """
+    Convert a unit quaternion to a standard form: one in which the real
+    part is non negative.
+
+    Args:
+        quaternions: Quaternions with real part last,
+            as tensor of shape (..., 4).
+
+    Returns:
+        Standardized quaternions as tensor of shape (..., 4).
+    """
+    return torch.where(quaternions[..., 3:4] < 0, -quaternions, quaternions)

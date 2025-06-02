@@ -57,6 +57,12 @@ class RandomResize:
         new_hw = get_new_hw(get_image_hw(image), _new_size=new_size)    # new yx
         scale_ratio_x = new_hw[1] / get_image_hw(image)[1]
         scale_ratio_y = new_hw[0] / get_image_hw(image)[0]
+        
+        metas['original_image_size'] = get_image_hw(image)
+        metas['image_size'] = new_hw
+        metas['scale_ratio_x'] = scale_ratio_x
+        metas['scale_ratio_y'] = scale_ratio_y
+        
         # Resize images:
         if isinstance(image, torch.Tensor):
             image = v2.functional.resize(image, new_hw)
@@ -65,6 +71,10 @@ class RandomResize:
         # Resize annotations:
         if "bbox" in annotation:
             annotation["bbox"] = annotation["bbox"] * torch.as_tensor([scale_ratio_x, scale_ratio_y] * 2)
+        if "intrinsic" in annotation and annotation["valid_camera"]:
+            annotation["intrinsic"][0, :] = annotation["intrinsic"][0, :] * scale_ratio_x
+            annotation["intrinsic"][1, :] = annotation["intrinsic"][1, :] * scale_ratio_y
+            
         return image, annotation, metas    
 
 class ToTensor:

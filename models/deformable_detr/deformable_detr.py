@@ -15,8 +15,9 @@ Deformable DETR model and criterion classes.
 """
 import torch
 import torch.nn.functional as F
-from torch import nn
+from torch import nn, Tensor, Callable
 import math
+from typing import Optional
 
 from utils import box_ops
 from utils.nested_tensor import NestedTensor, nested_tensor_from_tensor_list, nested_tensor_from_tensor_list_during_training
@@ -25,6 +26,7 @@ from utils.misc import is_distributed, distributed_world_size
 from typing import Any, Dict, List, Tuple, Union, Generator
 from collections import defaultdict
 import copy
+from models.deformable_detr.vggt.head_act import activate_pose
 
 
 from models.deformable_detr.position_encoding import build_position_encoding
@@ -33,7 +35,6 @@ from .segmentation import (DETRsegm, PostProcessPanoptic, PostProcessSegm,
                            dice_loss, sigmoid_focal_loss)
 from .deformable_transformer import build_deforamble_transformer
 from data.SoccerNetGSR_ReID import role_mapping
-
 
 def _get_clones(module, N):
     return nn.ModuleList([copy.deepcopy(module) for i in range(N)])
@@ -93,6 +94,8 @@ class DeformableDetrHead(nn.Module):
         self.aux_loss = aux_loss
         self.with_box_refine = with_box_refine
         self.two_stage = two_stage
+        
+        self.camera_head = ConvCameraHead(input_channels=backbone_num_channels[0])
 
         prior_prob = 0.01
         bias_value = -math.log((1 - prior_prob) / prior_prob)
@@ -142,10 +145,10 @@ class DeformableDetrHead(nn.Module):
         """
         global_features, local_features = backbone_outputs['global_features'], backbone_outputs['local_features']
         N, L, D = local_features.shape
-        local_features = local_features.permute(0, 2, 1).contiguous()
+        reshaped_local_features = local_features.permute(0, 2, 1).contiguous()
         Hf = Wf = int(math.sqrt(L))
-        local_features = local_features.reshape(N, D, Hf, Wf)
-        features = local_features
+        reshaped_local_features = reshaped_local_features.reshape(N, D, Hf, Wf)
+        features = reshaped_local_features
         
         # TODO: this will lead to a error, and can not backward gradient
         features = [nested_tensor_from_tensor_list_during_training(features)]
@@ -205,7 +208,16 @@ class DeformableDetrHead(nn.Module):
         outputs_coord = torch.stack(outputs_coords)
         outputs_role = torch.stack(outputs_roles)
 
+        # Use ConvCameraHead with reshaped features
+        quaternion, translation, fov = self.camera_head(reshaped_local_features)
+
         out = {'pred_logits': outputs_class[-1], 'pred_boxes': outputs_coord[-1], 'pred_roles': outputs_role[-1]}
+        # Add camera predictions to output
+        out['pred_camera'] = {
+            'quaternion': quaternion,
+            'translation': translation,
+            'fov': fov
+        }
         if self.aux_loss:
             out['aux_outputs'] = self._set_aux_loss(outputs_class, outputs_coord, outputs_role)
 
@@ -489,11 +501,81 @@ class SetCriterion(nn.Module):
                 l_dict = self.get_loss(loss, enc_outputs, bin_targets, indices, num_boxes, **kwargs)
                 l_dict = {k + f'_enc': v for k, v in l_dict.items()}
                 losses.update(l_dict)
-                
+
+        # Camera loss:
+        valid_camera_mask = torch.stack([t["valid_camera"] for t in targets], dim=0)
+        quaternion_gt = torch.stack([t["quaternion"] for t in targets], dim=0)[valid_camera_mask]
+        translation_gt = torch.stack([t["translation"] for t in targets], dim=0)[valid_camera_mask]
+        fov_hw_gt = torch.stack([t["fov_hw"] for t in targets], dim=0)[valid_camera_mask]
+        
+        quaternion_pred = outputs["pred_camera"]["quaternion"][valid_camera_mask]
+        translation_pred = outputs["pred_camera"]["translation"][valid_camera_mask]
+        fov_hw_pred = outputs["pred_camera"]["fov"][valid_camera_mask]
+        
+        cur_pred_pose_enc = torch.cat([translation_pred, quaternion_pred, fov_hw_pred], dim=-1)
+        gt_pose_encoding = torch.cat([translation_gt, quaternion_gt, fov_hw_gt], dim=-1)
+        
+        loss_T, loss_R, loss_fl = camera_loss_single(cur_pred_pose_enc, gt_pose_encoding, loss_type="huber")
+        losses["loss_T"] = loss_T
+        losses["loss_R"] = loss_R
+        losses["loss_fl"] = loss_fl
+        
         # losses = {k: (v * self.weight_dict[k] if k in self.weight_dict else v) for k, v in losses.items()}
 
         return losses, self.weight_dict, indices
 
+def camera_loss_single(cur_pred_pose_enc, gt_pose_encoding, loss_type="l1"):
+    if loss_type == "l1":
+        loss_T = (cur_pred_pose_enc[..., :3] - gt_pose_encoding[..., :3]).abs()
+        loss_R = (cur_pred_pose_enc[..., 3:7] - gt_pose_encoding[..., 3:7]).abs()
+        loss_fl = (cur_pred_pose_enc[..., 7:] - gt_pose_encoding[..., 7:]).abs()
+    elif loss_type == "l2":
+        loss_T = (cur_pred_pose_enc[..., :3] - gt_pose_encoding[..., :3]).norm(dim=-1, keepdim=True)
+        loss_R = (cur_pred_pose_enc[..., 3:7] - gt_pose_encoding[..., 3:7]).norm(dim=-1)
+        loss_fl = (cur_pred_pose_enc[..., 7:] - gt_pose_encoding[..., 7:]).norm(dim=-1)
+    elif loss_type == "huber":
+        loss_T = F.smooth_l1_loss(cur_pred_pose_enc[..., :3], gt_pose_encoding[..., :3], reduction='none')
+        loss_R = F.smooth_l1_loss(cur_pred_pose_enc[..., 3:7], gt_pose_encoding[..., 3:7], reduction='none')
+        loss_fl = F.smooth_l1_loss(cur_pred_pose_enc[..., 7:], gt_pose_encoding[..., 7:], reduction='none')
+    else:
+        raise ValueError(f"Unknown loss type: {loss_type}")
+
+    loss_T = check_and_fix_inf_nan(loss_T, "loss_T")
+    loss_R = check_and_fix_inf_nan(loss_R, "loss_R")
+    loss_fl = check_and_fix_inf_nan(loss_fl, "loss_fl")
+
+    loss_T = loss_T.clamp(max=100) # TODO: remove this
+    loss_T = loss_T.mean()
+    loss_R = loss_R.mean()
+    loss_fl = loss_fl.mean()
+
+    return loss_T, loss_R, loss_fl
+
+def check_and_fix_inf_nan(loss_tensor, loss_name, hard_max = 100):
+    """
+    Checks if 'loss_tensor' contains inf or nan. If it does, replace those 
+    values with zero and print the name of the loss tensor.
+
+    Args:
+        loss_tensor (torch.Tensor): The loss tensor to check.
+        loss_name (str): Name of the loss (for diagnostic prints).
+
+    Returns:
+        torch.Tensor: The checked and fixed loss tensor, with inf/nan replaced by 0.
+    """
+        
+    if torch.isnan(loss_tensor).any() or torch.isinf(loss_tensor).any():
+        for _ in range(10):
+            print(f"{loss_name} has inf or nan. Setting those values to 0.")
+        loss_tensor = torch.where(
+            torch.isnan(loss_tensor) | torch.isinf(loss_tensor),
+            torch.tensor(0.0, device=loss_tensor.device),
+            loss_tensor
+        )
+
+    loss_tensor = torch.clamp(loss_tensor, min=-hard_max, max=hard_max)
+
+    return loss_tensor
 
 class PostProcess(nn.Module):
     """ This module converts the model's output into the format expected by the coco api"""
@@ -657,6 +739,9 @@ def cvt_config_to_args(config: dict):
     detr_args.set_cost_class = config["DETR_SET_COST_CLASS"]
     detr_args.set_cost_bbox = config["DETR_SET_COST_BBOX"]
     detr_args.set_cost_giou = config["DETR_SET_COST_GIOU"]
+    detr_args.gsr_camera_t_loss_weight = config["GSR_CAMERA_T_LOSS_WEIGHT"]
+    detr_args.gsr_camera_r_loss_weight = config["GSR_CAMERA_R_LOSS_WEIGHT"]
+    detr_args.gsr_camera_fl_loss_weight = config["GSR_CAMERA_FL_LOSS_WEIGHT"]
     detr_args.backbone_strides = [16]
     detr_args.backbone_num_channels = [768]
     
@@ -687,6 +772,10 @@ def build_deformable_detr_criterion(config: dict):
     weight_dict = {'loss_ce': args.cls_loss_coef, 'loss_bbox': args.bbox_loss_coef, 'loss_giou': args.giou_loss_coef}
     # Add role loss coefficient
     weight_dict['loss_role'] = args.role_loss_coef
+    # Add camera loss weights
+    weight_dict["loss_T"] = args.gsr_camera_t_loss_weight
+    weight_dict["loss_R"] = args.gsr_camera_r_loss_weight
+    weight_dict["loss_fl"] = args.gsr_camera_fl_loss_weight
     
     assert args.masks is False, "MASKS is not supported yet."
     if args.masks:
@@ -731,3 +820,141 @@ def tensor_dict_index_select(tensor_dict, index, dim=0):
         else:
             raise ValueError(f"Unsupported type {type(tensor_dict[k])} in the tensor dict index select.")
     return dict(res_tensor_dict)
+
+class ConvCameraHead(nn.Module):
+    def __init__(
+        self, 
+        input_channels=768,
+        trans_act: str = "linear",
+        quat_act: str = "linear",
+        fl_act: str = "relu",  # Field of view activations: ensures FOV values are positive.
+        ):
+        super(ConvCameraHead, self).__init__()
+        
+        self.input_channels = input_channels
+        self.trans_act = trans_act
+        self.quat_act = quat_act
+        self.fl_act = fl_act
+        
+        # Define convolutional layers similar to PoseCNN
+        self.convs = {}
+        self.convs[0] = nn.Conv2d(input_channels, 256, 7, 2, 3)
+        self.convs[1] = nn.Conv2d(256, 256, 5, 2, 2)
+        self.convs[2] = nn.Conv2d(256, 256, 3, 2, 1)
+        self.convs[3] = nn.Conv2d(256, 256, 3, 2, 1)
+        self.convs[4] = nn.Conv2d(256, 256, 3, 2, 1)
+        
+        # Final prediction layer: 4 (quaternion) + 3 (translation) + 2 (fov) = 9
+        self.camera_conv = nn.Conv2d(256, 9, 1)
+        
+        self.num_convs = len(self.convs)
+        self.relu = nn.ReLU(True)
+        
+        # Convert to ModuleList for proper parameter registration
+        self.net = nn.ModuleList(list(self.convs.values()))
+        
+        # Initialize weights
+        self._init_weights()
+    
+    def _init_weights(self):
+        """Initialize weights for the camera head"""
+        for m in self.modules():
+            if isinstance(m, nn.Conv2d):
+                nn.init.kaiming_normal_(m.weight, mode='fan_out', nonlinearity='relu')
+                if m.bias is not None:
+                    nn.init.constant_(m.bias, 0)
+    
+    def forward(self, x):
+        """
+        Forward pass for camera head
+        Args:
+            x: input features of shape (N, C, H, W)
+        Returns:
+            quaternion: (N, 4) - camera rotation as quaternion
+            translation: (N, 3) - camera translation
+            fov: (N, 2) - field of view parameters
+        """
+        # Apply convolutional layers with ReLU activation
+        for i in range(self.num_convs):
+            x = self.convs[i](x)
+            x = self.relu(x)
+        
+        # Final prediction layer
+        x = self.camera_conv(x)
+        
+        # Global average pooling to get a single prediction per image
+        x = x.mean(3).mean(2)  # Shape: (N, 9)
+        
+        x = activate_pose(x, self.trans_act, self.quat_act, self.fl_act)
+        
+        # Split the output into quaternion, translation, and fov
+        quaternion = x[:, :4]  # First 4 values
+        translation = x[:, 4:7]  # Next 3 values  
+        fov = x[:, 7:9]  # Last 2 values
+        
+        # Normalize quaternion to unit length
+        quaternion = F.normalize(quaternion, p=2, dim=1)
+        
+        return quaternion, translation, fov
+
+
+# class CameraHead(nn.Module):
+#     """Simple camera head that works on flattened features"""
+#     def __init__(self, dim_in=768):
+#         super(CameraHead, self).__init__()
+        
+#         self.dim_in = dim_in
+        
+#         # Simple MLP for camera prediction
+#         self.camera_mlp = nn.Sequential(
+#             nn.Linear(dim_in, 512),
+#             nn.ReLU(),
+#             nn.Dropout(0.1),
+#             nn.Linear(512, 256),
+#             nn.ReLU(),
+#             nn.Dropout(0.1),
+#             nn.Linear(256, 9)  # 4 quaternion + 3 translation + 2 fov
+#         )
+        
+#         self._init_weights()
+    
+#     def _init_weights(self):
+#         """Initialize weights for the camera head"""
+#         for m in self.modules():
+#             if isinstance(m, nn.Linear):
+#                 nn.init.xavier_uniform_(m.weight)
+#                 if m.bias is not None:
+#                     nn.init.constant_(m.bias, 0)
+    
+#     def forward(self, local_features):
+#         """
+#         Forward pass for camera head
+#         Args:
+#             local_features: input features of shape (N, L, D) where L is sequence length, D is feature dim
+#         Returns:
+#             camera_tokens: (N, 9) - concatenated camera parameters
+#         """
+#         # Global average pooling over the spatial dimension
+#         global_features = local_features.mean(dim=1)  # Shape: (N, D)
+        
+#         # Predict camera parameters
+#         camera_params = self.camera_mlp(global_features)  # Shape: (N, 9)
+        
+#         # Split into components
+#         quaternion = camera_params[:, :4]
+#         translation = camera_params[:, 4:7] 
+#         fov = camera_params[:, 7:9]
+        
+#         # Normalize quaternion
+#         quaternion = F.normalize(quaternion, p=2, dim=1)
+        
+#         # Scale translation
+#         translation = 0.01 * translation
+        
+#         # Apply sigmoid to fov
+#         fov = torch.sigmoid(fov)
+        
+#         # Concatenate all camera parameters
+#         camera_tokens = torch.cat([quaternion, translation, fov], dim=1)
+        
+#         return camera_tokens

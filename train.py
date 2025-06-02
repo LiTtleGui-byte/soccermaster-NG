@@ -127,9 +127,11 @@ def train_engine(config: dict):
         )
         scheduler.step()
         
-    if (epoch + 1) % config["SAVE_CHECKPOINT_PER_EPOCH"] == 0:
-        # only save backbone weights
-        model.backbone.model.save_pretrained(os.path.join(outputs_dir, f"epoch_{epoch}"))
+        if (epoch + 1) % config["SAVE_CHECKPOINT_PER_EPOCH"] == 0:
+            # only save backbone weights
+            # Use model.module to access original model attributes when using DDP
+            original_model = model.module if hasattr(model, 'module') else model
+            original_model.backbone.model.save_pretrained(os.path.join(outputs_dir, f"epoch_{epoch}"))
     
     # Close logger at the end of training
     if logger:
