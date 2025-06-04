@@ -61,6 +61,15 @@ def train_engine(config: dict):
     # Build training dataset:
     dataloader_train_dict, dataloader_test_dict = build_dataloader(config=config)
     
+    # Filter out None test dataloaders (some tasks might not have test sets)
+    dataloader_test_dict = {task: dataloader for task, dataloader in dataloader_test_dict.items() 
+                           if dataloader is not None}
+    
+    if dataloader_test_dict:
+        logger.info(f"Test datasets available for tasks: {list(dataloader_test_dict.keys())}")
+    else:
+        logger.warning("No test datasets available. Evaluation will be skipped.")
+    
     # Build loss functions:
     loss_fn_dict = build_loss_fn(config=config)
     
@@ -84,7 +93,8 @@ def train_engine(config: dict):
     
     model, optimizer = accelerator.prepare(model, optimizer)
     dataloader_train_dict = {task: accelerator.prepare(dataloader) for task, dataloader in dataloader_train_dict.items()}
-    dataloader_test_dict = {task: accelerator.prepare(dataloader) for task, dataloader in dataloader_test_dict.items()}
+    if dataloader_test_dict:
+        dataloader_test_dict = {task: accelerator.prepare(dataloader) for task, dataloader in dataloader_test_dict.items()}
     
     # Init the training states:
     train_states = {
@@ -104,6 +114,18 @@ def train_engine(config: dict):
     for name, param in model.named_parameters():
         if not param.requires_grad:
             logger.info(f"  {name}")
+    
+    # debug
+    eval_results = evaluate_one_epoch(
+        config=config,
+        accelerator=accelerator,
+        epoch=0,
+        dataloader_dict=dataloader_test_dict,
+        loss_fn_dict=loss_fn_dict,
+        model=model,
+        logger=logger
+    )
+    exit(0)
     
     for epoch in range(train_states["start_epoch"], config["EPOCHS"]):
         # Train one epoch:
@@ -127,16 +149,225 @@ def train_engine(config: dict):
         )
         scheduler.step()
         
+        # Evaluate after each epoch if test datasets are available
+        if dataloader_test_dict:
+            logger.info(f"Starting evaluation for epoch {epoch}...")
+            eval_results = evaluate_one_epoch(
+                config=config,
+                accelerator=accelerator,
+                epoch=epoch,
+                dataloader_dict=dataloader_test_dict,
+                loss_fn_dict=loss_fn_dict,
+                model=model,
+                logger=logger
+            )
+            logger.info(f"Evaluation completed for epoch {epoch}")
+        
         if (epoch + 1) % config["SAVE_CHECKPOINT_PER_EPOCH"] == 0:
-            # only save backbone weights
             # Use model.module to access original model attributes when using DDP
             original_model = model.module if hasattr(model, 'module') else model
-            original_model.backbone.model.save_pretrained(os.path.join(outputs_dir, f"epoch_{epoch}"))
+            
+            # Create epoch directory
+            epoch_dir = os.path.join(outputs_dir, f"epoch_{epoch}")
+            os.makedirs(epoch_dir, exist_ok=True)
+            
+            # Save backbone weights in backbone subdirectory
+            backbone_dir = os.path.join(epoch_dir, 'backbone')
+            original_model.backbone.model.save_pretrained(backbone_dir)
+            
+            # Save each head separately
+            for task_name, head in original_model.multi_task_head.items():
+                # head_dir = os.path.join(epoch_dir, f'head_{task_name}')
+                # os.makedirs(head_dir, exist_ok=True)
+                # torch.save(head.state_dict(), os.path.join(head_dir, 'model.pt'))
+                torch.save(head.state_dict(), os.path.join(epoch_dir, f'{task_name}.pt'))
+                
+                # # Optionally save head config if available
+                # if hasattr(head, 'config'):
+                #     torch.save(head.config, os.path.join(head_dir, 'config.json'))
+            
+            logger.info(f"Saved model checkpoint for epoch {epoch} to {epoch_dir}")
     
     # Close logger at the end of training
     if logger:
         logger.close_tb_writer()
         logger.info("Training completed. TensorBoard logger closed.")
+
+def evaluate_one_epoch(
+    config: dict,
+    accelerator: Accelerator,
+    epoch: int,
+    dataloader_dict: dict[str, DataLoader],
+    loss_fn_dict: dict[str, nn.Module],
+    model,
+    logger: Logger = None
+):
+    """
+    Evaluate model on test dataset for one epoch and log results to tensorboard
+    
+    Args:
+        config: Configuration dictionary
+        accelerator: Accelerator instance
+        epoch: Current epoch number
+        dataloader_dict: Dictionary of test dataloaders for each task
+        loss_fn_dict: Dictionary of loss functions for each task
+        model: Model to evaluate
+        logger: Logger instance
+        
+    Returns:
+        Dictionary containing evaluation results
+    """
+    model.eval()
+    device = accelerator.device
+    
+    # Initialize metrics tracker for evaluation
+    eval_metrics = MetricsTracker()
+    task_metrics = {task: MetricsTracker() for task in dataloader_dict.keys()}
+    
+    total_samples = 0
+    task_sample_counts = {task: 0 for task in dataloader_dict.keys()}
+    
+    # Process each task separately
+    for task_name, dataloader in dataloader_dict.items():
+        logger.info(f"Evaluating task: {task_name}")
+        
+        task_total_loss = 0.0
+        task_loss_components = defaultdict(float)
+        num_batches = 0
+        
+        with torch.no_grad():
+            for batch_idx, batch in enumerate(dataloader):
+                images, annotations, metas = batch.values()
+                batch_size = images.size(0)
+                
+                # Forward pass
+                with accelerator.autocast():
+                    outputs = model(images, task_name)
+                    
+                    # Compute loss
+                    loss_output = loss_fn_dict[task_name](outputs[task_name], annotations)
+                    
+                    # Parse loss output based on task type
+                    if task_name in ["SoccerNetGSR_Detection"]:
+                        loss_task_raw, weight_dict, _ = loss_output
+                        
+                        # Compute weighted losses
+                        weighted_losses = {k: (v * weight_dict[k]) for k, v in loss_task_raw.items() if k in weight_dict}
+                        unweighted_losses = {k: v for k, v in loss_task_raw.items() if k in weight_dict}
+                        log_only_losses = {k: v for k, v in loss_task_raw.items() if k not in weight_dict}
+                        
+                        # Total weighted loss for this batch
+                        batch_total_loss = sum(weighted_losses.values())
+                        
+                        # Accumulate losses
+                        for k, v in weighted_losses.items():
+                            task_loss_components[f"weighted_{k}"] += v.item()
+                        for k, v in unweighted_losses.items():
+                            task_loss_components[f"unweighted_{k}"] += v.item()
+                        for k, v in log_only_losses.items():
+                            task_loss_components[f"log_only_{k}"] += v.item()
+                            
+                    elif task_name in ["SoccerNetGSR_ReID"]:
+                        loss_task_raw, weight_dict = loss_output
+                        
+                        # Compute weighted losses
+                        weighted_losses = {k: (v * weight_dict[k]) for k, v in loss_task_raw.items() if k in weight_dict}
+                        unweighted_losses = {k: v for k, v in loss_task_raw.items() if k in weight_dict}
+                        log_only_losses = {k: v for k, v in loss_task_raw.items() if k not in weight_dict}
+                        
+                        # Total weighted loss for this batch
+                        batch_total_loss = sum(weighted_losses.values())
+                        
+                        # Accumulate losses
+                        for k, v in weighted_losses.items():
+                            task_loss_components[f"weighted_{k}"] += v.item()
+                        for k, v in unweighted_losses.items():
+                            task_loss_components[f"unweighted_{k}"] += v.item()
+                        for k, v in log_only_losses.items():
+                            task_loss_components[f"log_only_{k}"] += v.item()
+                            
+                    else:
+                        # For other tasks, assume loss_output is a dictionary of losses
+                        if isinstance(loss_output, dict):
+                            batch_total_loss = sum(loss_output.values())
+                            for k, v in loss_output.items():
+                                task_loss_components[k] += v.item()
+                        else:
+                            # Single loss value
+                            batch_total_loss = loss_output
+                            task_loss_components["total_loss"] += loss_output.item()
+                
+                task_total_loss += batch_total_loss.item()
+                num_batches += 1
+                task_sample_counts[task_name] += batch_size
+        
+        # Compute average losses for this task
+        if num_batches > 0:
+            task_avg_loss = task_total_loss / num_batches
+            avg_loss_components = {k: v / num_batches for k, v in task_loss_components.items()}
+            
+            # Update task metrics
+            task_metrics[task_name].update({
+                "total_loss": task_avg_loss,
+                "num_samples": task_sample_counts[task_name],
+                "num_batches": num_batches,
+                **avg_loss_components
+            })
+            
+            # Update global metrics
+            eval_metrics.update({
+                f"{task_name}_total_loss": task_avg_loss,
+                f"{task_name}_num_samples": task_sample_counts[task_name]
+            })
+            for k, v in avg_loss_components.items():
+                eval_metrics.update({f"{task_name}_{k}": v})
+            
+            logger.info(f"Task {task_name} eval completed - Avg Loss: {task_avg_loss:.4f}, "
+                       f"Samples: {task_sample_counts[task_name]}")
+    
+    # Log evaluation results to tensorboard
+    if logger:
+        # Log task-specific results
+        for task_name in dataloader_dict.keys():
+            task_avg_metrics = task_metrics[task_name].get_averages()
+            for metric_name, value in task_avg_metrics.items():
+                if isinstance(value, (int, float)) and metric_name not in ["num_samples", "num_batches"]:
+                    logger.log_scalar(f"eval_{task_name}/{metric_name}", value, epoch)
+        
+        # Log overall metrics
+        overall_avg_metrics = eval_metrics.get_averages()
+        
+        # Compute weighted average loss across all tasks
+        total_weighted_loss = 0.0
+        total_weight = 0
+        for task_name in dataloader_dict.keys():
+            if f"{task_name}_total_loss" in overall_avg_metrics:
+                task_loss = overall_avg_metrics[f"{task_name}_total_loss"]
+                task_weight = task_sample_counts[task_name]
+                total_weighted_loss += task_loss * task_weight
+                total_weight += task_weight
+        
+        if total_weight > 0:
+            weighted_avg_loss = total_weighted_loss / total_weight
+            logger.log_scalar("eval_overall/weighted_average_loss", weighted_avg_loss, epoch)
+            logger.log_scalar("eval_overall/total_samples", total_weight, epoch)
+        
+        # Log individual task total losses
+        for task_name in dataloader_dict.keys():
+            if f"{task_name}_total_loss" in overall_avg_metrics:
+                logger.log_scalar(f"eval_overall/{task_name}_loss", overall_avg_metrics[f"{task_name}_total_loss"], epoch)
+        
+        # Flush logger
+        logger.flush_tb_writer()
+    
+    # Return evaluation results
+    results = {
+        "task_results": {task: task_metrics[task].get_averages() for task in dataloader_dict.keys()},
+        "overall_metrics": eval_metrics.get_averages(),
+        "task_sample_counts": task_sample_counts
+    }
+    
+    return results
     
 def train_one_epoch(
         # Infos:
@@ -384,7 +615,7 @@ def train_one_epoch(
         # Flush logger at the end of epoch
         logger.flush_tb_writer()
         logger.info(f"Epoch {epoch} completed. Average losses: {epoch_avg_metrics}, Time per epoch: {time_per_epoch}")
-       
+
 def lr_warmup(optimizer, epoch: int, curr_iter: int, tgt_lr: float, warmup_epochs: int, num_iter_per_epoch: int):
     # min_lr = 1e-8
     total_warmup_iters = warmup_epochs * num_iter_per_epoch

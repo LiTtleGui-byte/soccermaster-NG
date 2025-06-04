@@ -20,6 +20,7 @@ import torch.nn.functional as F
 from utils.box_ops import box_xywh_to_xyxy, box_xyxy_to_cxcywh, box_cxcywh_to_xywh, bbox_xywh_to_cxcywh
 from data.utils import Compose, ToTensor, RandomResize, Normalize, get_image_hw
 from data.SoccerNetGSR_ReID import role_mapping
+# from data.pnlcalib_utils.utils_keypoints import KeypointsDB
 
 class SoccerNetGSR_Detection(Dataset):
     def __init__(
@@ -109,6 +110,11 @@ class SoccerNetGSR_Detection(Dataset):
                     "bbox": [],
                     "visibility": [],
                     "role": [],
+                    "valid_camera": torch.tensor(False, dtype=torch.bool),
+                    "intrinsic": torch.zeros((3, 3), dtype=torch.float32),
+                    "translation": torch.zeros((3, ), dtype=torch.float32),
+                    "rotation_matrix": torch.eye(3, dtype=torch.float32),
+                    "lines": {},
                 })
         return annotations
     
@@ -123,20 +129,27 @@ class SoccerNetGSR_Detection(Dataset):
             gt = json.load(open(gt_file_path))
             annos = gt['annotations']
             for anno in annos:
-                if anno['supercategory'] != 'object' or anno['attributes']['role'] == 'ball':
+                if not ((anno['supercategory'] == 'object' and anno['attributes']['role'] != 'ball') or (anno['supercategory']== 'pitch')):
                     continue
-                frame_idx = int(anno['image_id'][-6:]) - 1
-                obj_id = anno['track_id']
-                x, y, w, h = anno['bbox_image']['x'], anno['bbox_image']['y'], anno['bbox_image']['w'], anno['bbox_image']['h']
-                bbox = [x, y, w, h]
-                category, visibility = 0, 1.0
-                
-                # Append to lists instead of using torch.cat
-                annotations[sequence_name][frame_idx]["id"].append(obj_id)
-                annotations[sequence_name][frame_idx]["category"].append(category)
-                annotations[sequence_name][frame_idx]["bbox"].append(bbox)
-                annotations[sequence_name][frame_idx]["visibility"].append(visibility)
-                annotations[sequence_name][frame_idx]["role"].append(role_mapping[anno['attributes']['role']])
+                # if anno['supercategory'] != 'object' or anno['attributes']['role'] == 'ball':
+                #     continue
+                if anno['supercategory'] == 'object' and anno['attributes']['role'] != 'ball':
+                    frame_idx = int(anno['image_id'][-6:]) - 1
+                    obj_id = anno['track_id']
+                    x, y, w, h = anno['bbox_image']['x'], anno['bbox_image']['y'], anno['bbox_image']['w'], anno['bbox_image']['h']
+                    bbox = [x, y, w, h]
+                    category, visibility = 0, 1.0
+                    
+                    # Append to lists instead of using torch.cat
+                    annotations[sequence_name][frame_idx]["id"].append(obj_id)
+                    annotations[sequence_name][frame_idx]["category"].append(category)
+                    annotations[sequence_name][frame_idx]["bbox"].append(bbox)
+                    annotations[sequence_name][frame_idx]["visibility"].append(visibility)
+                    annotations[sequence_name][frame_idx]["role"].append(role_mapping[anno['attributes']['role']])
+                elif anno['supercategory']== 'pitch':
+                    annotations[sequence_name][frame_idx]['lines'] = anno['lines']
+                else:
+                    raise ValueError(f"Unknown annotation: {anno}")
                 
             # Load the camera parameters:
             camera_path = os.path.join(self.data_dir, "camera_params", self.split, f"{sequence_name}.json")
@@ -156,6 +169,7 @@ class SoccerNetGSR_Detection(Dataset):
                         params = value["all_points_params"]
                 assert params is not None, f"Camera parameters are not found for frame {frame_id} in sequence {sequence_name}."
                 
+                annotations[sequence_name][frame_idx]["valid_camera"] = torch.tensor(True, dtype=torch.bool)
                 # annotations[sequence_name][frame_idx]["fxy"] = torch.tensor([params["x_focal_length"], params["y_focal_length"]])
                 # annotations[sequence_name][frame_idx]["pxy"] = torch.tensor(params["principal_point"])
                 annotations[sequence_name][frame_idx]["intrinsic"] = torch.tensor([[params["x_focal_length"], 0, params["principal_point"][0]], [0, params["y_focal_length"], params["principal_point"][1]], [0, 0, 1]])
@@ -179,13 +193,6 @@ class SoccerNetGSR_Detection(Dataset):
                     frame_annotation["bbox"] = torch.zeros((0, 4), dtype=torch.float32)
                     frame_annotation["visibility"] = torch.zeros((0, ), dtype=torch.float32)
                     frame_annotation["role"] = torch.zeros((0, ), dtype=torch.int64)
-                if "intrinsic" not in frame_annotation:
-                    frame_annotation["valid_camera"] = torch.tensor(False, dtype=torch.bool)
-                    frame_annotation["intrinsic"] = torch.zeros((3, 3), dtype=torch.float32)
-                    frame_annotation["translation"] = torch.zeros((3, ), dtype=torch.float32)
-                    frame_annotation["rotation_matrix"] = torch.eye(3, dtype=torch.float32)
-                else:
-                    frame_annotation["valid_camera"] = torch.tensor(True, dtype=torch.bool)
 
         # Determine whether each annotation is legal:
         for sequence_name in sequence_names:

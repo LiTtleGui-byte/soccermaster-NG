@@ -512,6 +512,9 @@ class SetCriterion(nn.Module):
         translation_pred = outputs["pred_camera"]["translation"][valid_camera_mask]
         fov_hw_pred = outputs["pred_camera"]["fov"][valid_camera_mask]
         
+        # print('fov_hw_gt', fov_hw_gt)
+        # print('fov_hw_pred', fov_hw_pred)
+        
         cur_pred_pose_enc = torch.cat([translation_pred, quaternion_pred, fov_hw_pred], dim=-1)
         gt_pose_encoding = torch.cat([translation_gt, quaternion_gt, fov_hw_gt], dim=-1)
         
@@ -827,7 +830,8 @@ class ConvCameraHead(nn.Module):
         input_channels=768,
         trans_act: str = "linear",
         quat_act: str = "linear",
-        fl_act: str = "relu",  # Field of view activations: ensures FOV values are positive.
+        # fl_act: str = "relu",  # Field of view activations: ensures FOV values are positive.
+        fl_act: str = "linear",  # Field of view activations: ensures FOV values are positive.
         ):
         super(ConvCameraHead, self).__init__()
         
