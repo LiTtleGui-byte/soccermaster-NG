@@ -115,18 +115,6 @@ def train_engine(config: dict):
         if not param.requires_grad:
             logger.info(f"  {name}")
     
-    # debug
-    eval_results = evaluate_one_epoch(
-        config=config,
-        accelerator=accelerator,
-        epoch=0,
-        dataloader_dict=dataloader_test_dict,
-        loss_fn_dict=loss_fn_dict,
-        model=model,
-        logger=logger
-    )
-    exit(0)
-    
     for epoch in range(train_states["start_epoch"], config["EPOCHS"]):
         # Train one epoch:
         train_one_epoch(
@@ -150,7 +138,7 @@ def train_engine(config: dict):
         scheduler.step()
         
         # Evaluate after each epoch if test datasets are available
-        if dataloader_test_dict:
+        if dataloader_test_dict and (epoch + 1) % config["SAVE_CHECKPOINT_PER_EPOCH"] == 0:
             logger.info(f"Starting evaluation for epoch {epoch}...")
             eval_results = evaluate_one_epoch(
                 config=config,
