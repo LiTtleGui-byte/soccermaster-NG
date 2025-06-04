@@ -20,7 +20,8 @@ import torch.nn.functional as F
 from utils.box_ops import box_xywh_to_xyxy, box_xyxy_to_cxcywh, box_cxcywh_to_xywh, bbox_xywh_to_cxcywh
 from data.utils import Compose, ToTensor, RandomResize, Normalize, get_image_hw
 from data.SoccerNetGSR_ReID import role_mapping
-# from data.pnlcalib_utils.utils_keypoints import KeypointsDB
+from data.pnlcalib_utils.utils_keypoints import KeypointsDB
+import copy
 
 class SoccerNetGSR_Detection(Dataset):
     def __init__(
@@ -147,7 +148,7 @@ class SoccerNetGSR_Detection(Dataset):
                     annotations[sequence_name][frame_idx]["visibility"].append(visibility)
                     annotations[sequence_name][frame_idx]["role"].append(role_mapping[anno['attributes']['role']])
                 elif anno['supercategory']== 'pitch':
-                    annotations[sequence_name][frame_idx]['lines'] = anno['lines']
+                    annotations[sequence_name][frame_idx]['lines'] = self.correct_lines_labels(anno['lines'])
                 else:
                     raise ValueError(f"Unknown annotation: {anno}")
                 
@@ -199,6 +200,13 @@ class SoccerNetGSR_Detection(Dataset):
             for i in range(self.sequence_infos[sequence_name]["length"]):
                 annotations[sequence_name][i]["is_legal"] = is_legal(annotations[sequence_name][i])
         return annotations
+    
+    def correct_lines_labels(self, data):
+        if 'Goal left post left' in data.keys():
+            data['Goal left post left '] = copy.deepcopy(data['Goal left post left'])
+            del data['Goal left post left']
+
+        return data
     
     def _decouple_is_legal(self):
         decoupled_is_legal = defaultdict(list)
@@ -252,6 +260,23 @@ class SoccerNetGSR_Detection(Dataset):
         fov_h = 2 * torch.atan((H / 2) / annotation['intrinsic'][1, 1])
         fov_w = 2 * torch.atan((W / 2) / annotation['intrinsic'][0, 0])
         annotation['fov_hw'] = torch.stack([fov_h, fov_w])
+        # use for keypoints detection:
+        # print(annotation['lines'])
+        image_db = KeypointsDB(annotation['lines'], image)
+        try:
+            target, mask = image_db.get_tensor_w_mask()
+            annotation['keypoints_target'] = torch.tensor(target, dtype=torch.float32)
+            annotation['keypoints_mask'] = torch.tensor(mask, dtype=torch.float32)
+        except Exception as e:
+            if isinstance(e, OverflowError):
+                # If overflow error occurs, try getting a different sample
+                new_index = (index + 1) % len(self)
+                return self.__getitem__(new_index)
+            else:
+                # For other exceptions, print error and raise
+                print(e)
+                print(annotation['lines'])
+                raise e
         
         return image, annotation, metas
 

@@ -23,7 +23,7 @@ class SoccerNetGSR_ReIDHead(nn.Module):
         # self.role_classifier = nn.Linear(output_reid_dim, len(role_mapping))
         # self.pid_classifier = nn.Linear(output_reid_dim, num_pids)
 
-    def forward(self, backbone_outputs):
+    def forward(self, backbone_outputs, metas):
         global_features, local_features = backbone_outputs['global_features'], backbone_outputs['local_features']
         
         reid_embeddings = self.global_feature_proj(global_features)

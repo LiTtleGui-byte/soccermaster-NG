@@ -54,11 +54,11 @@ class MultiTaskingSigLIP(nn.Module):
             else:
                 raise ValueError(f"Task {task} is not supported.")
 
-    def forward(self, images, task):
+    def forward(self, images, task, metas):
         backbone_outputs = self.backbone(images)
         
         # outputs = {task: self.multi_task_head[task](backbone_outputs) for task in self.multi_task_head.keys()}
         # 不同数据对应了不同的head，只给对应的那个
-        outputs = {task: self.multi_task_head[task](backbone_outputs)}
+        outputs = {task: self.multi_task_head[task](backbone_outputs, metas)}
         
         return outputs

@@ -449,9 +449,9 @@ def train_one_epoch(
                 
                 # 可选：使用梯度检查点进一步减少显存（会增加计算时间）
                 if config.get("USE_GRADIENT_CHECKPOINTING", False):
-                    outputs = torch.utils.checkpoint.checkpoint(model, images, task, use_reentrant=False)
+                    outputs = torch.utils.checkpoint.checkpoint(model, images, task, metas, use_reentrant=False)
                 else:
-                    outputs = model(images, task)
+                    outputs = model(images, task, metas)
                     
                 loss_output = loss_fn_dict[task](outputs[task], annotations)
                 if task in ["SoccerNetGSR_Detection", ]:

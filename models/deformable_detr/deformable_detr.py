@@ -42,7 +42,7 @@ def _get_clones(module, N):
 
 class DeformableDetrHead(nn.Module):
     """ This is the Deformable DETR module that performs object detection """
-    def __init__(self, position_encoding, transformer, num_classes, num_queries, num_feature_levels, backbone_strides, backbone_num_channels, 
+    def __init__(self, position_encoding, transformer, num_classes, num_queries, num_feature_levels, backbone_strides, backbone_num_channels, num_keypoints,
                  aux_loss=True, with_box_refine=False, two_stage=False):
         """ Initializes the model.
         Parameters:
@@ -96,6 +96,7 @@ class DeformableDetrHead(nn.Module):
         self.two_stage = two_stage
         
         self.camera_head = ConvCameraHead(input_channels=backbone_num_channels[0])
+        self.keypoints_head = KeypointsHead(dim_in=backbone_num_channels[0], num_keypoints=num_keypoints)
 
         prior_prob = 0.01
         bias_value = -math.log((1 - prior_prob) / prior_prob)
@@ -128,7 +129,7 @@ class DeformableDetrHead(nn.Module):
             for box_embed in self.bbox_embed:
                 nn.init.constant_(box_embed.layers[-1].bias.data[2:], 0.0)
 
-    def forward(self, backbone_outputs):
+    def forward(self, backbone_outputs, metas):
         """ The forward expects a NestedTensor, which consists of:
                - samples.tensor: batched images, of shape [batch_size x 3 x H x W]
                - samples.mask: a binary mask of shape [batch_size x H x W], containing 1 on padded pixels
@@ -210,6 +211,8 @@ class DeformableDetrHead(nn.Module):
 
         # Use ConvCameraHead with reshaped features
         quaternion, translation, fov = self.camera_head(reshaped_local_features)
+        # Use KeypointsHead with reshaped features
+        keypoints_heatmap = self.keypoints_head(reshaped_local_features)
 
         out = {'pred_logits': outputs_class[-1], 'pred_boxes': outputs_coord[-1], 'pred_roles': outputs_role[-1]}
         # Add camera predictions to output
@@ -218,6 +221,7 @@ class DeformableDetrHead(nn.Module):
             'translation': translation,
             'fov': fov
         }
+        out['pred_keypoints_heatmap'] = keypoints_heatmap
         if self.aux_loss:
             out['aux_outputs'] = self._set_aux_loss(outputs_class, outputs_coord, outputs_role)
 
@@ -262,6 +266,7 @@ class SetCriterion(nn.Module):
         self.losses = losses
         self.focal_alpha = focal_alpha
         self.detr_loss_batch_len = detr_loss_batch_len
+        
         
     def loss_labels(self, outputs, targets, indices, num_boxes, log=True):
         """Classification loss (NLL)
@@ -523,6 +528,15 @@ class SetCriterion(nn.Module):
         losses["loss_R"] = loss_R
         losses["loss_fl"] = loss_fl
         
+        # Keypoints loss:
+        keypoints_gt = torch.stack([t["keypoints_target"] for t in targets], dim=0)
+        keypoints_mask = torch.stack([t["keypoints_mask"] for t in targets], dim=0)
+        keypoints_pred = outputs["pred_keypoints_heatmap"]
+        
+        loss_keypoints = F.mse_loss(keypoints_pred, keypoints_gt, reduction='none')
+        loss_keypoints = (loss_keypoints * keypoints_mask.unsqueeze(-1).unsqueeze(-1)).sum() / (keypoints_mask.sum() + 1e-6)
+        losses["loss_keypoints"] = loss_keypoints
+        
         # losses = {k: (v * self.weight_dict[k] if k in self.weight_dict else v) for k, v in losses.items()}
 
         return losses, self.weight_dict, indices
@@ -745,6 +759,8 @@ def cvt_config_to_args(config: dict):
     detr_args.gsr_camera_t_loss_weight = config["GSR_CAMERA_T_LOSS_WEIGHT"]
     detr_args.gsr_camera_r_loss_weight = config["GSR_CAMERA_R_LOSS_WEIGHT"]
     detr_args.gsr_camera_fl_loss_weight = config["GSR_CAMERA_FL_LOSS_WEIGHT"]
+    detr_args.num_keypoints = config["NUM_KEYPOINTS"]
+    detr_args.gsr_keypoints_loss_weight = config["GSR_KEYPOINTS_LOSS_WEIGHT"]
     detr_args.backbone_strides = [16]
     detr_args.backbone_num_channels = [768]
     
@@ -763,6 +779,7 @@ def build_deformable_detr_head(config: dict):
         num_feature_levels=args.num_feature_levels,
         backbone_strides=args.backbone_strides,
         backbone_num_channels=args.backbone_num_channels,
+        num_keypoints=args.num_keypoints,
         aux_loss=args.aux_loss,
         with_box_refine=args.with_box_refine,
         two_stage=args.two_stage,
@@ -779,6 +796,8 @@ def build_deformable_detr_criterion(config: dict):
     weight_dict["loss_T"] = args.gsr_camera_t_loss_weight
     weight_dict["loss_R"] = args.gsr_camera_r_loss_weight
     weight_dict["loss_fl"] = args.gsr_camera_fl_loss_weight
+    # Add keypoints loss weights
+    weight_dict["loss_keypoints"] = args.gsr_keypoints_loss_weight
     
     assert args.masks is False, "MASKS is not supported yet."
     if args.masks:
@@ -901,7 +920,6 @@ class ConvCameraHead(nn.Module):
         
         return quaternion, translation, fov
 
-
 # class CameraHead(nn.Module):
 #     """Simple camera head that works on flattened features"""
 #     def __init__(self, dim_in=768):
@@ -962,3 +980,94 @@ class ConvCameraHead(nn.Module):
 #         camera_tokens = torch.cat([quaternion, translation, fov], dim=1)
         
 #         return camera_tokens
+class KeypointsHead(nn.Module):
+    def __init__(self, dim_in=768, num_keypoints=58):
+        super(KeypointsHead, self).__init__()
+        self.dim_in = dim_in
+        # Using sub-pixel convolution (pixel shuffle) for learnable upsampling
+        # This is more parameter-efficient and often works better than transposed convolution
+        
+        # Stage 1: (768, 32, 32) -> (192, 64, 64) using 2x upsampling
+        self.stage1 = nn.Sequential(
+            nn.Conv2d(dim_in, 192 * 4, kernel_size=3, padding=1),  # 4x channels for 2x upsampling
+            nn.PixelShuffle(2),  # (192*4, 32, 32) -> (192, 64, 64)
+            nn.BatchNorm2d(192),
+            nn.ReLU(inplace=True),
+            nn.Conv2d(192, 192, kernel_size=3, padding=1),
+            nn.BatchNorm2d(192),
+            nn.ReLU(inplace=True)
+        )
+        
+        # Stage 2: (192, 64, 64) -> (96, 128, 128)
+        self.stage2 = nn.Sequential(
+            nn.Conv2d(192, 96 * 4, kernel_size=3, padding=1),
+            nn.PixelShuffle(2),  # (96*4, 64, 64) -> (96, 128, 128)
+            nn.BatchNorm2d(96),
+            nn.ReLU(inplace=True),
+            nn.Conv2d(96, 96, kernel_size=3, padding=1),
+            nn.BatchNorm2d(96),
+            nn.ReLU(inplace=True)
+        )
+        
+        # Stage 3: (96, 128, 128) -> (48, 256, 256)
+        self.stage3 = nn.Sequential(
+            nn.Conv2d(96, 48 * 4, kernel_size=3, padding=1),
+            nn.PixelShuffle(2),  # (48*4, 128, 128) -> (48, 256, 256)
+            nn.BatchNorm2d(48),
+            nn.ReLU(inplace=True),
+            # nn.Conv2d(48, 48, kernel_size=3, padding=1),
+            # nn.BatchNorm2d(48),
+            nn.Conv2d(48, num_keypoints, kernel_size=3, padding=1),
+            nn.BatchNorm2d(num_keypoints),
+            nn.ReLU(inplace=True)
+        )
+        
+        # # Stage 4: (48, 256, 256) -> (24, 512, 512)
+        # self.stage4 = nn.Sequential(
+        #     nn.Conv2d(48, 24 * 4, kernel_size=3, padding=1),
+        #     nn.PixelShuffle(2),  # (24*4, 256, 256) -> (24, 512, 512)
+        #     nn.BatchNorm2d(24),
+        #     nn.ReLU(inplace=True),
+        #     nn.Conv2d(24, 24, kernel_size=3, padding=1),
+        #     nn.BatchNorm2d(24),
+        #     nn.ReLU(inplace=True)
+        # )
+        
+        # Final stage: (24, 512, 512) -> (output_channels, 512, 512)
+        self.final_conv = nn.Sequential(
+            # nn.Conv2d(24, num_keypoints, kernel_size=3, padding=1),
+            nn.Conv2d(num_keypoints, num_keypoints, kernel_size=3, padding=1),
+            nn.Softmax(dim=1)
+        )
+        
+        # Initialize weights
+        self._init_weights()
+    
+    def _init_weights(self):
+        """Initialize weights"""
+        for m in self.modules():
+            if isinstance(m, nn.Conv2d):
+                nn.init.kaiming_normal_(m.weight, mode='fan_out', nonlinearity='relu')
+                if m.bias is not None:
+                    nn.init.constant_(m.bias, 0)
+            elif isinstance(m, nn.BatchNorm2d):
+                nn.init.constant_(m.weight, 1)
+                nn.init.constant_(m.bias, 0)
+    
+    def forward(self, x):
+        """
+        Forward pass using learnable upsampling
+        Args:
+            x: Input features of shape (N, 768, 32, 32)
+        Returns:
+            output: Reconstructed features of shape (N, output_channels, 512, 512)
+        """
+        x = self.stage1(x)      # (N, 192, 64, 64)
+        x = self.stage2(x)      # (N, 96, 128, 128)
+        x = self.stage3(x)      # (N, 48, 256, 256)
+        # x = self.stage4(x)      # (N, 24, 512, 512)
+        x = self.final_conv(x)  # (N, output_channels, 512, 512)
+        
+        return x
+
+
