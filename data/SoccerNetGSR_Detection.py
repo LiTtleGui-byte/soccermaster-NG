@@ -240,7 +240,7 @@ class SoccerNetGSR_Detection(Dataset):
         sequence_name, frame_idx = self.sample_position[index]
         image_path = self.image_paths[sequence_name][frame_idx]
         image = Image.open(image_path).convert("RGB")
-        annotation = self.annotations[sequence_name][frame_idx]
+        annotation = copy.deepcopy(self.annotations[sequence_name][frame_idx])
         metas = {"task": 'SoccerNetGSR_Detection',
                 "split": self.split,
                 "sequence": sequence_name,
@@ -271,12 +271,14 @@ class SoccerNetGSR_Detection(Dataset):
             if isinstance(e, OverflowError):
                 # If overflow error occurs, try getting a different sample
                 new_index = (index + 1) % len(self)
+                # del image_db
                 return self.__getitem__(new_index)
             else:
                 # For other exceptions, print error and raise
                 print(e)
                 print(annotation['lines'])
                 raise e
+        # del image_db, target, mask
         
         return image, annotation, metas
 

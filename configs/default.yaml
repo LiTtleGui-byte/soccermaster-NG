@@ -4,8 +4,7 @@ SUPER_CONFIG_PATH:          # super (father) config path
 SEED: 42
 
 # System Settings:
-NUM_WORKERS: 2
-PREFETCH_FACTOR: 6
+NUM_WORKERS: 4
 DEVICE: cuda
 
 # Outputs settings:
@@ -19,6 +18,7 @@ EXP_OWNER: 1020134037-shanghai-jiao-tong-university
 EXP_PROJECT: SoccerVisualBackbone
 EXP_GROUP: SoccerVisualBackbone
 EXP_NAME: Default
+EVAL_PER_EPOCH: 1
 SAVE_CHECKPOINT_PER_EPOCH: 5
 MULTI_LAST_CHECKPOINTS: 0
 

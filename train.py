@@ -138,7 +138,7 @@ def train_engine(config: dict):
         scheduler.step()
         
         # Evaluate after each epoch if test datasets are available
-        if dataloader_test_dict and (epoch + 1) % config["SAVE_CHECKPOINT_PER_EPOCH"] == 0:
+        if dataloader_test_dict and (epoch + 1) % config["EVAL_PER_EPOCH"] == 0:
             logger.info(f"Starting evaluation for epoch {epoch}...")
             eval_results = evaluate_one_epoch(
                 config=config,
@@ -230,7 +230,7 @@ def evaluate_one_epoch(
                 
                 # Forward pass
                 with accelerator.autocast():
-                    outputs = model(images, task_name)
+                    outputs = model(images, task_name, metas)
                     
                     # Compute loss
                     loss_output = loss_fn_dict[task_name](outputs[task_name], annotations)

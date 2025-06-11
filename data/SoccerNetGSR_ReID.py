@@ -50,9 +50,6 @@ class SoccerNetGSR_ReID(Dataset):
     def __len__(self):
         return len(self.train)
     
-    def __getitem__(self, index):
-        return self.train[index]
-        
     def to_torchreid_dataset_format(self, dataframes):
         results = []
         column_mapping = {}
@@ -93,7 +90,7 @@ class SoccerNetGSR_ReID(Dataset):
         return results
     
     def __getitem__(self, index):
-        sample = self.train[index]
+        sample = copy.deepcopy(self.train[index])
         image_path = sample['img_path']
         image = Image.open(image_path).convert("RGB")
             
