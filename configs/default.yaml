@@ -4,7 +4,7 @@ SUPER_CONFIG_PATH:          # super (father) config path
 SEED: 42
 
 # System Settings:
-NUM_WORKERS: 0
+NUM_WORKERS: 2
 DEVICE: cuda
 
 # Outputs settings:
