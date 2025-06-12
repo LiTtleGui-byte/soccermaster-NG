@@ -19,7 +19,7 @@ from torch.utils.data import DataLoader
 import torch.nn.functional as F
 from utils.box_ops import box_xywh_to_xyxy, box_xyxy_to_cxcywh, box_cxcywh_to_xywh, bbox_xywh_to_cxcywh
 from data.utils import Compose, ToTensor, RandomResize, Normalize, get_image_hw
-from data.SoccerNetGSR_ReID import role_mapping
+from data.SoccerNetGSR_ReID import role_mapping, jn_mapping, digit_head_mapping, digit_tail_mapping
 from data.pnlcalib_utils.utils_keypoints import KeypointsDB
 import copy
 
@@ -111,6 +111,10 @@ class SoccerNetGSR_Detection(Dataset):
                     "bbox": [],
                     "visibility": [],
                     "role": [],
+                    "jersey": [],
+                    "digit_head": [],
+                    "digit_tail": [],
+                    "legibility_score": [],
                     "valid_camera": torch.tensor(False, dtype=torch.bool),
                     "intrinsic": torch.zeros((3, 3), dtype=torch.float32),
                     "translation": torch.zeros((3, ), dtype=torch.float32),
@@ -120,6 +124,15 @@ class SoccerNetGSR_Detection(Dataset):
         return annotations
     
     def _get_annotations(self):
+        
+        # get legibility jn info
+        legibility_jn_json_path = os.path.join(self.data_dir, 'legibility_jn', f'{self.split}.json')
+        with open(legibility_jn_json_path, 'r') as f:
+            legibility_jn_info = json.load(f)
+        legibility_jn_dict = {}
+        for [sequence_id, image_id, track_id, jn, legibility] in legibility_jn_info:
+            legibility_jn_dict.update({(sequence_id, image_id, track_id): (jn, legibility)})
+        
         sequence_names = self._get_sequence_names()
         # Init the annotations:
         annotations = self._init_annotations(sequence_names)
@@ -147,6 +160,35 @@ class SoccerNetGSR_Detection(Dataset):
                     annotations[sequence_name][frame_idx]["bbox"].append(bbox)
                     annotations[sequence_name][frame_idx]["visibility"].append(visibility)
                     annotations[sequence_name][frame_idx]["role"].append(role_mapping[anno['attributes']['role']])
+                    
+                    # get legibility score $$ filtered jn
+                    sequence_id = sequence_name[-3:]
+                    image_id = anno['image_id']
+                    track_id = anno['track_id']
+                    legibility_score = legibility_jn_dict[(sequence_id, image_id, track_id)][1]
+                    annotations[sequence_name][frame_idx]["legibility_score"].append(legibility_score)
+                    jn = anno['attributes']['jersey'] if legibility_score > 0.5 else None
+                    annotations[sequence_name][frame_idx]["jersey"].append(jn_mapping[jn])
+                    # get digit head and digit tail
+                    if jn is not None:
+                        if len(jn) == 1:
+                            # 对于1位数，设置tail为该数字
+                            annotations[sequence_name][frame_idx]["digit_tail"].append(digit_tail_mapping[jn])
+                            annotations[sequence_name][frame_idx]["digit_head"].append(digit_head_mapping[None])
+                        elif len(jn) == 2:
+                            # 对于2位数，设置head为高位，tail为低位
+                            annotations[sequence_name][frame_idx]["digit_head"].append(digit_head_mapping[jn[0]])
+                            annotations[sequence_name][frame_idx]["digit_tail"].append(digit_tail_mapping[jn[1]])
+                        else:
+                            # 对于其他情况，设置为None
+                            annotations[sequence_name][frame_idx]["digit_head"].append(digit_head_mapping[None])
+                            annotations[sequence_name][frame_idx]["digit_tail"].append(digit_tail_mapping[None])
+                    else:
+                        # 如果jersey number为None，则digit_head和digit_tail也设置为None
+                        annotations[sequence_name][frame_idx]["digit_head"].append(digit_head_mapping[None])
+                        annotations[sequence_name][frame_idx]["digit_tail"].append(digit_tail_mapping[None])
+                        
+                    
                 elif anno['supercategory']== 'pitch':
                     annotations[sequence_name][frame_idx]['lines'] = self.correct_lines_labels(anno['lines'])
                 else:
@@ -187,6 +229,10 @@ class SoccerNetGSR_Detection(Dataset):
                     frame_annotation["bbox"] = torch.tensor(frame_annotation["bbox"], dtype=torch.float32)
                     frame_annotation["visibility"] = torch.tensor(frame_annotation["visibility"], dtype=torch.float32)
                     frame_annotation["role"] = torch.tensor(frame_annotation["role"], dtype=torch.int64)
+                    frame_annotation["jersey"] = torch.tensor(frame_annotation["jersey"], dtype=torch.int64)
+                    frame_annotation["digit_head"] = torch.tensor(frame_annotation["digit_head"], dtype=torch.int64)
+                    frame_annotation["digit_tail"] = torch.tensor(frame_annotation["digit_tail"], dtype=torch.int64)
+                    frame_annotation["legibility_score"] = torch.tensor(frame_annotation["legibility_score"], dtype=torch.float32)
                 else:
                     # Empty frame
                     frame_annotation["id"] = torch.zeros((0, ), dtype=torch.int64)
@@ -194,6 +240,10 @@ class SoccerNetGSR_Detection(Dataset):
                     frame_annotation["bbox"] = torch.zeros((0, 4), dtype=torch.float32)
                     frame_annotation["visibility"] = torch.zeros((0, ), dtype=torch.float32)
                     frame_annotation["role"] = torch.zeros((0, ), dtype=torch.int64)
+                    frame_annotation["jersey"] = torch.zeros((0, ), dtype=torch.int64)
+                    frame_annotation["digit_head"] = torch.zeros((0, ), dtype=torch.int64)
+                    frame_annotation["digit_tail"] = torch.zeros((0, ), dtype=torch.int64)
+                    frame_annotation["legibility_score"] = torch.zeros((0, ), dtype=torch.float32)
 
         # Determine whether each annotation is legal:
         for sequence_name in sequence_names:

@@ -34,7 +34,7 @@ from .matcher import build_matcher
 from .segmentation import (DETRsegm, PostProcessPanoptic, PostProcessSegm,
                            dice_loss, sigmoid_focal_loss)
 from .deformable_transformer import build_deforamble_transformer
-from data.SoccerNetGSR_ReID import role_mapping
+from data.SoccerNetGSR_ReID import role_mapping, jn_mapping, digit_head_mapping, digit_tail_mapping
 
 def _get_clones(module, N):
     return nn.ModuleList([copy.deepcopy(module) for i in range(N)])
@@ -64,8 +64,13 @@ class DeformableDetrHead(nn.Module):
         self.class_embed = nn.Linear(hidden_dim, num_classes)
         self.bbox_embed = MLP(hidden_dim, hidden_dim, 4, 3)
         num_role_classes = len(role_mapping)
+        num_jn_classes = len(jn_mapping)
+        num_digit_head_classes = len(digit_head_mapping)
+        num_digit_tail_classes = len(digit_tail_mapping)
         self.role_embed = nn.Linear(hidden_dim, num_role_classes)
-        self.num_role_classes = num_role_classes
+        self.jn_holistic_embed = nn.Linear(hidden_dim, num_jn_classes)
+        self.digit_head_embed = nn.Linear(hidden_dim, num_digit_head_classes)
+        self.digit_tail_embed = nn.Linear(hidden_dim, num_digit_tail_classes)
         self.num_feature_levels = num_feature_levels
         if not two_stage:
             self.query_embed = nn.Embedding(num_queries, hidden_dim*2)
@@ -102,6 +107,9 @@ class DeformableDetrHead(nn.Module):
         bias_value = -math.log((1 - prior_prob) / prior_prob)
         self.class_embed.bias.data = torch.ones(num_classes) * bias_value
         self.role_embed.bias.data = torch.ones(num_role_classes) * bias_value
+        self.jn_holistic_embed.bias.data = torch.ones(num_jn_classes) * bias_value
+        self.digit_head_embed.bias.data = torch.ones(num_digit_head_classes) * bias_value
+        self.digit_tail_embed.bias.data = torch.ones(num_digit_tail_classes) * bias_value
         nn.init.constant_(self.bbox_embed.layers[-1].weight.data, 0)
         nn.init.constant_(self.bbox_embed.layers[-1].bias.data, 0)
         for proj in self.input_proj:
@@ -114,6 +122,9 @@ class DeformableDetrHead(nn.Module):
             self.class_embed = _get_clones(self.class_embed, num_pred)
             self.bbox_embed = _get_clones(self.bbox_embed, num_pred)
             self.role_embed = _get_clones(self.role_embed, num_pred)
+            self.jn_holistic_embed = _get_clones(self.jn_holistic_embed, num_pred)
+            self.digit_head_embed = _get_clones(self.digit_head_embed, num_pred)
+            self.digit_tail_embed = _get_clones(self.digit_tail_embed, num_pred)
             nn.init.constant_(self.bbox_embed[0].layers[-1].bias.data[2:], -2.0)
             # hack implementation for iterative bounding box refinement
             self.transformer.decoder.bbox_embed = self.bbox_embed
@@ -122,6 +133,9 @@ class DeformableDetrHead(nn.Module):
             self.class_embed = nn.ModuleList([self.class_embed for _ in range(num_pred)])
             self.bbox_embed = nn.ModuleList([self.bbox_embed for _ in range(num_pred)])
             self.role_embed = nn.ModuleList([self.role_embed for _ in range(num_pred)])
+            self.jn_holistic_embed = nn.ModuleList([self.jn_holistic_embed for _ in range(num_pred)])
+            self.digit_head_embed = nn.ModuleList([self.digit_head_embed for _ in range(num_pred)])
+            self.digit_tail_embed = nn.ModuleList([self.digit_tail_embed for _ in range(num_pred)])
             self.transformer.decoder.bbox_embed = None
         if two_stage:
             # hack implementation for two-stage
@@ -187,6 +201,9 @@ class DeformableDetrHead(nn.Module):
         outputs_classes = []
         outputs_coords = []
         outputs_roles = []
+        outputs_jn_holistic = []
+        outputs_digit_head = []
+        outputs_digit_tail = []
         for lvl in range(hs.shape[0]):
             if lvl == 0:
                 reference = init_reference
@@ -195,6 +212,10 @@ class DeformableDetrHead(nn.Module):
             reference = inverse_sigmoid(reference)
             outputs_class = self.class_embed[lvl](hs[lvl])
             outputs_role = self.role_embed[lvl](hs[lvl])
+            outputs_jn = self.jn_holistic_embed[lvl](hs[lvl])
+            outputs_digit_h = self.digit_head_embed[lvl](hs[lvl])
+            outputs_digit_t = self.digit_tail_embed[lvl](hs[lvl])
+            
             tmp = self.bbox_embed[lvl](hs[lvl])
             if reference.shape[-1] == 4:
                 tmp += reference
@@ -205,16 +226,22 @@ class DeformableDetrHead(nn.Module):
             outputs_classes.append(outputs_class)
             outputs_coords.append(outputs_coord)
             outputs_roles.append(outputs_role)
+            outputs_jn_holistic.append(outputs_jn)
+            outputs_digit_head.append(outputs_digit_h)
+            outputs_digit_tail.append(outputs_digit_t)
         outputs_class = torch.stack(outputs_classes)
         outputs_coord = torch.stack(outputs_coords)
         outputs_role = torch.stack(outputs_roles)
+        outputs_jn_holistic = torch.stack(outputs_jn_holistic)
+        outputs_digit_head = torch.stack(outputs_digit_head)
+        outputs_digit_tail = torch.stack(outputs_digit_tail)
 
         # Use ConvCameraHead with reshaped features
         quaternion, translation, fov = self.camera_head(reshaped_local_features)
         # Use KeypointsHead with reshaped features
         keypoints_heatmap = self.keypoints_head(reshaped_local_features)
 
-        out = {'pred_logits': outputs_class[-1], 'pred_boxes': outputs_coord[-1], 'pred_roles': outputs_role[-1]}
+        out = {'pred_logits': outputs_class[-1], 'pred_boxes': outputs_coord[-1], 'pred_roles': outputs_role[-1], 'pred_jn_holistic': outputs_jn_holistic[-1], 'pred_digit_head': outputs_digit_head[-1], 'pred_digit_tail': outputs_digit_tail[-1]}
         # Add camera predictions to output
         out['pred_camera'] = {
             'quaternion': quaternion,
@@ -223,7 +250,7 @@ class DeformableDetrHead(nn.Module):
         }
         out['pred_keypoints_heatmap'] = keypoints_heatmap
         if self.aux_loss:
-            out['aux_outputs'] = self._set_aux_loss(outputs_class, outputs_coord, outputs_role)
+            out['aux_outputs'] = self._set_aux_loss(outputs_class, outputs_coord, outputs_role, outputs_jn_holistic, outputs_digit_head, outputs_digit_tail)
 
         if self.two_stage:
             enc_outputs_coord = enc_outputs_coord_unact.sigmoid()
@@ -235,12 +262,12 @@ class DeformableDetrHead(nn.Module):
         return out
 
     @torch.jit.unused
-    def _set_aux_loss(self, outputs_class, outputs_coord, outputs_role):
+    def _set_aux_loss(self, outputs_class, outputs_coord, outputs_role, outputs_jn_holistic, outputs_digit_head, outputs_digit_tail):
         # this is a workaround to make torchscript happy, as torchscript
         # doesn't support dictionary with non-homogeneous values, such
         # as a dict having both a Tensor and a list.
-        return [{'pred_logits': a, 'pred_boxes': b, 'pred_roles': c}
-                for a, b, c in zip(outputs_class[:-1], outputs_coord[:-1], outputs_role[:-1])]
+        return [{'pred_logits': a, 'pred_boxes': b, 'pred_roles': c, 'pred_jn_holistic': d, 'pred_digit_head': e, 'pred_digit_tail': f}
+                for a, b, c, d, e, f in zip(outputs_class[:-1], outputs_coord[:-1], outputs_role[:-1], outputs_jn_holistic[:-1], outputs_digit_head[:-1], outputs_digit_tail[:-1])]
 
 
 class SetCriterion(nn.Module):
@@ -261,6 +288,9 @@ class SetCriterion(nn.Module):
         super().__init__()
         self.num_classes = num_classes
         self.num_role_classes = len(role_mapping)
+        self.num_jn_classes = len(jn_mapping)
+        self.num_digit_head_classes = len(digit_head_mapping)
+        self.num_digit_tail_classes = len(digit_tail_mapping)
         self.matcher = matcher
         self.weight_dict = weight_dict
         self.losses = losses
@@ -303,21 +333,79 @@ class SetCriterion(nn.Module):
 
         idx = self._get_src_permutation_idx(indices)
         target_roles_o = torch.cat([t["roles"][J] for t, (_, J) in zip(targets, indices)])
-        target_roles = torch.full(src_logits.shape[:2], self.num_role_classes,
-                                    dtype=torch.int64, device=src_logits.device)
-        target_roles[idx] = target_roles_o
-
-        target_roles_onehot = torch.zeros([src_logits.shape[0], src_logits.shape[1], src_logits.shape[2] + 1],
-                                            dtype=src_logits.dtype, layout=src_logits.layout, device=src_logits.device)
-        target_roles_onehot.scatter_(2, target_roles.unsqueeze(-1), 1)
-
-        target_roles_onehot = target_roles_onehot[:,:,:-1]
+        
+        target_roles_onehot = torch.zeros_like(src_logits, dtype=src_logits.dtype, layout=src_logits.layout, device=src_logits.device)
+        
+        target_roles_onehot[idx[0], idx[1], target_roles_o] = 1
+        
         loss_role = sigmoid_focal_loss(src_logits, target_roles_onehot, num_boxes, alpha=self.focal_alpha, gamma=2) * src_logits.shape[1]
         losses = {'loss_role': loss_role}
 
         if log:
-            # TODO this should probably be a separate loss, not hacked in this one here
             losses['role_error'] = 100 - accuracy(src_logits[idx], target_roles_o)[0]
+        return losses
+
+    def loss_jn_holistic(self, outputs, targets, indices, num_boxes, log=True):
+        """Jersey number holistic classification loss (NLL)
+        targets dicts must contain the key "jn_holistic" containing a tensor of dim [nb_target_boxes]
+        """
+        assert 'pred_jn_holistic' in outputs
+        src_logits = outputs['pred_jn_holistic']
+
+        idx = self._get_src_permutation_idx(indices)
+        target_jn_holistic_o = torch.cat([t["jersey"][J] for t, (_, J) in zip(targets, indices)])
+        
+        target_jn_holistic_onehot = torch.zeros_like(src_logits, dtype=src_logits.dtype, layout=src_logits.layout, device=src_logits.device)
+        
+        target_jn_holistic_onehot[idx[0], idx[1], target_jn_holistic_o] = 1
+        
+        loss_jn_holistic = sigmoid_focal_loss(src_logits, target_jn_holistic_onehot, num_boxes, alpha=self.focal_alpha, gamma=2) * src_logits.shape[1]
+        losses = {'loss_jn_holistic': loss_jn_holistic}
+
+        if log:
+            losses['jn_holistic_error'] = 100 - accuracy(src_logits[idx], target_jn_holistic_o)[0]
+        return losses
+
+    def loss_digit_head(self, outputs, targets, indices, num_boxes, log=True):
+        """Digit head classification loss (NLL)
+        targets dicts must contain the key "digit_head" containing a tensor of dim [nb_target_boxes]
+        """
+        assert 'pred_digit_head' in outputs
+        src_logits = outputs['pred_digit_head']
+
+        idx = self._get_src_permutation_idx(indices)
+        target_digit_head_o = torch.cat([t["digit_head"][J] for t, (_, J) in zip(targets, indices)])
+        
+        target_digit_head_onehot = torch.zeros_like(src_logits, dtype=src_logits.dtype, layout=src_logits.layout, device=src_logits.device)
+        
+        target_digit_head_onehot[idx[0], idx[1], target_digit_head_o] = 1
+        
+        loss_digit_head = sigmoid_focal_loss(src_logits, target_digit_head_onehot, num_boxes, alpha=self.focal_alpha, gamma=2) * src_logits.shape[1]
+        losses = {'loss_digit_head': loss_digit_head}
+
+        if log:
+            losses['digit_head_error'] = 100 - accuracy(src_logits[idx], target_digit_head_o)[0]
+        return losses
+
+    def loss_digit_tail(self, outputs, targets, indices, num_boxes, log=True):
+        """Digit tail classification loss (NLL)
+        targets dicts must contain the key "digit_tail" containing a tensor of dim [nb_target_boxes]
+        """
+        assert 'pred_digit_tail' in outputs
+        src_logits = outputs['pred_digit_tail']
+
+        idx = self._get_src_permutation_idx(indices)
+        target_digit_tail_o = torch.cat([t["digit_tail"][J] for t, (_, J) in zip(targets, indices)])
+        
+        target_digit_tail_onehot = torch.zeros_like(src_logits, dtype=src_logits.dtype, layout=src_logits.layout, device=src_logits.device)
+        
+        target_digit_tail_onehot[idx[0], idx[1], target_digit_tail_o] = 1
+        
+        loss_digit_tail = sigmoid_focal_loss(src_logits, target_digit_tail_onehot, num_boxes, alpha=self.focal_alpha, gamma=2) * src_logits.shape[1]
+        losses = {'loss_digit_tail': loss_digit_tail}
+
+        if log:
+            losses['digit_tail_error'] = 100 - accuracy(src_logits[idx], target_digit_tail_o)[0]
         return losses
 
     @torch.no_grad()
@@ -407,7 +495,10 @@ class SetCriterion(nn.Module):
             'cardinality': self.loss_cardinality,
             'boxes': self.loss_boxes,
             'masks': self.loss_masks,
-            'roles': self.loss_roles
+            'roles': self.loss_roles,
+            'jn_holistic': self.loss_jn_holistic,
+            'digit_head': self.loss_digit_head,
+            'digit_tail': self.loss_digit_tail
         }
         assert loss in loss_map, f'do you really want to compute {loss} loss?'
 
@@ -425,7 +516,7 @@ class SetCriterion(nn.Module):
                 else:
                     loss_dict[k] += v
         # Average the loss:
-        if loss == "labels" or loss == "boxes" or loss == "masks" or loss == "roles":
+        if loss == "labels" or loss == "boxes" or loss == "masks" or loss == "roles" or loss == "jn_holistic" or loss == "digit_head" or loss == "digit_tail":
             for k in loss_dict.keys():
                 loss_dict[k] /= num_boxes
         pass
@@ -752,6 +843,9 @@ def cvt_config_to_args(config: dict):
     detr_args.bbox_loss_coef = config["DETR_BBOX_LOSS_COEF"]
     detr_args.giou_loss_coef = config["DETR_GIOU_LOSS_COEF"]
     detr_args.role_loss_coef = config["DETR_ROLE_LOSS_COEF"]
+    detr_args.jn_loss_coef = config["DETR_JN_LOSS_COEF"]
+    detr_args.digit_head_loss_coef = config["DETR_DIGIT_HEAD_LOSS_COEF"]
+    detr_args.digit_tail_loss_coef = config["DETR_DIGIT_TAIL_LOSS_COEF"]
     detr_args.focal_alpha = config["DETR_FOCAL_ALPHA"]
     detr_args.set_cost_class = config["DETR_SET_COST_CLASS"]
     detr_args.set_cost_bbox = config["DETR_SET_COST_BBOX"]
@@ -792,6 +886,11 @@ def build_deformable_detr_criterion(config: dict):
     weight_dict = {'loss_ce': args.cls_loss_coef, 'loss_bbox': args.bbox_loss_coef, 'loss_giou': args.giou_loss_coef}
     # Add role loss coefficient
     weight_dict['loss_role'] = args.role_loss_coef
+    # Add jn holistic loss coefficient
+    weight_dict['loss_jn_holistic'] = args.jn_loss_coef
+    # Add digit losses coefficient
+    weight_dict['loss_digit_head'] = args.digit_head_loss_coef
+    weight_dict['loss_digit_tail'] = args.digit_tail_loss_coef
     # Add camera loss weights
     weight_dict["loss_T"] = args.gsr_camera_t_loss_weight
     weight_dict["loss_R"] = args.gsr_camera_r_loss_weight
@@ -815,7 +914,7 @@ def build_deformable_detr_criterion(config: dict):
         num_classes=args.num_classes,
         matcher=build_matcher(args),
         weight_dict=weight_dict,
-        losses = ['labels', 'boxes', 'cardinality', 'roles'],
+        losses = ['labels', 'boxes', 'cardinality', 'roles', 'jn_holistic', 'digit_head', 'digit_tail'],
     )
     return detr_criterion
 

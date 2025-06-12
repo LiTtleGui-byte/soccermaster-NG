@@ -10,11 +10,17 @@ from pathlib import Path
 from torch.utils.data import DataLoader
 from PIL import Image
 import torch
-
+import json
 from data.utils import Compose, ToTensor, RandomResize, Normalize, get_image_hw
 
 role_mapping = {'ball': 0, 'goalkeeper': 1, 'other': 2, 'player': 3, 'referee': 4, None: -1}
-reid_columns = ["role", "team", "jersey_number"]
+reid_columns = ["role", "team", "filtered_jersey_number", "digit_head", "digit_tail"]
+jn_mapping = {str(i): i for i in range(100)}
+jn_mapping[None] = 100
+digit_head_mapping = {str(i): i-1 for i in range(1, 10)}
+digit_head_mapping[None] = 9
+digit_tail_mapping = {str(i): i for i in range(10)}
+digit_tail_mapping[None] = 10
 
 class SoccerNetGSR_ReID(Dataset):
     def __init__(
@@ -32,11 +38,44 @@ class SoccerNetGSR_ReID(Dataset):
         self.column_mapping = {}
         self.reid_columns = reid_columns
         self.role_mapping = role_mapping
+        self.jn_mapping = jn_mapping
+        self.digit_head_mapping = digit_head_mapping
+        self.digit_tail_mapping = digit_tail_mapping
         self.data_dir = os.path.join(data_root, sub_dir)
         # Load dataframes from pickle files
         train_df = pd.read_pickle(os.path.join(self.data_dir, 'ReID_df', 'train_df.pkl'))
         query_df = pd.read_pickle(os.path.join(self.data_dir, 'ReID_df', 'query_df.pkl'))
         gallery_df = pd.read_pickle(os.path.join(self.data_dir, 'ReID_df', 'gallery_df.pkl'))
+
+        train_legibility_jn_json_path = os.path.join(self.data_dir, 'legibility_jn', 'train.json')
+        train_df = self.get_legibility_info(train_df, train_legibility_jn_json_path)
+        test_legibility_jn_json_path = os.path.join(self.data_dir, 'legibility_jn', 'test.json')
+        query_df = self.get_legibility_info(query_df, test_legibility_jn_json_path)
+        gallery_df = self.get_legibility_info(gallery_df, test_legibility_jn_json_path)
+
+        # 根据legibility_score是否>0.5和jersey_number，生成filtered_jersey_number，其中<=0.5的设置为None
+        for df in [train_df, query_df, gallery_df]:
+            df['filtered_jersey_number'] = df['jersey_number'].copy()
+            mask = df['legibility_score'] <= 0.5
+            df.loc[mask, 'filtered_jersey_number'] = None
+            
+        # 根据legibility_score生成digit_head和digit_tail
+        for df in [train_df, query_df, gallery_df]:
+            df['digit_head'] = None
+            df['digit_tail'] = None
+            
+            # 处理非None的filtered_jersey_number
+            mask = df['filtered_jersey_number'].notna()
+            valid_numbers = df.loc[mask, 'filtered_jersey_number']
+            
+            # 对于1位数，设置tail为该数字
+            single_digit_mask = valid_numbers.str.len() == 1
+            df.loc[mask & single_digit_mask, 'digit_tail'] = valid_numbers[single_digit_mask]
+            
+            # 对于2位数，设置head为高位，tail为低位
+            double_digit_mask = valid_numbers.str.len() == 2
+            df.loc[mask & double_digit_mask, 'digit_head'] = valid_numbers[double_digit_mask].str[0]
+            df.loc[mask & double_digit_mask, 'digit_tail'] = valid_numbers[double_digit_mask].str[1]
 
         train, query, gallery = self.to_torchreid_dataset_format(
             [train_df, query_df, gallery_df]
@@ -54,6 +93,9 @@ class SoccerNetGSR_ReID(Dataset):
         results = []
         column_mapping = {}
         column_mapping["role"] = self.role_mapping
+        column_mapping["filtered_jersey_number"] = self.jn_mapping
+        column_mapping["digit_head"] = self.digit_head_mapping
+        column_mapping["digit_tail"] = self.digit_tail_mapping
         for col in self.reid_columns:
             if col not in column_mapping:
                 unique_values = {element for df in dataframes for element in df[col].unique()}
@@ -77,7 +119,7 @@ class SoccerNetGSR_ReID(Dataset):
             # 'RuntimeError: torch.cat(): input types can't be cast to the desired output type Long' in collate.py
             # -> still has to be fixed
             data_list = sorted_df[
-                ["pid", "camid", "img_path", "masks_path", "visibility", "image_id", "video_id"] + self.reid_columns
+                ["pid", "camid", "img_path", "masks_path", "visibility", "image_id", "video_id", "jersey_number", "id", "legibility_score"] + self.reid_columns
             ].copy()  # create a copy to avoid SettingWithCopyWarning
             
             # factorize all columns, i.e. replace string values with 0-based increasing ids
@@ -89,9 +131,31 @@ class SoccerNetGSR_ReID(Dataset):
             results.append(data_list)
         return results
     
+    def get_legibility_info(self, split_data, split_legibility_jn_json_path):
+        
+        with open(split_legibility_jn_json_path, 'r') as f:
+            split_legibility_jn_info = json.load(f)
+        legibility_jn_dict = {}
+        for [sequence_id, image_id, track_id, jn, legibility] in split_legibility_jn_info:
+            legibility_jn_dict.update({(sequence_id, image_id, track_id): (jn, legibility)})
+            
+        # 处理pandas DataFrame
+        def get_legibility_score(row):
+            id = row['id']
+            role = row['role']
+            if role == 'ball':
+                return None
+            sequence_id, image_id, track_id = id.split('_')
+            track_id = int(track_id)
+            return legibility_jn_dict[(sequence_id, image_id, track_id)][1]
+        
+        split_data['legibility_score'] = split_data.apply(get_legibility_score, axis=1)
+        
+        return split_data
+    
     def __getitem__(self, index):
         sample = copy.deepcopy(self.train[index])
-        image_path = sample['img_path']
+        image_path = os.path.join(self.data_dir, sample['img_path'])
         image = Image.open(image_path).convert("RGB")
             
         annotation = {
@@ -99,7 +163,9 @@ class SoccerNetGSR_ReID(Dataset):
             'visibility': sample['visibility'],
             'role': sample['role'],
             'team': sample['team'],
-            'jersey_number': sample['jersey_number'],
+            'jn_holistic': sample['filtered_jersey_number'],
+            'digit_head': sample['digit_head'],
+            'digit_tail': sample['digit_tail'],
         }
         
         metas = {

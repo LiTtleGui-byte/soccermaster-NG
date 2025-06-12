@@ -8,7 +8,7 @@ from prtreid.losses import init_part_based_triplet_loss, CrossEntropyLoss
 from prtreid.utils.constants import GLOBAL, FOREGROUND, CONCAT_PARTS, PARTS
 import torch.nn.functional as F
 import math
-from data.SoccerNetGSR_ReID import role_mapping
+from data.SoccerNetGSR_ReID import role_mapping, jn_mapping, digit_head_mapping, digit_tail_mapping
 from models.deformable_detr.deformable_detr import MLP
 import warnings
 
@@ -17,20 +17,26 @@ class SoccerNetGSR_ReIDHead(nn.Module):
         super().__init__()
         self.backbone_num_channels = backbone_num_channels
         
-        self.global_feature_proj = MLP(backbone_num_channels, 512, output_reid_dim, 2)
-        self.role_classifier = MLP(output_reid_dim, 512, len(role_mapping), 2)
-        self.pid_classifier = MLP(output_reid_dim, 512, num_pids, 2)
-        # self.role_classifier = nn.Linear(output_reid_dim, len(role_mapping))
-        # self.pid_classifier = nn.Linear(output_reid_dim, num_pids)
+        self.global_feature_proj = MLP(backbone_num_channels, backbone_num_channels, output_reid_dim, 2)
+        self.role_classifier = MLP(output_reid_dim, output_reid_dim, len(role_mapping), 2)
+        self.pid_classifier = MLP(output_reid_dim, output_reid_dim, num_pids, 2)
+        self.jn_holistic_classifier = MLP(output_reid_dim, output_reid_dim, len(jn_mapping), 2)
+        self.digit_head_classifier = MLP(output_reid_dim, output_reid_dim, len(digit_head_mapping), 2)
+        self.digit_tail_classifier = MLP(output_reid_dim, output_reid_dim, len(digit_tail_mapping), 2)
 
     def forward(self, backbone_outputs, metas):
         global_features, local_features = backbone_outputs['global_features'], backbone_outputs['local_features']
         
         reid_embeddings = self.global_feature_proj(global_features)
+        
         role_logits = self.role_classifier(reid_embeddings)
         pid_logits = self.pid_classifier(reid_embeddings)
+        jn_holistic_logits = self.jn_holistic_classifier(reid_embeddings)
+        digit_head_logits = self.digit_head_classifier(reid_embeddings)
+        digit_tail_logits = self.digit_tail_classifier(reid_embeddings)
         
-        out = {'reid_embeddings': reid_embeddings, 'role_logits': role_logits, 'pid_logits': pid_logits}
+        out = {'reid_embeddings': reid_embeddings, 'role_logits': role_logits, 'pid_logits': pid_logits, 'jn_holistic_logits': jn_holistic_logits, 'digit_head_logits': digit_head_logits, 'digit_tail_logits': digit_tail_logits}
+        
         return out
 
 class SoccerNetGSR_ReIDLoss(nn.Module):
@@ -41,14 +47,23 @@ class SoccerNetGSR_ReIDLoss(nn.Module):
         self.margin = margin
         self.role_loss = FocalLoss()
         self.pid_loss = FocalLoss()
+        self.jn_holistic_loss = FocalLoss()
+        self.digit_head_loss = FocalLoss()
+        self.digit_tail_loss = FocalLoss()
         
     def forward(self, outputs, targets):
         losses = {}
-        role_logits, pid_logits = outputs['role_logits'], outputs['pid_logits']
+        role_logits, pid_logits, jn_holistic_logits, digit_head_logits, digit_tail_logits = outputs['role_logits'], outputs['pid_logits'], outputs['jn_holistic_logits'], outputs['digit_head_logits'], outputs['digit_tail_logits']
         role_loss = self.role_loss(role_logits, targets['role'])
         pid_loss = self.pid_loss(pid_logits, targets['pid'])
+        jn_holistic_loss = self.jn_holistic_loss(jn_holistic_logits, targets['jn_holistic'])
+        digit_head_loss = self.digit_head_loss(digit_head_logits, targets['digit_head'])
+        digit_tail_loss = self.digit_tail_loss(digit_tail_logits, targets['digit_tail'])
         losses['role_focal_loss'] = role_loss
         losses['pid_focal_loss'] = pid_loss
+        losses['jn_holistic_focal_loss'] = jn_holistic_loss
+        losses['digit_head_focal_loss'] = digit_head_loss
+        losses['digit_tail_focal_loss'] = digit_tail_loss
         
         # Compute the pairwise distance matrix
         reid_embeddings = outputs['reid_embeddings']
@@ -348,7 +363,10 @@ def build_soccer_net_gsr_reid_loss(config: dict):
     weight_dict = {'role_focal_loss': config["SOCCER_NET_GSR_REID_ROLE_FOCAL_LOSS_WEIGHT"],
                    'pid_focal_loss': config["SOCCER_NET_GSR_REID_PID_FOCAL_LOSS_WEIGHT"],
                    'pid_triplet_loss': config["SOCCER_NET_GSR_REID_PID_TRIPLET_LOSS_WEIGHT"],
-                   'team_triplet_loss': config["SOCCER_NET_GSR_REID_TEAM_TRIPLET_LOSS_WEIGHT"]}
+                   'team_triplet_loss': config["SOCCER_NET_GSR_REID_TEAM_TRIPLET_LOSS_WEIGHT"],
+                   'jn_holistic_focal_loss': config["SOCCER_NET_GSR_REID_JN_HOISTIC_FOCAL_LOSS_WEIGHT"],
+                   'digit_head_focal_loss': config["SOCCER_NET_GSR_REID_DIGIT_HEAD_FOCAL_LOSS_WEIGHT"],
+                   'digit_tail_focal_loss': config["SOCCER_NET_GSR_REID_DIGIT_TAIL_FOCAL_LOSS_WEIGHT"]}
     
     
     return SoccerNetGSR_ReIDLoss(
