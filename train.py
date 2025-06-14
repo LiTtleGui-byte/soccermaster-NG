@@ -208,20 +208,16 @@ def evaluate_one_epoch(
     model.eval()
     device = accelerator.device
     
-    # Initialize metrics tracker for evaluation
-    eval_metrics = MetricsTracker()
-    task_metrics = {task: MetricsTracker() for task in dataloader_dict.keys()}
+    # Initialize metrics tracker for evaluation - 使用二级字典结构
+    eval_weighted_losses = {task: MetricsTracker() for task in dataloader_dict.keys()}
+    eval_unweighted_losses = {task: MetricsTracker() for task in dataloader_dict.keys()}
+    eval_log_only_losses = {task: MetricsTracker() for task in dataloader_dict.keys()}
     
-    total_samples = 0
     task_sample_counts = {task: 0 for task in dataloader_dict.keys()}
     
     # Process each task separately
     for task_name, dataloader in dataloader_dict.items():
         logger.info(f"Evaluating task: {task_name}")
-        
-        task_total_loss = 0.0
-        task_loss_components = defaultdict(float)
-        num_batches = 0
         
         with torch.no_grad():
             for batch_idx, batch in enumerate(dataloader):
@@ -239,120 +235,99 @@ def evaluate_one_epoch(
                     if task_name in ["SoccerNetGSR_Detection"]:
                         loss_task_raw, weight_dict, _ = loss_output
                         
-                        # Compute weighted losses
+                        # Compute weighted and unweighted losses
                         weighted_losses = {k: (v * weight_dict[k]) for k, v in loss_task_raw.items() if k in weight_dict}
                         unweighted_losses = {k: v for k, v in loss_task_raw.items() if k in weight_dict}
                         log_only_losses = {k: v for k, v in loss_task_raw.items() if k not in weight_dict}
                         
-                        # Total weighted loss for this batch
-                        batch_total_loss = sum(weighted_losses.values())
-                        
-                        # Accumulate losses
-                        for k, v in weighted_losses.items():
-                            task_loss_components[f"weighted_{k}"] += v.item()
-                        for k, v in unweighted_losses.items():
-                            task_loss_components[f"unweighted_{k}"] += v.item()
-                        for k, v in log_only_losses.items():
-                            task_loss_components[f"log_only_{k}"] += v.item()
+                        # Update metrics trackers
+                        eval_weighted_losses[task_name].update(weighted_losses)
+                        eval_unweighted_losses[task_name].update(unweighted_losses)
+                        eval_log_only_losses[task_name].update(log_only_losses)
                             
                     elif task_name in ["SoccerNetGSR_ReID"]:
                         loss_task_raw, weight_dict = loss_output
                         
-                        # Compute weighted losses
+                        # Compute weighted and unweighted losses
                         weighted_losses = {k: (v * weight_dict[k]) for k, v in loss_task_raw.items() if k in weight_dict}
                         unweighted_losses = {k: v for k, v in loss_task_raw.items() if k in weight_dict}
                         log_only_losses = {k: v for k, v in loss_task_raw.items() if k not in weight_dict}
                         
-                        # Total weighted loss for this batch
-                        batch_total_loss = sum(weighted_losses.values())
-                        
-                        # Accumulate losses
-                        for k, v in weighted_losses.items():
-                            task_loss_components[f"weighted_{k}"] += v.item()
-                        for k, v in unweighted_losses.items():
-                            task_loss_components[f"unweighted_{k}"] += v.item()
-                        for k, v in log_only_losses.items():
-                            task_loss_components[f"log_only_{k}"] += v.item()
+                        # Update metrics trackers
+                        eval_weighted_losses[task_name].update(weighted_losses)
+                        eval_unweighted_losses[task_name].update(unweighted_losses)
+                        eval_log_only_losses[task_name].update(log_only_losses)
                             
                     else:
                         # For other tasks, assume loss_output is a dictionary of losses
                         if isinstance(loss_output, dict):
-                            batch_total_loss = sum(loss_output.values())
-                            for k, v in loss_output.items():
-                                task_loss_components[k] += v.item()
+                            # For other tasks, weighted and unweighted are the same
+                            eval_weighted_losses[task_name].update(loss_output)
+                            eval_unweighted_losses[task_name].update(loss_output)
                         else:
                             # Single loss value
-                            batch_total_loss = loss_output
-                            task_loss_components["total_loss"] += loss_output.item()
+                            loss_dict = {"total_loss": loss_output}
+                            eval_weighted_losses[task_name].update(loss_dict)
+                            eval_unweighted_losses[task_name].update(loss_dict)
                 
-                task_total_loss += batch_total_loss.item()
-                num_batches += 1
                 task_sample_counts[task_name] += batch_size
         
-        # Compute average losses for this task
-        if num_batches > 0:
-            task_avg_loss = task_total_loss / num_batches
-            avg_loss_components = {k: v / num_batches for k, v in task_loss_components.items()}
-            
-            # Update task metrics
-            task_metrics[task_name].update({
-                "total_loss": task_avg_loss,
-                "num_samples": task_sample_counts[task_name],
-                "num_batches": num_batches,
-                **avg_loss_components
-            })
-            
-            # Update global metrics
-            eval_metrics.update({
-                f"{task_name}_total_loss": task_avg_loss,
-                f"{task_name}_num_samples": task_sample_counts[task_name]
-            })
-            for k, v in avg_loss_components.items():
-                eval_metrics.update({f"{task_name}_{k}": v})
-            
-            logger.info(f"Task {task_name} eval completed - Avg Loss: {task_avg_loss:.4f}, "
-                       f"Samples: {task_sample_counts[task_name]}")
+        logger.info(f"Task {task_name} eval completed - Samples: {task_sample_counts[task_name]}")
     
     # Log evaluation results to tensorboard
     if logger:
-        # Log task-specific results
+        # Calculate overall losses
+        total_weighted_loss = 0.0
+        total_unweighted_loss = 0.0
+        total_samples = sum(task_sample_counts.values())
+        
+        # Log task-specific results and accumulate overall losses
         for task_name in dataloader_dict.keys():
-            task_avg_metrics = task_metrics[task_name].get_averages()
-            for metric_name, value in task_avg_metrics.items():
-                if isinstance(value, (int, float)) and metric_name not in ["num_samples", "num_batches"]:
-                    logger.log_scalar(f"eval_{task_name}/{metric_name}", value, epoch)
+            # Get average metrics for this task
+            task_weighted_avg = eval_weighted_losses[task_name].get_averages()
+            task_unweighted_avg = eval_unweighted_losses[task_name].get_averages()
+            task_log_only_avg = eval_log_only_losses[task_name].get_averages()
+            
+            # Calculate task total losses
+            task_weighted_total = sum(task_weighted_avg.values()) if task_weighted_avg else 0.0
+            task_unweighted_total = sum(task_unweighted_avg.values()) if task_unweighted_avg else 0.0
+            
+            # Weight by sample count for overall calculation
+            sample_weight = task_sample_counts[task_name] / total_samples if total_samples > 0 else 0.0
+            total_weighted_loss += task_weighted_total * sample_weight
+            total_unweighted_loss += task_unweighted_total * sample_weight
+            
+            # Log task-specific metrics
+            if task_weighted_avg:
+                for metric_name, value in task_weighted_avg.items():
+                    logger.log_scalar(f"eval_weighted_{task_name}/{metric_name}", value, epoch)
+                logger.log_scalar(f"eval_weighted_{task_name}/total_loss", task_weighted_total, epoch)
+            
+            if task_unweighted_avg:
+                for metric_name, value in task_unweighted_avg.items():
+                    logger.log_scalar(f"eval_unweighted_{task_name}/{metric_name}", value, epoch)
+                logger.log_scalar(f"eval_unweighted_{task_name}/total_loss", task_unweighted_total, epoch)
+            
+            if task_log_only_avg:
+                for metric_name, value in task_log_only_avg.items():
+                    logger.log_scalar(f"eval_unweighted_{task_name}/{metric_name}", value, epoch)
         
         # Log overall metrics
-        overall_avg_metrics = eval_metrics.get_averages()
-        
-        # Compute weighted average loss across all tasks
-        total_weighted_loss = 0.0
-        total_weight = 0
-        for task_name in dataloader_dict.keys():
-            if f"{task_name}_total_loss" in overall_avg_metrics:
-                task_loss = overall_avg_metrics[f"{task_name}_total_loss"]
-                task_weight = task_sample_counts[task_name]
-                total_weighted_loss += task_loss * task_weight
-                total_weight += task_weight
-        
-        if total_weight > 0:
-            weighted_avg_loss = total_weighted_loss / total_weight
-            logger.log_scalar("eval_overall/weighted_average_loss", weighted_avg_loss, epoch)
-            logger.log_scalar("eval_overall/total_samples", total_weight, epoch)
-        
-        # Log individual task total losses
-        for task_name in dataloader_dict.keys():
-            if f"{task_name}_total_loss" in overall_avg_metrics:
-                logger.log_scalar(f"eval_overall/{task_name}_loss", overall_avg_metrics[f"{task_name}_total_loss"], epoch)
+        logger.log_scalar("eval_overall/weighted_total_loss", total_weighted_loss, epoch)
+        logger.log_scalar("eval_overall/unweighted_total_loss", total_unweighted_loss, epoch)
+        logger.log_scalar("eval_overall/total_samples", total_samples, epoch)
         
         # Flush logger
         logger.flush_tb_writer()
     
     # Return evaluation results
     results = {
-        "task_results": {task: task_metrics[task].get_averages() for task in dataloader_dict.keys()},
-        "overall_metrics": eval_metrics.get_averages(),
-        "task_sample_counts": task_sample_counts
+        "task_weighted_results": {task: eval_weighted_losses[task].get_averages() for task in dataloader_dict.keys()},
+        "task_unweighted_results": {task: eval_unweighted_losses[task].get_averages() for task in dataloader_dict.keys()},
+        "task_log_only_results": {task: eval_log_only_losses[task].get_averages() for task in dataloader_dict.keys()},
+        "task_sample_counts": task_sample_counts,
+        "overall_weighted_loss": total_weighted_loss if logger else 0.0,
+        "overall_unweighted_loss": total_unweighted_loss if logger else 0.0
     }
     
     return results
@@ -418,7 +393,8 @@ def train_one_epoch(
     logger.info(f"Dataloader lengths: {dataloader_lengths}")
 
     for cur_iter in range(max_iterations):
-        loss_dict = {}  # 用于backward的加权loss
+        # 改为二级字典结构 {task: loss_dict}
+        weighted_loss_dict = {}  # 用于backward的加权loss
         unweighted_loss_dict = {}  # 记录加权前的原始loss
         log_only_loss_dict = {}
         
@@ -456,23 +432,25 @@ def train_one_epoch(
                 loss_output = loss_fn_dict[task](outputs[task], annotations)
                 if task in ["SoccerNetGSR_Detection", ]:
                     loss_task_raw, weight_dict, _ = loss_output
-                    unweighted_loss_dict.update({f"{task}_{k}": v for k, v in loss_task_raw.items() if k in weight_dict})
-                    loss_task = {k: (v * weight_dict[k]) for k, v in loss_task_raw.items() if k in weight_dict}
-                    log_only_loss_dict.update({f"{task}_{k}": v for k, v in loss_task_raw.items() if k not in weight_dict})
+                    # 初始化任务级别的loss字典
+                    unweighted_loss_dict[task] = {k: v for k, v in loss_task_raw.items() if k in weight_dict}
+                    weighted_loss_dict[task] = {k: (v * weight_dict[k]) for k, v in loss_task_raw.items() if k in weight_dict}
+                    log_only_loss_dict[task] = {k: v for k, v in loss_task_raw.items() if k not in weight_dict}
                 elif task in ["SoccerNetGSR_ReID"]:
                     loss_task_raw, weight_dict = loss_output
-                    unweighted_loss_dict.update({f"{task}_{k}": v for k, v in loss_task_raw.items() if k in weight_dict})
-                    loss_task = {k: (v * weight_dict[k]) for k, v in loss_task_raw.items() if k in weight_dict}
-                    log_only_loss_dict.update({f"{task}_{k}": v for k, v in loss_task_raw.items() if k not in weight_dict})
+                    # 初始化任务级别的loss字典
+                    unweighted_loss_dict[task] = {k: v for k, v in loss_task_raw.items() if k in weight_dict}
+                    weighted_loss_dict[task] = {k: (v * weight_dict[k]) for k, v in loss_task_raw.items() if k in weight_dict}
+                    log_only_loss_dict[task] = {k: v for k, v in loss_task_raw.items() if k not in weight_dict}
                 else:
                     loss_task = loss_output
                     # 对于其他任务，未加权和加权的loss相同
-                    unweighted_loss_dict.update({f"{task}_{k}": v for k, v in loss_task.items()})
-                
-                loss_dict.update({f"{task}_{k}": v for k, v in loss_task.items()})
+                    unweighted_loss_dict[task] = loss_task
+                    weighted_loss_dict[task] = loss_task
+                    log_only_loss_dict[task] = {}
             
             # 立即对当前任务进行backward，减少显存占用
-            task_total_loss = sum(loss_task.values())
+            task_total_loss = sum(weighted_loss_dict[task].values())
             task_total_loss /= (accumulate_steps * len_tasks)  # 除以任务数量进行平均
             accelerator.backward(task_total_loss)
             
@@ -519,47 +497,64 @@ def train_one_epoch(
         
         # Add logging
         if logger and (cur_iter + 1) % logging_interval == 0:
-            logger.log_loss_dict(loss_dict, states["global_step"], prefix="train_weighted")
-            logger.log_loss_dict(unweighted_loss_dict, states["global_step"], prefix="train_unweighted")
-            logger.log_loss_dict(log_only_loss_dict, states["global_step"], prefix="train_unweighted", count_sum=False)
+            # 计算overall losses
+            total_weighted_loss = sum(sum(task_losses.values()) for task_losses in weighted_loss_dict.values())
+            total_unweighted_loss = sum(sum(task_losses.values()) for task_losses in unweighted_loss_dict.values())
+            
+            # Log overall losses
+            logger.log_scalar("train_overall/weighted_total_loss", total_weighted_loss, states["global_step"])
+            logger.log_scalar("train_overall/unweighted_total_loss", total_unweighted_loss, states["global_step"])
+            
+            # Log task-specific losses
+            for task_name in weighted_loss_dict.keys():
+                if weighted_loss_dict[task_name]:
+                    logger.log_loss_dict(weighted_loss_dict[task_name], states["global_step"], prefix=f"train_weighted_{task_name}")
+                if unweighted_loss_dict[task_name]:
+                    logger.log_loss_dict(unweighted_loss_dict[task_name], states["global_step"], prefix=f"train_unweighted_{task_name}")
+                if log_only_loss_dict[task_name]:
+                    logger.log_loss_dict(log_only_loss_dict[task_name], states["global_step"], prefix=f"train_unweighted_{task_name}", count_sum=False)
+            
             logger.log_learning_rate(optimizer, states["global_step"])
-            # Log gradient norm
-            # logger.log_scalar("train/grad_norm", grad_norm, states["global_step"])
             # Log separate gradient norms for backbone and each head
             logger.log_scalar("train_grad_norm/backbone_grad_norm", backbone_grad_norm, states["global_step"])
             for task_name, head_grad_norm in head_grad_norms.items():
                 logger.log_scalar(f"train_grad_norm/{task_name}_head_grad_norm", head_grad_norm, states["global_step"])
             
-            # Log dataloader progress for each task
-            # for task_name, counter in dataloader_counters.items():
-            #     progress_ratio = counter / dataloader_lengths[task_name]
-            #     reset_count = counter // dataloader_lengths[task_name]
-            #     logger.log_scalar(f"dataloader_progress/{task_name}_progress", progress_ratio, states["global_step"])
-            #     logger.log_scalar(f"dataloader_progress/{task_name}_resets", reset_count, states["global_step"])
-            
             # Log parameter and gradient statistics if enabled
             if config.get("LOG_PARAMS_GRADS", False):
                 logger.log_model_parameters(model, states["global_step"])
             
-            # Print progress
-            total_loss = sum(loss_dict.values())
-            total_unweighted_loss = sum(unweighted_loss_dict.values())
-            
             # Update metrics tracker (epoch metrics) - 记录所有类型的loss
-            epoch_metrics.update(loss_dict)
-            epoch_metrics.update({f"unweighted_{k}": v for k, v in unweighted_loss_dict.items()})
-            epoch_metrics.update(log_only_loss_dict)
-
+            # 为epoch级别的metrics更新，需要将二级字典展平
+            for task_name, task_losses in weighted_loss_dict.items():
+                for loss_name, loss_value in task_losses.items():
+                    epoch_metrics.update({f"weighted_{task_name}_{loss_name}": loss_value})
+            
+            for task_name, task_losses in unweighted_loss_dict.items():
+                for loss_name, loss_value in task_losses.items():
+                    epoch_metrics.update({f"unweighted_{task_name}_{loss_name}": loss_value})
+            
+            for task_name, task_losses in log_only_loss_dict.items():
+                for loss_name, loss_value in task_losses.items():
+                    epoch_metrics.update({f"{task_name}_{loss_name}": loss_value})
             
             # Update metrics (iteration metrics)
-            metrics.update(name="weighted_total_loss", value=total_loss.detach())
+            metrics.update(name="weighted_total_loss", value=total_weighted_loss.detach())
             metrics.update(name="unweighted_total_loss", value=total_unweighted_loss.detach())
-            for k, v in loss_dict.items():
-                metrics.update(name=f"weighted_{k}", value=v.detach())
-            for k, v in unweighted_loss_dict.items():
-                metrics.update(name=f"unweighted_{k}", value=v.detach())
-            for k, v in log_only_loss_dict.items():
-                metrics.update(name=k, value=v.detach())
+            
+            # 为iteration级别的metrics更新，需要将二级字典展平
+            for task_name, task_losses in weighted_loss_dict.items():
+                for loss_name, loss_value in task_losses.items():
+                    metrics.update(name=f"weighted_{task_name}_{loss_name}", value=loss_value.detach())
+            
+            for task_name, task_losses in unweighted_loss_dict.items():
+                for loss_name, loss_value in task_losses.items():
+                    metrics.update(name=f"unweighted_{task_name}_{loss_name}", value=loss_value.detach())
+            
+            for task_name, task_losses in log_only_loss_dict.items():
+                for loss_name, loss_value in task_losses.items():
+                    metrics.update(name=f"{task_name}_{loss_name}", value=loss_value.detach())
+            
             _lr = optimizer.state_dict()["param_groups"][-1]["lr"]
             metrics["lr"].clear()
             metrics.update(name="lr", value=_lr)
@@ -587,7 +582,7 @@ def train_one_epoch(
             )
         
         # 清理当前iteration的变量，防止显存累积
-        # del loss_dict, unweighted_loss_dict, log_only_loss_dict
+        # del weighted_loss_dict, unweighted_loss_dict, log_only_loss_dict
         # 定期清理CUDA缓存
         if (cur_iter + 1) % (logging_interval * 2) == 0:
             torch.cuda.empty_cache()
@@ -597,12 +592,53 @@ def train_one_epoch(
     # Log epoch-level metrics
     if logger:
         epoch_avg_metrics = epoch_metrics.get_averages()
+        
+        # 计算epoch级别的overall losses
+        epoch_weighted_total = 0.0
+        epoch_unweighted_total = 0.0
+        
         for key, value in epoch_avg_metrics.items():
-            logger.log_scalar(f"epoch/{key}", value, epoch)
+            if key.startswith("weighted_") and not key.startswith("weighted_total"):
+                epoch_weighted_total += value
+            elif key.startswith("unweighted_") and not key.startswith("unweighted_total"):
+                epoch_unweighted_total += value
+        
+        # Log epoch overall metrics
+        logger.log_scalar("epoch_overall/weighted_total_loss", epoch_weighted_total, epoch)
+        logger.log_scalar("epoch_overall/unweighted_total_loss", epoch_unweighted_total, epoch)
+        
+        # Log epoch task-specific metrics
+        task_weighted_totals = {}
+        task_unweighted_totals = {}
+        
+        for key, value in epoch_avg_metrics.items():
+            if key.startswith("weighted_"):
+                # Extract task name from key like "weighted_TaskName_loss_type"
+                parts = key.split("_", 2)  # Split into ["weighted", "TaskName", "loss_type"]
+                if len(parts) >= 3:
+                    task_name = parts[1]
+                    if task_name not in task_weighted_totals:
+                        task_weighted_totals[task_name] = 0.0
+                    task_weighted_totals[task_name] += value
+            elif key.startswith("unweighted_"):
+                # Extract task name from key like "unweighted_TaskName_loss_type"
+                parts = key.split("_", 2)  # Split into ["unweighted", "TaskName", "loss_type"]
+                if len(parts) >= 3:
+                    task_name = parts[1]
+                    if task_name not in task_unweighted_totals:
+                        task_unweighted_totals[task_name] = 0.0
+                    task_unweighted_totals[task_name] += value
+        
+        # Log task totals
+        for task_name, total_loss in task_weighted_totals.items():
+            logger.log_scalar(f"epoch_weighted_{task_name}/total_loss", total_loss, epoch)
+        
+        for task_name, total_loss in task_unweighted_totals.items():
+            logger.log_scalar(f"epoch_unweighted_{task_name}/total_loss", total_loss, epoch)
         
         # Flush logger at the end of epoch
         logger.flush_tb_writer()
-        logger.info(f"Epoch {epoch} completed. Average losses: {epoch_avg_metrics}, Time per epoch: {time_per_epoch}")
+        logger.info(f"Epoch {epoch} completed. Time per epoch: {time_per_epoch}")
 
 def lr_warmup(optimizer, epoch: int, curr_iter: int, tgt_lr: float, warmup_epochs: int, num_iter_per_epoch: int):
     # min_lr = 1e-8

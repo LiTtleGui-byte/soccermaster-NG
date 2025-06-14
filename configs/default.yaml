@@ -4,7 +4,7 @@ SUPER_CONFIG_PATH:          # super (father) config path
 SEED: 42
 
 # System Settings:
-NUM_WORKERS: 2
+NUM_WORKERS: 12
 DEVICE: cuda
 
 # Outputs settings:
@@ -24,7 +24,7 @@ MULTI_LAST_CHECKPOINTS: 0
 
 # Training strategies:
 USE_GRADIENT_CHECKPOINTING: False
-BATCH_SIZE: 8
+BATCH_SIZE: 12
 LR: 1.0e-4
 # LR_BACKBONE_NAMES: [backbone.0]
 # LR_BACKBONE_SCALE: 0.1
