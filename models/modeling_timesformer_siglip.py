@@ -917,16 +917,18 @@ class SiglipMultiheadAttentionPoolingHead(nn.Module):
         self.mlp = SiglipMLP(config)
 
     def forward(self, hidden_state):
-        batch_size = hidden_state.shape[0]
-        probe = self.probe.repeat(batch_size, 1, 1)
+        batch_size, num_frames, num_patches, embed_dim = hidden_state.shape
+        hidden_state = hidden_state.reshape(batch_size * num_frames, num_patches, embed_dim)
+        probe = self.probe.repeat(batch_size * num_frames, 1, 1)
 
         hidden_state = self.attention(probe, hidden_state, hidden_state)[0]
+        hidden_state = hidden_state.reshape(batch_size, num_frames, embed_dim)
 
         residual = hidden_state
         hidden_state = self.layernorm(hidden_state)
         hidden_state = residual + self.mlp(hidden_state)
 
-        return hidden_state[:, 0]
+        return hidden_state[:, :, 0] # [batch_size, num_frames, embed_dim]
 
 
 @add_start_docstrings(
