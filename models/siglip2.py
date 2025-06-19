@@ -20,15 +20,20 @@ import math
 
 from models.deformable_detr.position_encoding import build_position_encoding
 from transformers import AutoProcessor, SiglipVisionModel, SiglipVisionConfig
+from models.modeling_timesformer_siglip import SiglipVisionModel as TimesformerSiglipVisionModel
 
 
 class SiglipBackbone(nn.Module):
-    def __init__(self, ckpt_path: str,
+    def __init__(self, backbone_type: str, 
+                 ckpt_path: str,
                  train_backbone: bool,
                  use_lora: bool):
         super().__init__()
-        # self.model = SiglipVisionModel.from_pretrained(ckpt_path, device_map="cpu").vision_model
-        self.model = SiglipVisionModel.from_pretrained(ckpt_path, device_map="cpu")
+        assert backbone_type in ['image', 'video']
+        if backbone_type == 'image':
+            self.model = SiglipVisionModel.from_pretrained(ckpt_path, device_map="cpu")
+        elif backbone_type == 'video':
+            self.model = TimesformerSiglipVisionModel.from_pretrained(ckpt_path, device_map="cpu")
         
         if train_backbone:
             for name, param in self.model.named_parameters():
@@ -43,8 +48,8 @@ class SiglipBackbone(nn.Module):
         
     def forward(self, images: torch.Tensor):
         outputs = self.model(images, output_hidden_states=True)
-        last_hidden_state = outputs.last_hidden_state # [N, L, D]
-        pooled_output = outputs.pooler_output # [N, D]
+        last_hidden_state = outputs.last_hidden_state # [N, L, D] or [N, T, L, D]
+        pooled_output = outputs.pooler_output # [N, D] or [N, T, D]
         output = {'global_features': pooled_output, 'local_features': last_hidden_state}
         return output
 

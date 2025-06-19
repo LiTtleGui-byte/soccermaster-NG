@@ -43,7 +43,7 @@ def _get_clones(module, N):
 class DeformableDetrHead(nn.Module):
     """ This is the Deformable DETR module that performs object detection """
     def __init__(self, position_encoding, transformer, num_classes, num_queries, num_feature_levels, backbone_strides, backbone_num_channels, num_keypoints,
-                 aux_loss=True, with_box_refine=False, two_stage=False):
+                 aux_loss=True, with_box_refine=False, two_stage=False, backbone_type='image'):
         """ Initializes the model.
         Parameters:
             backbone: torch module of the backbone to be used. See backbone.py
@@ -99,7 +99,7 @@ class DeformableDetrHead(nn.Module):
         self.aux_loss = aux_loss
         self.with_box_refine = with_box_refine
         self.two_stage = two_stage
-        
+        self.backbone_type = backbone_type
         self.camera_head = ConvCameraHead(input_channels=backbone_num_channels[0])
         self.keypoints_head = KeypointsHead(dim_in=backbone_num_channels[0], num_keypoints=num_keypoints)
 
@@ -159,6 +159,10 @@ class DeformableDetrHead(nn.Module):
                                 dictionnaries containing the two above keys for each decoder layer.
         """
         global_features, local_features = backbone_outputs['global_features'], backbone_outputs['local_features']
+        if self.backbone_type == 'video':
+            global_features = global_features[:, 0]
+            local_features = local_features[:, 0]
+
         N, L, D = local_features.shape
         reshaped_local_features = local_features.permute(0, 2, 1).contiguous()
         Hf = Wf = int(math.sqrt(L))

@@ -13,10 +13,10 @@ from models.deformable_detr.deformable_detr import MLP
 import warnings
 
 class SoccerNetGSR_ReIDHead(nn.Module):
-    def __init__(self, backbone_num_channels, output_reid_dim, num_pids):
+    def __init__(self, backbone_num_channels, output_reid_dim, num_pids, backbone_type='image'):
         super().__init__()
         self.backbone_num_channels = backbone_num_channels
-        
+        self.backbone_type = backbone_type
         self.global_feature_proj = MLP(backbone_num_channels, backbone_num_channels, output_reid_dim, 2)
         self.role_classifier = MLP(output_reid_dim, output_reid_dim, len(role_mapping), 2)
         self.pid_classifier = MLP(output_reid_dim, output_reid_dim, num_pids, 2)
@@ -26,6 +26,9 @@ class SoccerNetGSR_ReIDHead(nn.Module):
 
     def forward(self, backbone_outputs, metas):
         global_features, local_features = backbone_outputs['global_features'], backbone_outputs['local_features']
+        if self.backbone_type == 'video':
+            global_features = global_features[:, 0]
+            local_features = local_features[:, 0]
         
         reid_embeddings = self.global_feature_proj(global_features)
         

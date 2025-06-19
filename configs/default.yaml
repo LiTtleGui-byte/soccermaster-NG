@@ -80,6 +80,7 @@ AUG_MEAN: [0.5, 0.5, 0.5]
 AUG_STD: [0.5, 0.5, 0.5]
 
 # BACKBONE:
+BACKBONE_TYPE: image
 CKPT_PATH: ./pretrained_models/google/siglip2-base-patch16-512
 TRAIN_BACKBONE: True
 

@@ -41,7 +41,7 @@ class MultiTaskingSigLIP(nn.Module):
         super().__init__()
         self.config = config
         
-        self.backbone = SiglipBackbone(config['CKPT_PATH'], config['TRAIN_BACKBONE'], False)
+        self.backbone = SiglipBackbone(config['BACKBONE_TYPE'], config['CKPT_PATH'], config['TRAIN_BACKBONE'], False)
         
         # multi-task heads
         self.multi_task_head = nn.ModuleDict()
