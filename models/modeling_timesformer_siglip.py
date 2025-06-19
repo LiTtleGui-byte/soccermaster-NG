@@ -30,6 +30,7 @@ from transformers.activations import ACT2FN
 from transformers.modeling_attn_mask_utils import _prepare_4d_attention_mask
 from transformers.modeling_outputs import BaseModelOutput, BaseModelOutputWithPooling, ImageClassifierOutput
 from transformers.modeling_utils import ALL_ATTENTION_FUNCTIONS, PreTrainedModel
+from transformers.configuration_utils import PretrainedConfig
 from transformers.utils import (
     ModelOutput,
     add_start_docstrings,
@@ -39,7 +40,7 @@ from transformers.utils import (
     replace_return_docstrings,
     torch_int,
 )
-from transformers.models.siglip.configuration_siglip import SiglipConfig, SiglipTextConfig, SiglipVisionConfig
+from transformers.models.siglip.configuration_siglip import SiglipConfig, SiglipVisionConfig
 
 
 logger = logging.get_logger(__name__)
@@ -47,7 +48,6 @@ logger = logging.get_logger(__name__)
 # General docstring
 _CONFIG_FOR_DOC = "SiglipConfig"
 _CHECKPOINT_FOR_DOC = "google/siglip-base-patch16-224"
-
 
 def _trunc_normal_(tensor, mean, std, a, b):
     # Cut & paste from PyTorch official master until it's in a few official releases - RW
@@ -342,7 +342,7 @@ def eager_attention_forward(
 class SiglipAttention(nn.Module):
     """Multi-headed attention from 'Attention Is All You Need' paper"""
 
-    def __init__(self, config: Union[SiglipVisionConfig, SiglipTextConfig]):
+    def __init__(self, config: Union[SiglipVisionConfig]):
         super().__init__()
         self.config = config
         self.embed_dim = config.hidden_size
@@ -428,7 +428,7 @@ class SiglipMLP(nn.Module):
 class SiglipTemporalAttention(nn.Module):
     """Temporal attention module for TimeSformer-SigLIP."""
 
-    def __init__(self, config: Union[SiglipVisionConfig, SiglipTextConfig]):
+    def __init__(self, config: Union[SiglipVisionConfig]):
         super().__init__()
         self.config = config
         self.embed_dim = config.hidden_size
@@ -485,7 +485,7 @@ class SiglipTemporalAttention(nn.Module):
         return attn_output, attn_weights
 
 class SiglipEncoderLayer(nn.Module):
-    def __init__(self, config: Union[SiglipVisionConfig, SiglipTextConfig]):
+    def __init__(self, config: Union[SiglipVisionConfig]):
         super().__init__()
         self.embed_dim = config.hidden_size
         self.layer_norm1 = nn.LayerNorm(self.embed_dim, eps=config.layer_norm_eps)
@@ -493,13 +493,14 @@ class SiglipEncoderLayer(nn.Module):
         self.layer_norm2 = nn.LayerNorm(self.embed_dim, eps=config.layer_norm_eps)
         self.mlp = SiglipMLP(config)
         
-        attention_type = config.attention_type
+        attention_type = "divided_space_time" if not hasattr(config, "attention_type") else config.attention_type
         if attention_type not in ["divided_space_time", "space_only", "joint_space_time"]:
             raise ValueError("Unknown attention type: {}".format(attention_type))
         
         if attention_type == "divided_space_time":
             self.temporal_attention = SiglipTemporalAttention(config)
             self.temporal_layernorm = nn.LayerNorm(self.embed_dim, eps=config.layer_norm_eps)
+        self.attention_type = attention_type
 
     def forward(
         self,
@@ -765,7 +766,7 @@ class SiglipEncoder(nn.Module):
     def __init__(self, config: SiglipConfig):
         super().__init__()
         self.config = config
-        self.layers = nn.ModuleList([SiglipEncoderLayer(config, layer_index=i) for i in range(config.num_hidden_layers)])
+        self.layers = nn.ModuleList([SiglipEncoderLayer(config) for i in range(config.num_hidden_layers)])
         self.gradient_checkpointing = False
 
     # Ignore copy
@@ -774,7 +775,6 @@ class SiglipEncoder(nn.Module):
         self,
         inputs_embeds,
         temporal_attention_mask: Optional[torch.Tensor] = None,
-        num_frames: Optional[int] = None,
         output_attentions: Optional[bool] = None,
         output_hidden_states: Optional[bool] = None,
     ) -> BaseModelOutput:
@@ -818,14 +818,12 @@ class SiglipEncoder(nn.Module):
                     encoder_layer.__call__,
                     hidden_states,
                     temporal_attention_mask,
-                    num_frames,
                     output_attentions,
                 )
             else:
                 layer_outputs = encoder_layer(
                     hidden_states,
                     temporal_attention_mask,
-                    num_frames=num_frames,
                     output_attentions=output_attentions,
                 )
 
@@ -866,7 +864,6 @@ class SiglipVisionTransformer(nn.Module):
         output_attentions: Optional[bool] = None,
         output_hidden_states: Optional[bool] = None,
         interpolate_pos_encoding: Optional[bool] = False,
-        num_frames: Optional[int] = None,
     ) -> BaseModelOutputWithPooling:
         r"""
         Returns:
@@ -877,7 +874,7 @@ class SiglipVisionTransformer(nn.Module):
             output_hidden_states if output_hidden_states is not None else self.config.output_hidden_states
         )
 
-        hidden_states = self.embeddings(pixel_values, interpolate_pos_encoding=interpolate_pos_encoding, num_frames=num_frames)
+        hidden_states = self.embeddings(pixel_values, interpolate_pos_encoding=interpolate_pos_encoding)
 
         # expand attention_mask
         if temporal_attention_mask is not None and not self._use_flash_attention_2:
@@ -887,7 +884,6 @@ class SiglipVisionTransformer(nn.Module):
         encoder_outputs: BaseModelOutput = self.encoder(
             inputs_embeds=hidden_states,
             temporal_attention_mask=temporal_attention_mask,
-            num_frames=num_frames,
             output_attentions=output_attentions,
             output_hidden_states=output_hidden_states,
         )
@@ -960,7 +956,6 @@ class SiglipVisionModel(SiglipPreTrainedModel):
         output_attentions: Optional[bool] = None,
         output_hidden_states: Optional[bool] = None,
         interpolate_pos_encoding: bool = False,
-        num_frames: Optional[int] = None,
     ) -> BaseModelOutputWithPooling:
         r"""
         Returns:
@@ -991,5 +986,4 @@ class SiglipVisionModel(SiglipPreTrainedModel):
             output_attentions=output_attentions,
             output_hidden_states=output_hidden_states,
             interpolate_pos_encoding=interpolate_pos_encoding,
-            num_frames=num_frames,
         )

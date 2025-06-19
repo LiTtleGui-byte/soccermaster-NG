@@ -26,22 +26,22 @@ from models.siglip2 import SiglipBackbone
 from models.deformable_detr.deformable_detr import build_deformable_detr_head
 from models.SoccerNetGSR_ReID import build_soccer_net_gsr_reid_head
 
-def build_backbone(config: dict):
-    # position_embedding = build_position_encoding(args)
-    train_backbone = config['TRAIN_BACKBONE']
-    # return_interm_layers = args.masks or (args.num_feature_levels > 1)
-    if 'siglip' in config['BACKBONE']:
-        backbone = SiglipBackbone(config['BACKBONE'], config['CKPT_PATH'], train_backbone, False)
-    else:
-        raise ValueError(f"Unsupported backbone: {config['BACKBONE']}")
-    return backbone
+# def build_backbone(config: dict):
+#     # position_embedding = build_position_encoding(args)
+#     train_backbone = config['TRAIN_BACKBONE']
+#     # return_interm_layers = args.masks or (args.num_feature_levels > 1)
+#     if 'siglip' in config['BACKBONE']:
+#         backbone = SiglipBackbone(config['BACKBONE'], config['NUM_FRAMES'], config['CKPT_PATH'], train_backbone, False)
+#     else:
+#         raise ValueError(f"Unsupported backbone: {config['BACKBONE']}")
+#     return backbone
 
 class MultiTaskingSigLIP(nn.Module):
     def __init__(self, config):
         super().__init__()
         self.config = config
         
-        self.backbone = SiglipBackbone(config['BACKBONE_TYPE'], config['CKPT_PATH'], config['TRAIN_BACKBONE'], False)
+        self.backbone = SiglipBackbone(config['BACKBONE_TYPE'], config['NUM_FRAMES'], config['CKPT_PATH'], config['TRAIN_BACKBONE'], False)
         
         # multi-task heads
         self.multi_task_head = nn.ModuleDict()
