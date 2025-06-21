@@ -877,7 +877,7 @@ class SiglipVisionTransformer(nn.Module):
         hidden_states = self.embeddings(pixel_values, interpolate_pos_encoding=interpolate_pos_encoding)
 
         # expand attention_mask
-        if temporal_attention_mask is not None and not self._use_flash_attention_2:
+        if temporal_attention_mask is not None:
             # [batch_size, num_frames, num_patches] -> [batch_size, 1, num_frames, num_patches]
             temporal_attention_mask = _prepare_4d_attention_mask(temporal_attention_mask, hidden_states.dtype)
 
