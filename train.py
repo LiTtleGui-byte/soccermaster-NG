@@ -22,7 +22,7 @@ from models.multi_task import MultiTaskingSigLIP
 from runtime_option import runtime_option
 from utils.misc import set_seed
 from configs.util import load_super_config, update_config, yaml_to_dict
-from models.build import build_loss_fn
+from models.build import build_loss_fn, build_metrics_fn
 
 def train_engine(config: dict):
     # Init some settings:
@@ -72,6 +72,9 @@ def train_engine(config: dict):
     
     # Build loss functions:
     loss_fn_dict = build_loss_fn(config=config)
+    
+    # Build metrics functions:
+    metrics_fn_dict = build_metrics_fn(config=config)
     
     # num_tasks = get_world_size()
     # global_rank = get_rank()
@@ -146,6 +149,7 @@ def train_engine(config: dict):
                 epoch=epoch,
                 dataloader_dict=dataloader_test_dict,
                 loss_fn_dict=loss_fn_dict,
+                metrics_fn_dict=metrics_fn_dict,
                 model=model,
                 logger=logger
             )
@@ -187,6 +191,7 @@ def evaluate_one_epoch(
     epoch: int,
     dataloader_dict: dict[str, DataLoader],
     loss_fn_dict: dict[str, nn.Module],
+    metrics_fn_dict: dict[str, nn.Module],
     model,
     logger: Logger = None
 ):
@@ -199,6 +204,7 @@ def evaluate_one_epoch(
         epoch: Current epoch number
         dataloader_dict: Dictionary of test dataloaders for each task
         loss_fn_dict: Dictionary of loss functions for each task
+        metrics_fn_dict: Dictionary of metrics functions for each task
         model: Model to evaluate
         logger: Logger instance
         
@@ -212,6 +218,7 @@ def evaluate_one_epoch(
     eval_weighted_losses = {task: MetricsTracker() for task in dataloader_dict.keys()}
     eval_unweighted_losses = {task: MetricsTracker() for task in dataloader_dict.keys()}
     eval_log_only_losses = {task: MetricsTracker() for task in dataloader_dict.keys()}
+    eval_metrics = {task: MetricsTracker() for task in dataloader_dict.keys()}
     
     task_sample_counts = {task: 0 for task in dataloader_dict.keys()}
     
@@ -244,6 +251,17 @@ def evaluate_one_epoch(
                         eval_weighted_losses[task_name].update(weighted_losses)
                         eval_unweighted_losses[task_name].update(unweighted_losses)
                         eval_log_only_losses[task_name].update(log_only_losses)
+                        
+                        # Compute metrics if metrics function is available
+                        if metrics_fn_dict[task_name] is not None:
+                            # 获取target_sizes - 从metas中提取或使用默认值
+                            if 'target_sizes' in metas:
+                                target_sizes = metas['target_sizes']
+                            else:
+                                target_sizes = torch.tensor([[512, 512]] * batch_size, device=device)
+                            
+                            # 使用新的update方法收集数据
+                            metrics_fn_dict[task_name].update(outputs[task_name], annotations, target_sizes)
                             
                     elif task_name in ["SoccerNetGSR_ReID"]:
                         loss_task_raw, weight_dict = loss_output
@@ -257,6 +275,11 @@ def evaluate_one_epoch(
                         eval_weighted_losses[task_name].update(weighted_losses)
                         eval_unweighted_losses[task_name].update(unweighted_losses)
                         eval_log_only_losses[task_name].update(log_only_losses)
+                        
+                        # Compute metrics if metrics function is available
+                        if metrics_fn_dict[task_name] is not None:
+                            # ReID metrics can be implemented later
+                            pass
                             
                     else:
                         # For other tasks, assume loss_output is a dictionary of losses
@@ -269,10 +292,28 @@ def evaluate_one_epoch(
                             loss_dict = {"total_loss": loss_output}
                             eval_weighted_losses[task_name].update(loss_dict)
                             eval_unweighted_losses[task_name].update(loss_dict)
+                        
+                        # Compute metrics if metrics function is available
+                        if metrics_fn_dict[task_name] is not None:
+                            # Generic metrics computation
+                            pass
                 
                 task_sample_counts[task_name] += batch_size
         
         logger.info(f"Task {task_name} eval completed - Samples: {task_sample_counts[task_name]}")
+    
+    # 计算最终的metrics（在所有数据收集完成后）
+    final_metrics_results = {}
+    for task_name in dataloader_dict.keys():
+        if metrics_fn_dict[task_name] is not None:
+            # 计算最终metrics并只在主进程返回结果
+            final_metrics = metrics_fn_dict[task_name].compute_final_metrics(accelerator)
+            if accelerator.is_main_process:
+                final_metrics_results[task_name] = final_metrics
+                # 重置metrics收集器为下次evaluation准备
+                metrics_fn_dict[task_name].reset()
+            else:
+                final_metrics_results[task_name] = {}
     
     # Log evaluation results to tensorboard
     if logger:
@@ -287,6 +328,7 @@ def evaluate_one_epoch(
             task_weighted_avg = eval_weighted_losses[task_name].get_averages()
             task_unweighted_avg = eval_unweighted_losses[task_name].get_averages()
             task_log_only_avg = eval_log_only_losses[task_name].get_averages()
+            task_metrics_avg = eval_metrics[task_name].get_averages()
             
             # Calculate task total losses
             task_weighted_total = sum(task_weighted_avg.values()) if task_weighted_avg else 0.0
@@ -297,7 +339,7 @@ def evaluate_one_epoch(
             total_weighted_loss += task_weighted_total * sample_weight
             total_unweighted_loss += task_unweighted_total * sample_weight
             
-            # Log task-specific metrics
+            # Log task-specific loss metrics
             if task_weighted_avg:
                 for metric_name, value in task_weighted_avg.items():
                     logger.log_scalar(f"eval_weighted_{task_name}/{metric_name}", value, epoch)
@@ -311,6 +353,15 @@ def evaluate_one_epoch(
             if task_log_only_avg:
                 for metric_name, value in task_log_only_avg.items():
                     logger.log_scalar(f"eval_unweighted_{task_name}/{metric_name}", value, epoch)
+            
+            # Log task-specific detection/evaluation metrics (mAP, precision, recall等)
+            # 使用最终计算的metrics而不是平均的metrics
+            if task_name in final_metrics_results and final_metrics_results[task_name]:
+                for metric_name, value in final_metrics_results[task_name].items():
+                    logger.log_scalar(f"eval_metrics_{task_name}/{metric_name}", value, epoch)
+            elif task_metrics_avg:
+                for metric_name, value in task_metrics_avg.items():
+                    logger.log_scalar(f"eval_metrics_{task_name}/{metric_name}", value, epoch)
         
         # Log overall metrics
         logger.log_scalar("eval_overall/weighted_total_loss", total_weighted_loss, epoch)
@@ -325,6 +376,7 @@ def evaluate_one_epoch(
         "task_weighted_results": {task: eval_weighted_losses[task].get_averages() for task in dataloader_dict.keys()},
         "task_unweighted_results": {task: eval_unweighted_losses[task].get_averages() for task in dataloader_dict.keys()},
         "task_log_only_results": {task: eval_log_only_losses[task].get_averages() for task in dataloader_dict.keys()},
+        "task_metrics_results": final_metrics_results,  # 使用最终计算的metrics
         "task_sample_counts": task_sample_counts,
         "overall_weighted_loss": total_weighted_loss if logger else 0.0,
         "overall_unweighted_loss": total_unweighted_loss if logger else 0.0

@@ -719,7 +719,33 @@ class PostProcess(nn.Module):
         scale_fct = torch.stack([img_w, img_h, img_w, img_h], dim=1)
         boxes = boxes * scale_fct[:, None, :]
 
-        results = [{'scores': s, 'labels': l, 'boxes': b} for s, l, b in zip(scores, labels, boxes)]
+        # 处理attributes（如果存在）
+        results = []
+        for batch_idx, (s, l, b) in enumerate(zip(scores, labels, boxes)):
+            result = {'scores': s, 'labels': l, 'boxes': b, 'topk_boxes': topk_boxes[batch_idx]}
+            
+            # 添加attributes
+            if 'pred_roles' in outputs:
+                pred_roles = outputs['pred_roles'][batch_idx]  # [num_queries, num_role_classes]
+                roles = torch.argmax(pred_roles, dim=-1)  # [num_queries]
+                result['roles'] = torch.gather(roles, 0, topk_boxes[batch_idx])
+            
+            if 'pred_jn_holistic' in outputs:
+                pred_jersey = outputs['pred_jn_holistic'][batch_idx]  # [num_queries, num_jersey_classes]
+                jersey = torch.argmax(pred_jersey, dim=-1)  # [num_queries]
+                result['jersey'] = torch.gather(jersey, 0, topk_boxes[batch_idx])
+            
+            if 'pred_digit_head' in outputs:
+                pred_digit_head = outputs['pred_digit_head'][batch_idx]  # [num_queries, num_digit_head_classes]
+                digit_head = torch.argmax(pred_digit_head, dim=-1)  # [num_queries]
+                result['digit_head'] = torch.gather(digit_head, 0, topk_boxes[batch_idx])
+            
+            if 'pred_digit_tail' in outputs:
+                pred_digit_tail = outputs['pred_digit_tail'][batch_idx]  # [num_queries, num_digit_tail_classes]
+                digit_tail = torch.argmax(pred_digit_tail, dim=-1)  # [num_queries]
+                result['digit_tail'] = torch.gather(digit_tail, 0, topk_boxes[batch_idx])
+            
+            results.append(result)
 
         return results
 
@@ -1172,5 +1198,410 @@ class KeypointsHead(nn.Module):
         x = self.final_conv(x)  # (N, output_channels, 512, 512)
         
         return x
+
+class DetectionMetrics(nn.Module):
+    """
+    计算detection常见的metrics，包括mAP、IoU、precision、recall等指标
+    支持多进程聚合和整个数据集上的AP计算
+    """
+    def __init__(self, num_classes, iou_thresholds=None, score_threshold=0.5):
+        super().__init__()
+        self.num_classes = num_classes
+        self.iou_thresholds = iou_thresholds if iou_thresholds is not None else [0.5, 0.55, 0.6, 0.65, 0.7, 0.75, 0.8, 0.85, 0.9, 0.95]
+        self.score_threshold = score_threshold
+        self.postprocess = PostProcess()
+        
+        # 为每个IoU阈值收集TP/FP/scores和GT数量
+        self.tp_fp_scores_per_thresh = {thresh: {'tp': [], 'fp': [], 'scores': []} for thresh in self.iou_thresholds}
+        self.total_gt_count = 0
+        
+        # 为attributes收集匹配结果（只在IoU@0.5时收集）
+        self.attribute_matches = {
+            'role': {'correct': [], 'total': []},
+            'jersey': {'correct': [], 'total': []}, 
+            'digit_head': {'correct': [], 'total': []},
+            'digit_tail': {'correct': [], 'total': []}
+        }
+        
+    def reset(self):
+        """重置收集的数据"""
+        self.tp_fp_scores_per_thresh = {thresh: {'tp': [], 'fp': [], 'scores': []} for thresh in self.iou_thresholds}
+        self.total_gt_count = 0
+        self.attribute_matches = {
+            'role': {'correct': [], 'total': []},
+            'jersey': {'correct': [], 'total': []}, 
+            'digit_head': {'correct': [], 'total': []},
+            'digit_tail': {'correct': [], 'total': []}
+        }
+        
+    def box_iou(self, boxes1, boxes2):
+        """
+        计算两组box之间的IoU
+        boxes: [N, 4] format: x1, y1, x2, y2
+        """
+        area1 = (boxes1[:, 2] - boxes1[:, 0]) * (boxes1[:, 3] - boxes1[:, 1])
+        area2 = (boxes2[:, 2] - boxes2[:, 0]) * (boxes2[:, 3] - boxes2[:, 1])
+
+        # 计算交集
+        inter_x1 = torch.max(boxes1[:, None, 0], boxes2[None, :, 0])
+        inter_y1 = torch.max(boxes1[:, None, 1], boxes2[None, :, 1])
+        inter_x2 = torch.min(boxes1[:, None, 2], boxes2[None, :, 2])
+        inter_y2 = torch.min(boxes1[:, None, 3], boxes2[None, :, 3])
+
+        inter_area = torch.clamp(inter_x2 - inter_x1, min=0) * torch.clamp(inter_y2 - inter_y1, min=0)
+        union_area = area1[:, None] + area2[None, :] - inter_area
+        
+        iou = inter_area / (union_area + 1e-8)
+        return iou
+
+    def compute_ap(self, precision, recall):
+        """
+        计算Average Precision (AP)
+        """
+        # 添加起始和结束点
+        mrec = torch.cat([torch.tensor([0.0]), recall, torch.tensor([1.0])])
+        mpre = torch.cat([torch.tensor([0.0]), precision, torch.tensor([0.0])])
+
+        # 计算precision的包络线
+        for i in range(mpre.size(0) - 1, 0, -1):
+            mpre[i - 1] = torch.max(mpre[i - 1], mpre[i])
+
+        # 计算面积
+        i = torch.where(mrec[1:] != mrec[:-1])[0]
+        ap = torch.sum((mrec[i + 1] - mrec[i]) * mpre[i + 1])
+        return ap
+
+    def update(self, outputs, targets, target_sizes):
+        """
+        在当前batch上计算TP/FP并收集结果
+        
+        Args:
+            outputs: 模型输出 
+            targets: 真实标注
+            target_sizes: 图像尺寸
+        """
+        device = outputs['pred_logits'].device
+        
+        # 使用PostProcess获取预测结果（已包含attributes）
+        predictions = self.postprocess(outputs, target_sizes)
+        
+        # 为每个IoU阈值计算TP/FP
+        for iou_thresh in self.iou_thresholds:
+            tp_list = []
+            fp_list = []
+            scores_list = []
+            
+            # 处理当前batch中的每个sample
+            for sample_idx, (pred, target, target_size) in enumerate(zip(predictions, targets, target_sizes)):
+                pred_boxes = pred['boxes']  # [N, 4]
+                pred_scores = pred['scores']  # [N]
+                pred_labels = pred['labels']  # [N]
+                
+                gt_boxes = target['boxes']  # [M, 4] 
+                gt_labels = target['labels']  # [M]
+                
+                # 转换gt_boxes到绝对坐标（如果需要）
+                if len(gt_boxes) > 0:
+                    if gt_boxes.max() <= 1.0:  # 如果是相对坐标
+                        if isinstance(target_size, torch.Tensor):
+                            h, w = target_size[0], target_size[1]
+                        else:
+                            h, w = target_size[0], target_size[1]
+                        gt_boxes = gt_boxes * torch.tensor([w, h, w, h], device=gt_boxes.device)
+                    
+                    # 转换为x1,y1,x2,y2格式（如果是cxcywh格式）
+                    gt_boxes = box_ops.box_cxcywh_to_xyxy(gt_boxes)
+                
+                # 过滤低分预测
+                if len(pred_boxes) > 0:
+                    valid_mask = pred_scores > self.score_threshold
+                    pred_boxes = pred_boxes[valid_mask]
+                    pred_scores = pred_scores[valid_mask]
+                    pred_labels = pred_labels[valid_mask]
+                
+                if len(pred_boxes) == 0:
+                    continue
+                
+                # 按分数排序
+                sorted_indices = torch.argsort(pred_scores, descending=True)
+                pred_boxes = pred_boxes[sorted_indices]
+                pred_scores = pred_scores[sorted_indices]
+                pred_labels = pred_labels[sorted_indices]
+                
+                # 计算IoU矩阵并匹配
+                if len(gt_boxes) > 0:
+                    ious = self.box_iou(pred_boxes, gt_boxes)  # [N_pred, N_gt]
+                    
+                    # 为每个预测找到最佳匹配的GT
+                    gt_matched = torch.zeros(len(gt_boxes), dtype=torch.bool, device=device)
+                    
+                    for i, (pred_box, pred_label, pred_score) in enumerate(zip(pred_boxes, pred_labels, pred_scores)):
+                        # 找到与当前预测同类别的GT
+                        same_class_mask = (gt_labels == pred_label)
+                        if not same_class_mask.any():
+                            fp_list.append(1)
+                            tp_list.append(0)
+                        else:
+                            # 在同类别GT中找到IoU最大的
+                            class_ious = ious[i] * same_class_mask.float()
+                            max_iou, max_idx = torch.max(class_ious, dim=0)
+                            
+                            if max_iou >= iou_thresh and not gt_matched[max_idx]:
+                                tp_list.append(1)
+                                fp_list.append(0)
+                                gt_matched[max_idx] = True
+                                
+                                # 只在IoU@0.5时计算attributes准确度
+                                if iou_thresh == 0.5:
+                                    self._compute_attribute_accuracy(pred, target, i, max_idx.item())
+                            else:
+                                tp_list.append(0)
+                                fp_list.append(1)
+                        
+                        scores_list.append(pred_score.cpu().item())  # 转到CPU
+                else:
+                    # 没有GT，所有预测都是FP
+                    fp_list.extend([1] * len(pred_boxes))
+                    tp_list.extend([0] * len(pred_boxes))
+                    scores_list.extend(pred_scores.cpu().tolist())  # 转到CPU
+            
+            # 将当前batch的结果添加到对应IoU阈值的收集器中
+            self.tp_fp_scores_per_thresh[iou_thresh]['tp'].extend(tp_list)
+            self.tp_fp_scores_per_thresh[iou_thresh]['fp'].extend(fp_list)
+            self.tp_fp_scores_per_thresh[iou_thresh]['scores'].extend(scores_list)
+        
+        # 统计GT数量
+        batch_gt_count = sum(len(target['labels']) for target in targets)
+        self.total_gt_count += batch_gt_count
+    
+    def _compute_attribute_accuracy(self, pred, target, pred_idx, gt_idx):
+        """
+        计算匹配成功的预测的attribute准确度
+        
+        Args:
+            pred: 单个样本的预测结果（来自PostProcess，已包含attributes）
+            target: 单个样本的真实标注
+            pred_idx: 预测框的索引
+            gt_idx: 匹配的GT框的索引
+        """
+        # 获取GT的attributes
+        gt_roles = target.get('roles', None)
+        gt_jersey = target.get('jersey', None)
+        gt_digit_head = target.get('digit_head', None) 
+        gt_digit_tail = target.get('digit_tail', None)
+        
+        # 计算role准确度
+        if 'roles' in pred and gt_roles is not None and gt_idx < len(gt_roles):
+            pred_role = pred['roles'][pred_idx].item()
+            gt_role = gt_roles[gt_idx].item() if isinstance(gt_roles[gt_idx], torch.Tensor) else gt_roles[gt_idx]
+            self.attribute_matches['role']['correct'].append(1 if pred_role == gt_role else 0)
+            self.attribute_matches['role']['total'].append(1)
+        
+        # 计算jersey准确度
+        if 'jersey' in pred and gt_jersey is not None and gt_idx < len(gt_jersey):
+            pred_jn = pred['jersey'][pred_idx].item()
+            gt_jn = gt_jersey[gt_idx].item() if isinstance(gt_jersey[gt_idx], torch.Tensor) else gt_jersey[gt_idx]
+            self.attribute_matches['jersey']['correct'].append(1 if pred_jn == gt_jn else 0)
+            self.attribute_matches['jersey']['total'].append(1)
+        
+        # 计算digit_head准确度
+        if 'digit_head' in pred and gt_digit_head is not None and gt_idx < len(gt_digit_head):
+            pred_dh = pred['digit_head'][pred_idx].item()
+            gt_dh = gt_digit_head[gt_idx].item() if isinstance(gt_digit_head[gt_idx], torch.Tensor) else gt_digit_head[gt_idx]
+            self.attribute_matches['digit_head']['correct'].append(1 if pred_dh == gt_dh else 0)
+            self.attribute_matches['digit_head']['total'].append(1)
+        
+        # 计算digit_tail准确度
+        if 'digit_tail' in pred and gt_digit_tail is not None and gt_idx < len(gt_digit_tail):
+            pred_dt = pred['digit_tail'][pred_idx].item()
+            gt_dt = gt_digit_tail[gt_idx].item() if isinstance(gt_digit_tail[gt_idx], torch.Tensor) else gt_digit_tail[gt_idx]
+            self.attribute_matches['digit_tail']['correct'].append(1 if pred_dt == gt_dt else 0)
+            self.attribute_matches['digit_tail']['total'].append(1)
+
+    def gather_tp_fp_scores(self, accelerator):
+        """
+        在所有进程间聚合TP/FP/scores结果和attribute匹配结果
+        
+        Args:
+            accelerator: Accelerator实例
+            
+        Returns:
+            gathered_tp_fp_scores_per_thresh, gathered_total_gt_count, gathered_attribute_matches
+        """
+        # 聚合每个IoU阈值的TP/FP/scores
+        gathered_tp_fp_scores = {}
+        key_list = ['tp', 'fp', 'scores']
+        for thresh in self.iou_thresholds:
+            gathered_tp_fp_scores[thresh] = {}
+            for key in key_list:
+                gathered_tp_fp_scores[thresh][key] = accelerator.gather_for_metrics(self.tp_fp_scores_per_thresh[thresh][key])
+        
+        # 聚合GT总数（需要包装成列表）
+        gathered_gt_count = accelerator.gather_for_metrics([self.total_gt_count])
+        
+        # 聚合attribute匹配结果
+        attr_name_list = ['role', 'jersey', 'digit_head', 'digit_tail']
+        key_list = ['correct', 'total']
+        gathered_attribute_matches = {}
+        for attr_name in attr_name_list:
+            gathered_attribute_matches[attr_name] = {}
+            for key in key_list:
+                gathered_attribute_matches[attr_name][key] = accelerator.gather_for_metrics(self.attribute_matches[attr_name][key])
+        
+        return gathered_tp_fp_scores, gathered_gt_count, gathered_attribute_matches
+
+    def compute_metrics_from_gathered_tp_fp(self, gathered_tp_fp_scores, gathered_gt_count, gathered_attribute_matches=None):
+        """
+        从聚合的TP/FP/scores数据计算metrics
+        
+        Args:
+            gathered_tp_fp_scores: 聚合的TP/FP/scores数据
+            gathered_gt_count: 聚合的GT总数
+            gathered_attribute_matches: 聚合的attribute匹配结果
+            
+        Returns:
+            dict: 包含各种metrics的字典
+        """
+        # 处理不同的数据结构
+        def flatten_data(data):
+            if isinstance(data, list):
+                result = []
+                for item in data:
+                    if isinstance(item, list):
+                        result.extend(item)
+                    else:
+                        result.append(item)
+                return result
+            else:
+                return data if isinstance(data, list) else [data]
+        
+        # 初始化metrics
+        metrics = {}
+        
+        # 为每个IoU阈值计算metrics
+        for iou_thresh in self.iou_thresholds:
+            thresh_data = gathered_tp_fp_scores[iou_thresh]
+            
+            # 展平所有进程的数据
+            all_tp = []
+            all_fp = []
+            all_scores = []
+            
+            all_tp = flatten_data(thresh_data['tp'])
+            all_fp = flatten_data(thresh_data['fp'])
+            all_scores = flatten_data(thresh_data['scores'])
+            
+            if len(all_tp) > 0:
+                # 转换为tensor
+                tp = torch.tensor(all_tp, dtype=torch.float32)
+                fp = torch.tensor(all_fp, dtype=torch.float32)
+                scores = torch.tensor(all_scores, dtype=torch.float32)
+                
+                # 按分数排序
+                sorted_indices = torch.argsort(scores, descending=True)
+                tp = tp[sorted_indices]
+                fp = fp[sorted_indices]
+                
+                # 计算累积TP和FP
+                tp_cumsum = torch.cumsum(tp, dim=0)
+                fp_cumsum = torch.cumsum(fp, dim=0)
+                
+                # 计算precision和recall
+                # gathered_gt_count是列表的列表，需要求和
+                total_gt_count = sum(gathered_gt_count)
+                precision = tp_cumsum / (tp_cumsum + fp_cumsum + 1e-8)
+                recall = tp_cumsum / (total_gt_count + 1e-8)
+                
+                # 计算AP
+                ap = self.compute_ap(precision, recall)
+                metrics[f'AP@{iou_thresh:.2f}'] = ap.item()
+                
+                # 保存最终的precision和recall用于计算整体指标
+                if iou_thresh == 0.5:
+                    final_precision = precision[-1].item() if len(precision) > 0 else 0.0
+                    final_recall = recall[-1].item() if len(recall) > 0 else 0.0
+                    
+                    metrics['precision'] = final_precision
+                    metrics['recall'] = final_recall
+                    if final_precision + final_recall > 0:
+                        metrics['f1'] = 2 * final_precision * final_recall / (final_precision + final_recall)
+                    else:
+                        metrics['f1'] = 0.0
+            else:
+                metrics[f'AP@{iou_thresh:.2f}'] = 0.0
+                if iou_thresh == 0.5:
+                    metrics['precision'] = 0.0
+                    metrics['recall'] = 0.0
+                    metrics['f1'] = 0.0
+        
+        # 计算mAP (所有IoU阈值的平均)
+        ap_values = [metrics[f'AP@{thresh:.2f}'] for thresh in self.iou_thresholds]
+        metrics['mAP'] = sum(ap_values) / len(ap_values)
+        metrics['mAP@0.5'] = metrics.get('AP@0.50', 0.0)
+        metrics['mAP@0.75'] = metrics.get('AP@0.75', 0.0)
+        
+        # 计算attribute准确度
+        if gathered_attribute_matches is not None:
+            for attr_name in ['role', 'jersey', 'digit_head', 'digit_tail']:
+                attr_data = gathered_attribute_matches[attr_name]
+                
+                # 展平所有进程的数据
+                all_correct = flatten_data(attr_data['correct'])
+                all_total = flatten_data(attr_data['total'])
+                
+                # 计算准确度
+                if len(all_total) > 0:
+                    accuracy = sum(all_correct) / len(all_total)
+                    metrics[f'{attr_name}_accuracy'] = accuracy
+                    metrics[f'{attr_name}_matched_count'] = len(all_total)
+                else:
+                    metrics[f'{attr_name}_accuracy'] = 0.0
+                    metrics[f'{attr_name}_matched_count'] = 0
+        
+        return metrics
+
+    @torch.no_grad()
+    def forward(self, outputs, targets, target_sizes):
+        """
+        计算detection metrics (保持向后兼容)
+        这个方法现在只是调用update来收集数据
+        """
+        self.update(outputs, targets, target_sizes)
+        # 返回空字典，实际的metrics计算在compute_final_metrics中进行
+        return {}
+        
+    def compute_final_metrics(self, accelerator):
+        """
+        计算最终的metrics（在所有数据收集完成后调用）
+        
+        Args:
+            accelerator: Accelerator实例
+            
+        Returns:
+            dict: 包含各种metrics的字典
+        """
+        # 聚合所有进程的TP/FP/scores结果和attribute匹配结果
+        gathered_tp_fp_scores, gathered_gt_count, gathered_attribute_matches = self.gather_tp_fp_scores(accelerator)
+        
+        # 只在主进程计算metrics
+        if accelerator.is_main_process:
+            return self.compute_metrics_from_gathered_tp_fp(gathered_tp_fp_scores, gathered_gt_count, gathered_attribute_matches)
+        else:
+            return {}
+
+
+def build_detection_metrics(config: dict):
+    """
+    构建detection metrics计算器
+    """
+    num_classes = config["NUM_CLASSES"]
+    
+    metrics = DetectionMetrics(
+        num_classes=num_classes,
+        iou_thresholds=[0.5, 0.55, 0.6, 0.65, 0.7, 0.75, 0.8, 0.85, 0.9, 0.95],
+        score_threshold=config.get("EVAL_SCORE_THRESHOLD", 0.5)
+    )
+    
+    return metrics
 
 
