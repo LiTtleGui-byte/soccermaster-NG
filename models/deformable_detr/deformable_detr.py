@@ -1223,6 +1223,14 @@ class DetectionMetrics(nn.Module):
             'digit_tail': {'correct': [], 'total': []}
         }
         
+        # 为相机参数收集数据
+        self.camera_metrics_data = {
+            'translation_errors': [],  # 欧氏距离误差
+            'rotation_errors': [],     # 角度误差(degrees)
+            'fov_errors': [],         # FOV误差
+            'valid_count': 0          # 有效样本数量
+        }
+        
     def reset(self):
         """重置收集的数据"""
         self.tp_fp_scores_per_thresh = {thresh: {'tp': [], 'fp': [], 'scores': []} for thresh in self.iou_thresholds}
@@ -1232,6 +1240,12 @@ class DetectionMetrics(nn.Module):
             'jersey': {'correct': [], 'total': []}, 
             'digit_head': {'correct': [], 'total': []},
             'digit_tail': {'correct': [], 'total': []}
+        }
+        self.camera_metrics_data = {
+            'translation_errors': [],
+            'rotation_errors': [],
+            'fov_errors': [],
+            'valid_count': 0
         }
         
     def box_iou(self, boxes1, boxes2):
@@ -1270,6 +1284,73 @@ class DetectionMetrics(nn.Module):
         i = torch.where(mrec[1:] != mrec[:-1])[0]
         ap = torch.sum((mrec[i + 1] - mrec[i]) * mpre[i + 1])
         return ap
+
+    def quaternion_angular_difference(self, q1, q2):
+        """
+        计算两个四元数之间的角度差异（以度为单位）
+        
+        Args:
+            q1, q2: 四元数 [N, 4]，格式为 [x, y, z, w]
+            
+        Returns:
+            角度差异（度）[N]
+        """
+        # 确保四元数是单位四元数
+        q1 = F.normalize(q1, p=2, dim=-1)
+        q2 = F.normalize(q2, p=2, dim=-1)
+        
+        # 计算四元数点积的绝对值
+        dot_product = torch.abs(torch.sum(q1 * q2, dim=-1))
+        
+        # 限制在有效范围内以避免数值误差
+        dot_product = torch.clamp(dot_product, 0.0, 1.0)
+        
+        # 计算角度差异（弧度）
+        angle_rad = 2 * torch.acos(dot_product)
+        
+        # 转换为度
+        angle_deg = angle_rad * 180.0 / math.pi
+        
+        return angle_deg
+
+    def compute_camera_metrics(self, pred_camera, targets):
+        """
+        计算相机参数的metrics
+        
+        Args:
+            pred_camera: 预测的相机参数字典，包含 'quaternion', 'translation', 'fov'
+            targets: 目标数据列表
+        """
+        # 获取有效相机mask
+        valid_camera_mask = torch.stack([t.get("valid_camera", torch.tensor(False)) for t in targets], dim=0)
+        
+        if not valid_camera_mask.any():
+            return  # 没有有效的相机数据
+        
+        # 获取GT相机参数
+        quaternion_gt = torch.stack([t["quaternion"] for t in targets], dim=0)[valid_camera_mask]
+        translation_gt = torch.stack([t["translation"] for t in targets], dim=0)[valid_camera_mask]
+        fov_hw_gt = torch.stack([t["fov_hw"] for t in targets], dim=0)[valid_camera_mask]
+        
+        # 获取预测相机参数
+        quaternion_pred = pred_camera["quaternion"][valid_camera_mask]
+        translation_pred = pred_camera["translation"][valid_camera_mask]
+        fov_hw_pred = pred_camera["fov"][valid_camera_mask]
+        
+        # 计算平移误差（欧氏距离）
+        translation_errors = torch.norm(translation_pred - translation_gt, dim=-1)  # [N]
+        
+        # 计算旋转误差（角度差异）
+        rotation_errors = self.quaternion_angular_difference(quaternion_pred, quaternion_gt)  # [N]
+        
+        # 计算FOV误差（L2距离）
+        fov_errors = torch.norm(fov_hw_pred - fov_hw_gt, dim=-1)  # [N]
+        
+        # 转移到CPU并添加到收集器
+        self.camera_metrics_data['translation_errors'].extend(translation_errors.cpu().tolist())
+        self.camera_metrics_data['rotation_errors'].extend(rotation_errors.cpu().tolist())
+        self.camera_metrics_data['fov_errors'].extend(fov_errors.cpu().tolist())
+        self.camera_metrics_data['valid_count'] += len(translation_errors)
 
     def update(self, outputs, targets, target_sizes):
         """
@@ -1373,6 +1454,10 @@ class DetectionMetrics(nn.Module):
         # 统计GT数量
         batch_gt_count = sum(len(target['labels']) for target in targets)
         self.total_gt_count += batch_gt_count
+        
+        # 计算相机metrics（如果有相机预测）
+        if 'pred_camera' in outputs:
+            self.compute_camera_metrics(outputs['pred_camera'], targets)
     
     def _compute_attribute_accuracy(self, pred, target, pred_idx, gt_idx):
         """
@@ -1420,13 +1505,13 @@ class DetectionMetrics(nn.Module):
 
     def gather_tp_fp_scores(self, accelerator):
         """
-        在所有进程间聚合TP/FP/scores结果和attribute匹配结果
+        在所有进程间聚合TP/FP/scores结果、attribute匹配结果和相机metrics数据
         
         Args:
             accelerator: Accelerator实例
             
         Returns:
-            gathered_tp_fp_scores_per_thresh, gathered_total_gt_count, gathered_attribute_matches
+            gathered_tp_fp_scores_per_thresh, gathered_total_gt_count, gathered_attribute_matches, gathered_camera_metrics
         """
         # 聚合每个IoU阈值的TP/FP/scores
         gathered_tp_fp_scores = {}
@@ -1441,16 +1526,23 @@ class DetectionMetrics(nn.Module):
         
         # 聚合attribute匹配结果
         attr_name_list = ['role', 'jersey', 'digit_head', 'digit_tail']
-        key_list = ['correct', 'total']
+        key_list_attr = ['correct', 'total']
         gathered_attribute_matches = {}
         for attr_name in attr_name_list:
             gathered_attribute_matches[attr_name] = {}
-            for key in key_list:
+            for key in key_list_attr:
                 gathered_attribute_matches[attr_name][key] = accelerator.gather_for_metrics(self.attribute_matches[attr_name][key])
         
-        return gathered_tp_fp_scores, gathered_gt_count, gathered_attribute_matches
+        # 聚合相机metrics数据
+        camera_key_list = ['translation_errors', 'rotation_errors', 'fov_errors']
+        gathered_camera_metrics = {}
+        for key in camera_key_list:
+            gathered_camera_metrics[key] = accelerator.gather_for_metrics(self.camera_metrics_data[key])
+        gathered_camera_metrics['valid_count'] = accelerator.gather_for_metrics([self.camera_metrics_data['valid_count']])
+        
+        return gathered_tp_fp_scores, gathered_gt_count, gathered_attribute_matches, gathered_camera_metrics
 
-    def compute_metrics_from_gathered_tp_fp(self, gathered_tp_fp_scores, gathered_gt_count, gathered_attribute_matches=None):
+    def compute_metrics_from_gathered_tp_fp(self, gathered_tp_fp_scores, gathered_gt_count, gathered_attribute_matches=None, gathered_camera_metrics=None):
         """
         从聚合的TP/FP/scores数据计算metrics
         
@@ -1458,6 +1550,7 @@ class DetectionMetrics(nn.Module):
             gathered_tp_fp_scores: 聚合的TP/FP/scores数据
             gathered_gt_count: 聚合的GT总数
             gathered_attribute_matches: 聚合的attribute匹配结果
+            gathered_camera_metrics: 聚合的相机metrics数据
             
         Returns:
             dict: 包含各种metrics的字典
@@ -1558,6 +1651,59 @@ class DetectionMetrics(nn.Module):
                     metrics[f'{attr_name}_accuracy'] = 0.0
                     metrics[f'{attr_name}_matched_count'] = 0
         
+        # 计算相机metrics
+        if gathered_camera_metrics is not None:
+            # 展平所有进程的相机数据
+            all_translation_errors = flatten_data(gathered_camera_metrics['translation_errors'])
+            all_rotation_errors = flatten_data(gathered_camera_metrics['rotation_errors'])
+            all_fov_errors = flatten_data(gathered_camera_metrics['fov_errors'])
+            
+            # 计算总的有效样本数
+            total_valid_count = sum(gathered_camera_metrics['valid_count'])
+            
+            if total_valid_count > 0:
+                # 计算平移误差统计
+                translation_errors = torch.tensor(all_translation_errors, dtype=torch.float32)
+                metrics['camera_translation_mae'] = translation_errors.mean().item()  # 平均绝对误差
+                metrics['camera_translation_rmse'] = torch.sqrt(translation_errors.pow(2).mean()).item()  # 均方根误差
+                metrics['camera_translation_median'] = translation_errors.median().item()  # 中位数误差
+                
+                # 计算旋转误差统计
+                rotation_errors = torch.tensor(all_rotation_errors, dtype=torch.float32)
+                metrics['camera_rotation_mae'] = rotation_errors.mean().item()  # 平均绝对角度误差(度)
+                metrics['camera_rotation_rmse'] = torch.sqrt(rotation_errors.pow(2).mean()).item()  # 均方根角度误差
+                metrics['camera_rotation_median'] = rotation_errors.median().item()  # 中位数角度误差
+                
+                # 计算FOV误差统计
+                fov_errors = torch.tensor(all_fov_errors, dtype=torch.float32)
+                metrics['camera_fov_mae'] = fov_errors.mean().item()  # 平均绝对FOV误差
+                metrics['camera_fov_rmse'] = torch.sqrt(fov_errors.pow(2).mean()).item()  # 均方根FOV误差
+                metrics['camera_fov_median'] = fov_errors.median().item()  # 中位数FOV误差
+                
+                # 记录样本数量
+                metrics['camera_valid_samples'] = total_valid_count
+                
+                # 计算精度阈值内的准确度
+                # 平移误差 < 1.0 的比例
+                translation_acc_1 = (translation_errors < 1.0).float().mean().item()
+                metrics['camera_translation_acc@1.0'] = translation_acc_1
+                
+                # 旋转误差 < 5度的比例
+                rotation_acc_5 = (rotation_errors < 5.0).float().mean().item()
+                metrics['camera_rotation_acc@5deg'] = rotation_acc_5
+                
+                # 旋转误差 < 10度的比例
+                rotation_acc_10 = (rotation_errors < 10.0).float().mean().item()
+                metrics['camera_rotation_acc@10deg'] = rotation_acc_10
+            else:
+                # 没有有效的相机数据
+                for metric_name in ['camera_translation_mae', 'camera_translation_rmse', 'camera_translation_median',
+                                  'camera_rotation_mae', 'camera_rotation_rmse', 'camera_rotation_median', 
+                                  'camera_fov_mae', 'camera_fov_rmse', 'camera_fov_median',
+                                  'camera_translation_acc@1.0', 'camera_rotation_acc@5deg', 'camera_rotation_acc@10deg']:
+                    metrics[metric_name] = 0.0
+                metrics['camera_valid_samples'] = 0
+        
         return metrics
 
     @torch.no_grad()
@@ -1580,12 +1726,12 @@ class DetectionMetrics(nn.Module):
         Returns:
             dict: 包含各种metrics的字典
         """
-        # 聚合所有进程的TP/FP/scores结果和attribute匹配结果
-        gathered_tp_fp_scores, gathered_gt_count, gathered_attribute_matches = self.gather_tp_fp_scores(accelerator)
+        # 聚合所有进程的TP/FP/scores结果、attribute匹配结果和相机metrics数据
+        gathered_tp_fp_scores, gathered_gt_count, gathered_attribute_matches, gathered_camera_metrics = self.gather_tp_fp_scores(accelerator)
         
         # 只在主进程计算metrics
         if accelerator.is_main_process:
-            return self.compute_metrics_from_gathered_tp_fp(gathered_tp_fp_scores, gathered_gt_count, gathered_attribute_matches)
+            return self.compute_metrics_from_gathered_tp_fp(gathered_tp_fp_scores, gathered_gt_count, gathered_attribute_matches, gathered_camera_metrics)
         else:
             return {}
 
