@@ -360,6 +360,7 @@ def build_soccer_net_gsr_reid_head(config: dict):
         backbone_num_channels=768,
         output_reid_dim=config["SOCCER_NET_GSR_REID_OUTPUT_REID_DIM"],
         num_pids=config["SOCCER_NET_GSR_REID_NUM_PIDS"],
+        backbone_type=config["BACKBONE_TYPE"]
     )
 
 def build_soccer_net_gsr_reid_loss(config: dict):

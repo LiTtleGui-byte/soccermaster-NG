@@ -233,7 +233,7 @@ class SiglipVisionEmbeddings(nn.Module):
         self.register_buffer("position_ids", torch.arange(self.num_positions).expand((1, -1)), persistent=False)
         
         # Temporal embedding for TimeSformer
-        self.num_frames = getattr(config, 'num_frames', 16)  # Default to 16 frames if not specified
+        self.num_frames = getattr(config, 'num_frames', 8)  # Default to 30 frames if not specified
         self.temporal_embedding = nn.Embedding(self.num_frames, self.embed_dim)
         self.register_buffer("temporal_ids", torch.arange(self.num_frames).expand((1, -1)), persistent=False)
 
@@ -281,7 +281,7 @@ class SiglipVisionEmbeddings(nn.Module):
         
         if len(input_shape) == 5:  # Video input [B, T, C, H, W]
             batch_size, num_frames_input, num_channels, height, width = input_shape
-            assert num_frames_input == self.num_frames, "Number of frames in the input must match the number of frames in the model"
+            assert num_frames_input == self.num_frames, "Number of frames in the input must match the number of frames in the model, but got {} and {}".format(num_frames_input, self.num_frames)
             # Reshape to [B*T, C, H, W] for patch embedding
             pixel_values = pixel_values.reshape(-1, num_channels, height, width)
         else:  # Single image input [B, C, H, W]
@@ -544,7 +544,7 @@ class SiglipEncoderLayer(nn.Module):
                 outputs += (attn_weights,)
         elif self.attention_type == "divided_space_time":
             residual = hidden_states
-            temporal_embedding = hidden_states.transpose(1, 2).reshape(-1, num_patches, embed_dim)  # (B*N, T, D)
+            temporal_embedding = hidden_states.transpose(1, 2).reshape(batch_size * num_patches, num_frames, embed_dim)  # (B*N, T, D)
             temporal_embedding = self.temporal_layernorm(temporal_embedding)
             temporal_embedding, temporal_attn_weights = self.temporal_attention(
                 hidden_states=temporal_embedding,
@@ -924,7 +924,7 @@ class SiglipMultiheadAttentionPoolingHead(nn.Module):
         hidden_state = self.layernorm(hidden_state)
         hidden_state = residual + self.mlp(hidden_state)
 
-        return hidden_state[:, :, 0] # [batch_size, num_frames, embed_dim]
+        return hidden_state # [batch_size, num_frames, embed_dim]
 
 
 @add_start_docstrings(

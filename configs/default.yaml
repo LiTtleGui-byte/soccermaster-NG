@@ -24,7 +24,7 @@ MULTI_LAST_CHECKPOINTS: 0
 
 # Training strategies:
 USE_GRADIENT_CHECKPOINTING: False
-BATCH_SIZE: 12
+BATCH_SIZE: 2
 LR: 1.0e-4
 # LR_BACKBONE_NAMES: [backbone.0]
 # LR_BACKBONE_SCALE: 0.1
@@ -44,8 +44,8 @@ SCHEDULER_GAMMA: 0.1          # learning rate decay factor
 
 # Dataset settings:
 DATA_ROOT: ./datasets/
-TASKS: [SoccerNetGSR_ReID, SoccerNetGSR_Detection]
-DATASETS: [SoccerNetGSR_ReID, SoccerNetGSR_Detection]
+TASKS: [SoccerNetGSR_ReID, SoccerNetGSR_Detection, VideoCaption]
+DATASETS: [SoccerNetGSR_ReID, SoccerNetGSR_Detection, VideoCaption]
 DATASET_SPLITS: train
 
 SoccerNetGSR_SUB_DIR: SN-GSR-2024
@@ -80,9 +80,10 @@ AUG_MEAN: [0.5, 0.5, 0.5]
 AUG_STD: [0.5, 0.5, 0.5]
 
 # BACKBONE:
-BACKBONE_TYPE: image
-NUM_FRAMES: 16
+BACKBONE_TYPE: video
+NUM_FRAMES: 8
 CKPT_PATH: ./pretrained_models/google/siglip2-base-patch16-512
+TEXT_ENCODER_CKPT_PATH: ./pretrained_models/google/siglip2-base-patch16-512
 TRAIN_BACKBONE: True
 
 # DETR HEAD:
@@ -135,3 +136,19 @@ SOCCER_NET_GSR_REID_DIGIT_TAIL_FOCAL_LOSS_WEIGHT: 1.0
 SOCCER_NET_GSR_REID_MARGIN: 0.3
 SOCCER_NET_GSR_REID_BATCH_SIZE: 32
 SOCCER_NET_GSR_REID_NUM_INSTANCES: 4
+
+# VideoCaption settings:
+VIDEO_CAPTION_LOSS_TYPE: siglip_loss
+VIDEO_CAPTION_SIGLIP_LOSS_WEIGHT: 1.0
+VIDEO_CAPTION_INFONCE_LOSS_WEIGHT: 1.0
+VIDEO_CAPTION_DATA_ROOT: ./datasets/VideoCaption/
+VIDEO_CAPTION_BATCH_SIZE: 2
+VIDEO_CAPTION_NUM_WORKERS: 4
+VIDEO_CAPTION_DATASETS: ['SoccerReplay-1988']
+VIDEO_CAPTION_NUM_FRAMES: 8
+VIDEO_CAPTION_SAMPLE: 'middle'
+VIDEO_CAPTION_FIX_START: null
+VIDEO_CAPTION_MAX_NUM_FRAMES: -1
+VIDEO_CAPTION_TRIMMED30: False
+VIDEO_CAPTION_KEYWORDS: ['corner', 'goal', 'injury', 'own goal', 'penalty', 'penalty missed', 'red card', 'second yellow card', 'substitution', 'start of game(half)', 'end of game(half)', 'yellow card', 'throw in', 'free kick', 'saved by goal-keeper', 'shot off target', 'clearance', "lead to corner", 'off-side', 'var', 'foul with no card', 'statistics and summary', 'ball possession', 'ball out of play']
+VIDEO_CAPTION_TEXT_KEY: 'comments_text_anonymized'

@@ -96,7 +96,7 @@ def eval_loss_engine(config: dict):
             from transformers import AutoModel
             logger.info("Loading checkpoint as pretrained model directory...")
             # Load the backbone weights
-            model.backbone.model = AutoModel.from_pretrained(config["EVAL_MODEL"])
+            model.backbone.vision_model = AutoModel.from_pretrained(config["EVAL_MODEL"])
         else:
             # Try loading as a single checkpoint file
             logger.info("Loading checkpoint as state dict...")

@@ -25,6 +25,7 @@ from transformers.utils import (
 from models.siglip2 import SiglipBackbone
 from models.deformable_detr.deformable_detr import build_deformable_detr_head
 from models.SoccerNetGSR_ReID import build_soccer_net_gsr_reid_head
+from models.VideoCaption import build_video_caption_head
 
 # def build_backbone(config: dict):
 #     # position_embedding = build_position_encoding(args)
@@ -41,7 +42,7 @@ class MultiTaskingSigLIP(nn.Module):
         super().__init__()
         self.config = config
         
-        self.backbone = SiglipBackbone(config['BACKBONE_TYPE'], config['NUM_FRAMES'], config['CKPT_PATH'], config['TRAIN_BACKBONE'], False)
+        self.backbone = SiglipBackbone(config['BACKBONE_TYPE'], config['NUM_FRAMES'], config['CKPT_PATH'], config['TEXT_ENCODER_CKPT_PATH'], config['TRAIN_BACKBONE'], False)
         
         # multi-task heads
         self.multi_task_head = nn.ModuleDict()
@@ -51,11 +52,13 @@ class MultiTaskingSigLIP(nn.Module):
                 self.multi_task_head[task] = build_deformable_detr_head(config)
             elif task == "SoccerNetGSR_ReID":
                 self.multi_task_head[task] = build_soccer_net_gsr_reid_head(config)
+            elif task == "VideoCaption":
+                self.multi_task_head[task] = build_video_caption_head(config)
             else:
                 raise ValueError(f"Task {task} is not supported.")
 
-    def forward(self, images, task, metas):
-        backbone_outputs = self.backbone(images)
+    def forward(self, images, task, metas, text=None):
+        backbone_outputs = self.backbone(images, text=text)
         
         # outputs = {task: self.multi_task_head[task](backbone_outputs) for task in self.multi_task_head.keys()}
         # 不同数据对应了不同的head，只给对应的那个

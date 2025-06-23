@@ -344,7 +344,8 @@ def build_gsr_detection_dataset(config: dict, split: str):
 
 def build_gsr_detection_dataloader(config: dict, split: str):
     dataset = build_gsr_detection_dataset(config, split)
-    return DataLoader(dataset, batch_size=config["BATCH_SIZE"], shuffle=True, collate_fn=collate_fn, num_workers=config["NUM_WORKERS"])
+    shuffle = True if split == "train" else False
+    return DataLoader(dataset, batch_size=config["BATCH_SIZE"], shuffle=shuffle, collate_fn=collate_fn, num_workers=config["NUM_WORKERS"])
 
 def is_legal(annotation: dict):
     assert "id" in annotation, "Annotation must have 'id' field."

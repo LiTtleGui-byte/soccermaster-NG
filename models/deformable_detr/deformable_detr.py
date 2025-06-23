@@ -907,6 +907,7 @@ def build_deformable_detr_head(config: dict):
         aux_loss=args.aux_loss,
         with_box_refine=args.with_box_refine,
         two_stage=args.two_stage,
+        backbone_type=config["BACKBONE_TYPE"],
     )
     return head
 

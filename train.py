@@ -99,6 +99,12 @@ def train_engine(config: dict):
     if dataloader_test_dict:
         dataloader_test_dict = {task: accelerator.prepare(dataloader) for task, dataloader in dataloader_test_dict.items()}
     
+    # Fix DDP parameter sharing issue by setting static graph
+    # if hasattr(model, 'module') and hasattr(model.module, '_set_static_graph'):
+    #     model.module._set_static_graph()
+    # elif hasattr(model, '_set_static_graph'):
+    #     model._set_static_graph()
+    
     # Init the training states:
     train_states = {
         "start_epoch": 0,
@@ -113,10 +119,10 @@ def train_engine(config: dict):
     logger.info(f"Non-trainable parameters: {total_params - trainable_params:,} ({100 - trainable_percentage:.2f}%)")
     
     # Print names of non-trainable parameters
-    logger.info("Non-trainable layers:")
-    for name, param in model.named_parameters():
-        if not param.requires_grad:
-            logger.info(f"  {name}")
+    # logger.info("Non-trainable layers:")
+    # for name, param in model.named_parameters():
+    #     if not param.requires_grad:
+    #         logger.info(f"  {name}")
     
     for epoch in range(train_states["start_epoch"], config["EPOCHS"]):
         # Train one epoch:
@@ -465,6 +471,10 @@ def train_one_epoch(
                     batch = next(dataloader_iters[task])
                     
                 images, annotations, metas = batch.values()
+                if task in ["VideoCaption"]:
+                    text = [annotation['text'] for annotation in annotations]
+                else:
+                    text = None
                 
                 # Learning rate warmup:
                 if epoch < lr_warmup_epochs:
@@ -477,29 +487,30 @@ def train_one_epoch(
                 
                 # 可选：使用梯度检查点进一步减少显存（会增加计算时间）
                 if config.get("USE_GRADIENT_CHECKPOINTING", False):
-                    outputs = torch.utils.checkpoint.checkpoint(model, images, task, metas, use_reentrant=False)
+                    outputs = torch.utils.checkpoint.checkpoint(model, images, task, metas, text, use_reentrant=False)
                 else:
-                    outputs = model(images, task, metas)
+                    outputs = model(images, task, metas, text)
                     
                 loss_output = loss_fn_dict[task](outputs[task], annotations)
-                if task in ["SoccerNetGSR_Detection", ]:
+                if task in ["SoccerNetGSR_Detection",]:
                     loss_task_raw, weight_dict, _ = loss_output
                     # 初始化任务级别的loss字典
                     unweighted_loss_dict[task] = {k: v for k, v in loss_task_raw.items() if k in weight_dict}
                     weighted_loss_dict[task] = {k: (v * weight_dict[k]) for k, v in loss_task_raw.items() if k in weight_dict}
                     log_only_loss_dict[task] = {k: v for k, v in loss_task_raw.items() if k not in weight_dict}
-                elif task in ["SoccerNetGSR_ReID"]:
+                elif task in ["SoccerNetGSR_ReID", "VideoCaption"]:
                     loss_task_raw, weight_dict = loss_output
                     # 初始化任务级别的loss字典
                     unweighted_loss_dict[task] = {k: v for k, v in loss_task_raw.items() if k in weight_dict}
                     weighted_loss_dict[task] = {k: (v * weight_dict[k]) for k, v in loss_task_raw.items() if k in weight_dict}
                     log_only_loss_dict[task] = {k: v for k, v in loss_task_raw.items() if k not in weight_dict}
                 else:
-                    loss_task = loss_output
-                    # 对于其他任务，未加权和加权的loss相同
-                    unweighted_loss_dict[task] = loss_task
-                    weighted_loss_dict[task] = loss_task
-                    log_only_loss_dict[task] = {}
+                    raise ValueError(f"Task {task} not supported.")
+                    # loss_task = loss_output
+                    # # 对于其他任务，未加权和加权的loss相同
+                    # unweighted_loss_dict[task] = loss_task
+                    # weighted_loss_dict[task] = loss_task
+                    # log_only_loss_dict[task] = {}
             
             # 立即对当前任务进行backward，减少显存占用
             task_total_loss = sum(weighted_loss_dict[task].values())
