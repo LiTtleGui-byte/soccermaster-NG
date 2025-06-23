@@ -190,7 +190,8 @@ def build_gsr_reid_dataset(config: dict, split: str):
 def build_gsr_reid_dataloader(config: dict, split: str):
     dataset = build_gsr_reid_dataset(config, split)
     sampler = PrtreidSampler(dataset.train, batch_size=config["SOCCER_NET_GSR_REID_BATCH_SIZE"], num_instances=config["SOCCER_NET_GSR_REID_NUM_INSTANCES"], column_mapping=dataset.column_mapping)
-    return DataLoader(dataset, batch_size=config["SOCCER_NET_GSR_REID_BATCH_SIZE"], collate_fn=collate_fn, num_workers=config["NUM_WORKERS"], sampler=sampler)
+    prefetch_factor = config["PREFETCH_FACTOR"] if config["NUM_WORKERS"] > 0 else None
+    return DataLoader(dataset, batch_size=config["SOCCER_NET_GSR_REID_BATCH_SIZE"], collate_fn=collate_fn, num_workers=config["NUM_WORKERS"], sampler=sampler, prefetch_factor=prefetch_factor)
 
 class PrtreidSampler(Sampler):
     """Samples for all three tasks: reid, role, and team
