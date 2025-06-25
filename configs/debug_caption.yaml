@@ -1,6 +1,0 @@
-SUPER_CONFIG_PATH: ./configs/default.yaml
-
-TASKS: [VideoCaption, ]
-DATASETS: [VideoCaption, ]
-# TASKS: [SoccerNetGSR_Detection, VideoCaption]
-# DATASETS: [SoccerNetGSR_Detection, VideoCaption]

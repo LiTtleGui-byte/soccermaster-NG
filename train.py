@@ -171,7 +171,7 @@ def train_engine(config: dict):
             
             # Save backbone weights in backbone subdirectory
             backbone_dir = os.path.join(epoch_dir, 'backbone')
-            original_model.backbone.model.save_pretrained(backbone_dir)
+            original_model.backbone.vision_model.save_pretrained(backbone_dir)
             
             # Save each head separately
             for task_name, head in original_model.multi_task_head.items():
@@ -236,10 +236,14 @@ def evaluate_one_epoch(
             for batch_idx, batch in enumerate(dataloader):
                 images, annotations, metas = batch.values()
                 batch_size = images.size(0)
+                if 'text' in annotations[0].keys():
+                    text = [annotation['text'] for annotation in annotations]
+                else:
+                    text = None
                 
                 # Forward pass
                 with accelerator.autocast():
-                    outputs = model(images, task_name, metas)
+                    outputs = model(images, task_name, metas, text)
                     
                     # Compute loss
                     loss_output = loss_fn_dict[task_name](outputs[task_name], annotations)
@@ -269,7 +273,7 @@ def evaluate_one_epoch(
                             # 使用新的update方法收集数据
                             metrics_fn_dict[task_name].update(outputs[task_name], annotations, target_sizes)
                             
-                    elif task_name in ["SoccerNetGSR_ReID"]:
+                    elif task_name in ["SoccerNetGSR_ReID", "VideoCaption"]:
                         loss_task_raw, weight_dict = loss_output
                         
                         # Compute weighted and unweighted losses

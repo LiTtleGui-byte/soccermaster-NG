@@ -1461,10 +1461,6 @@ class DetectionMetrics(nn.Module):
             total_valid = valid_mask.sum().item()
             if total_valid > 0:
                 accuracy = (true_positives + true_negatives) / total_valid
-                if accuracy > 1.0:
-                    print(f"Accuracy is greater than 1.0: {accuracy}")
-                    print(true_positives, true_negatives, false_positives, false_negatives, total_valid)
-                    exit(0)
                 precision = true_positives / (true_positives + false_positives + 1e-10)
                 recall = true_positives / (true_positives + false_negatives + 1e-10)
                 f1 = 2 * (precision * recall) / (precision + recall + 1e-10)
@@ -1505,10 +1501,6 @@ class DetectionMetrics(nn.Module):
             pred_keypoints_valid = pred_keypoints_heatmap[valid_indices]
             
             # 从heatmap中提取keypoints
-            # 假设最后一个通道是background，所以排除它
-            # if pred_keypoints_valid.shape[1] > keypoints_gt.shape[1]:
-            #     pred_keypoints_valid = pred_keypoints_valid[:, :-1]  # 排除background通道
-                
             kp_gt = self.get_keypoints_from_heatmap_batch_maxpool(
                 keypoints_gt[:,:-1,:,:], return_scores=True, max_keypoints=1
             )

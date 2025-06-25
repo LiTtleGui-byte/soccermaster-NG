@@ -158,8 +158,14 @@ class VideoCaptionLoss(nn.Module):
         return flat_captions
 
     def compute_siglip_loss(self, logits, target_label):
+        """
+        SigLIP损失：对每个样本分别计算损失，然后平均
+        logits: [batch_size, batch_size] - 相似度矩阵
+        target_label: [batch_size, batch_size] - 标签矩阵 (1=正样本, -1=负样本)
+        """
         logits_per_image = logits.t()
-        return -F.logsigmoid(target_label * logits_per_image).mean()
+        # return -F.logsigmoid(target_label * logits_per_image).mean()
+        return -F.logsigmoid(target_label * logits_per_image).sum() / logits.shape[0]
 
     def compute_infonce_loss(self, logits, target_label):
         logits = logits / self.temperature

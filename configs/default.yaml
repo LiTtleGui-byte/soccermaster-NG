@@ -4,7 +4,7 @@ SUPER_CONFIG_PATH:          # super (father) config path
 SEED: 42
 
 # System Settings:
-NUM_WORKERS: 12
+NUM_WORKERS: 32
 DEVICE: cuda
 
 # Outputs settings:
@@ -24,7 +24,7 @@ MULTI_LAST_CHECKPOINTS: 0
 
 # Training strategies:
 USE_GRADIENT_CHECKPOINTING: False
-BATCH_SIZE: 16
+BATCH_SIZE: 12
 PREFETCH_FACTOR: 6
 LR: 1.0e-4
 # LR_BACKBONE_NAMES: [backbone.0]
@@ -81,7 +81,7 @@ AUG_MEAN: [0.5, 0.5, 0.5]
 AUG_STD: [0.5, 0.5, 0.5]
 
 # BACKBONE:
-BACKBONE_TYPE: video
+BACKBONE_TYPE: image
 NUM_FRAMES: 8
 CKPT_PATH: ./pretrained_models/google/siglip2-base-patch16-512
 TEXT_ENCODER_CKPT_PATH: ./pretrained_models/google/siglip2-base-patch16-512
@@ -143,7 +143,7 @@ VIDEO_CAPTION_LOSS_TYPE: siglip_loss
 VIDEO_CAPTION_SIGLIP_LOSS_WEIGHT: 1.0
 VIDEO_CAPTION_INFONCE_LOSS_WEIGHT: 1.0
 VIDEO_CAPTION_DATA_ROOT: ./datasets/VideoCaption/
-VIDEO_CAPTION_BATCH_SIZE: 2
+VIDEO_CAPTION_BATCH_SIZE: 4
 VIDEO_CAPTION_NUM_WORKERS: 4
 VIDEO_CAPTION_DATASETS: ['SoccerReplay-1988']
 VIDEO_CAPTION_NUM_FRAMES: 8
