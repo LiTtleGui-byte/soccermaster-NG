@@ -99,6 +99,9 @@ def train_engine(config: dict):
     if dataloader_test_dict:
         dataloader_test_dict = {task: accelerator.prepare(dataloader) for task, dataloader in dataloader_test_dict.items()}
     
+    # if config["USE_GRADIENT_CHECKPOINTING"]:
+    #     accelerator.gradient_checkpointing_enable()
+    
     # Fix DDP parameter sharing issue by setting static graph
     # if hasattr(model, 'module') and hasattr(model.module, '_set_static_graph'):
     #     model.module._set_static_graph()
@@ -490,10 +493,10 @@ def train_one_epoch(
                     )
                 
                 # 可选：使用梯度检查点进一步减少显存（会增加计算时间）
-                if config.get("USE_GRADIENT_CHECKPOINTING", False):
-                    outputs = torch.utils.checkpoint.checkpoint(model, images, task, metas, text, use_reentrant=False)
-                else:
-                    outputs = model(images, task, metas, text)
+                # if config["USE_GRADIENT_CHECKPOINTING"]:
+                #     outputs = torch.utils.checkpoint.checkpoint(model, images, task, metas, text, use_reentrant=False)
+                # else:
+                outputs = model(images, task, metas, text)
                     
                 loss_output = loss_fn_dict[task](outputs[task], annotations)
                 if task in ["SoccerNetGSR_Detection",]:

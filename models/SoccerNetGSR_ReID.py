@@ -24,7 +24,7 @@ class SoccerNetGSR_ReIDHead(nn.Module):
         self.digit_head_classifier = MLP(output_reid_dim, output_reid_dim, len(digit_head_mapping), 2)
         self.digit_tail_classifier = MLP(output_reid_dim, output_reid_dim, len(digit_tail_mapping), 2)
 
-    def forward(self, backbone_outputs, metas):
+    def forward(self, backbone_outputs, metas, is_training: bool = False):
         global_features, local_features = backbone_outputs['global_features'], backbone_outputs['local_features']
         if self.backbone_type == 'video':
             global_features = global_features[:, 0]

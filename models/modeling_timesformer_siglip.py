@@ -201,8 +201,8 @@ class SiglipOutput(ModelOutput):
     logits_per_text: Optional[torch.FloatTensor] = None
     text_embeds: Optional[torch.FloatTensor] = None
     image_embeds: Optional[torch.FloatTensor] = None
-    text_model_output: BaseModelOutputWithPooling = None
-    vision_model_output: BaseModelOutputWithPooling = None
+    text_model_output: Optional[BaseModelOutputWithPooling] = None
+    vision_model_output: Optional[BaseModelOutputWithPooling] = None
 
     def to_tuple(self) -> Tuple[Any]:
         return tuple(
@@ -233,7 +233,7 @@ class SiglipVisionEmbeddings(nn.Module):
         self.register_buffer("position_ids", torch.arange(self.num_positions).expand((1, -1)), persistent=False)
         
         # Temporal embedding for TimeSformer
-        self.num_frames = getattr(config, 'num_frames', 15)  # Default to 30 frames if not specified
+        self.num_frames = config.num_frames
         self.temporal_embedding = nn.Embedding(self.num_frames, self.embed_dim)
         self.register_buffer("temporal_ids", torch.arange(self.num_frames).expand((1, -1)), persistent=False)
 

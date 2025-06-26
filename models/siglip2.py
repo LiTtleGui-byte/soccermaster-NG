@@ -34,7 +34,9 @@ class SiglipBackbone(nn.Module):
             self.vision_model = SiglipVisionModel.from_pretrained(ckpt_path, device_map="cpu")
         elif backbone_type == 'video':
             self.num_frames = num_frames
-            self.vision_model = TimesformerSiglipVisionModel.from_pretrained(ckpt_path, device_map="cpu")
+            config = SiglipVisionConfig.from_pretrained(ckpt_path)
+            config.num_frames = num_frames
+            self.vision_model = TimesformerSiglipVisionModel.from_pretrained(ckpt_path, config=config, device_map="cpu")
         self.backbone_type = backbone_type
         
         if train_backbone:

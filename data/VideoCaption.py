@@ -197,7 +197,7 @@ def build_video_caption_dataset(config: dict, split: str):
         data_root=config["VIDEO_CAPTION_DATA_ROOT"],
         video_caption_datasets=config["VIDEO_CAPTION_DATASETS"],
         split=split,
-        num_frames=config["VIDEO_CAPTION_NUM_FRAMES"],
+        num_frames=config["NUM_FRAMES"],
         sample=config["VIDEO_CAPTION_SAMPLE"],
         fix_start=config["VIDEO_CAPTION_FIX_START"],
         max_num_frames=config["VIDEO_CAPTION_MAX_NUM_FRAMES"],

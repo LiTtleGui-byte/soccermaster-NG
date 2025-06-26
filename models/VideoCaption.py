@@ -21,8 +21,8 @@ class VideoCaptionHead(nn.Module):
             raise ValueError(f"Loss type {loss_type} not supported.")
 
     def forward(self, 
-                backbone_outputs, 
-                is_training: bool = False,
+                backbone_outputs,
+                metas,
                 gather_distributed: bool = True):
         # 提取特征
         global_features = backbone_outputs['global_features']
@@ -39,7 +39,7 @@ class VideoCaptionHead(nn.Module):
         text_features = F.normalize(text_features, dim=-1)
         
         # DDP模式下收集全局特征（仅在训练时启用）
-        if dist.is_initialized() and is_training and gather_distributed:
+        if dist.is_initialized() and self.training and gather_distributed:
             vision_features, text_features = self._gather_features_distributed(
                 vision_features, 
                 text_features
@@ -183,6 +183,7 @@ class VideoCaptionLoss(nn.Module):
 
     def calculate_top_k_accuracy(self, sim_matrix, labels):
         batch_size = sim_matrix.size(0)
+        print(sim_matrix.shape)
         topk_indices = torch.topk(sim_matrix, k=5, dim=1)[1]
         
         # 创建正样本标签 (1表示匹配)
