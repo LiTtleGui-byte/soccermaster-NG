@@ -37,7 +37,7 @@ def load_checkpoint(model, checkpoint_path, device):
         backbone_path = os.path.join(checkpoint_path, 'backbone')
         if os.path.exists(backbone_path):
             print(f"Loading backbone from: {backbone_path}")
-            model.backbone.model = model.backbone.model.from_pretrained(backbone_path)
+            model.backbone.vision_model = model.backbone.vision_model.from_pretrained(backbone_path)
         
         # 加载各个task head
         for task_name in model.multi_task_head.keys():

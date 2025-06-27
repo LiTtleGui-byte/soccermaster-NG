@@ -202,7 +202,7 @@ def evaluate_one_epoch(
     loss_fn_dict: dict[str, nn.Module],
     metrics_fn_dict: dict[str, nn.Module],
     model,
-    logger: Logger = None
+    logger: Logger
 ):
     """
     Evaluate model on test dataset for one epoch and log results to tensorboard
@@ -407,7 +407,7 @@ def train_one_epoch(
         loss_fn_dict: dict[str, nn.Module],
         model,
         optimizer,
-        logger: Logger = None,
+        logger: Logger,
         lr_warmup_epochs: int = 0,
         lr_warmup_tgt_lr: float = 1e-4,
         accumulate_steps: int = 1,

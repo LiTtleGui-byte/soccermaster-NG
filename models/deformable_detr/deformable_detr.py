@@ -1642,36 +1642,55 @@ class DetectionMetrics(nn.Module):
         return batch_metrics
 
     
-    def calculate_lines_metrics(gt, pred, conf_th=0.1, dist_th=5):
-
-        pred_pos = pred[:, :, :, :-1]
-        gt_pos = gt[:, :, :, :-1]
-
-        pred_mask = torch.all((pred[:, :, :, -1] > conf_th), dim=-1)
-        gt_mask = torch.all((gt[:, :, :, -1] > conf_th), dim=-1)
-
-        gt_flip = torch.flip(gt_pos, dims=[2])
-
-        distances1 = torch.norm(pred_pos - gt_pos, dim=-1)
-        distances2 = torch.norm(pred_pos - gt_flip, dim=-1)
-
-        distances1_bool = torch.all((distances1 < dist_th), dim=-1)
-        distances2_bool = torch.all((distances2 < dist_th), dim=-1)
-
-        # Count true positives, false positives, and false negatives based on distance threshold
-        true_positives = ((distances1_bool | distances2_bool) & pred_mask & gt_mask).sum().item()
-        true_negatives = (~pred_mask & ~gt_mask).sum().item()
-        false_positives = (
-                (pred_mask & ~gt_mask) | ((~distances1_bool & ~distances2_bool) & pred_mask & gt_mask)).sum().item()
-        false_negatives = (~pred_mask & gt_mask).sum().item()
-
-        # Calculate precision, recall, and F1 score
-        accuracy = (true_positives + true_negatives) / (gt.size()[1] * gt.size()[0])
-        precision = true_positives / (true_positives + false_positives + 1e-10)
-        recall = true_positives / (true_positives + false_negatives + 1e-10)
-        f1 = 2 * (precision * recall) / (precision + recall + 1e-10)
-
-        return accuracy, precision, recall, f1
+    def calculate_lines_metrics(self, gt, pred, conf_th=0.1, dist_th=5):
+        """计算lines的metrics，按batch处理"""
+        # Ensure gt and pred are on CPU for computation
+        gt = gt.cpu()
+        pred = pred.cpu()
+        
+        batch_size = gt.shape[0]
+        batch_metrics = []
+        
+        for batch_idx in range(batch_size):
+            # Get data for current batch
+            gt_batch = gt[batch_idx]  # [num_lines, max_keypoints, 3]
+            pred_batch = pred[batch_idx]  # [num_lines, max_keypoints, 3]
+            
+            # Extract positions and confidence scores
+            pred_pos = pred_batch[:, :, :-1]  # [num_lines, max_keypoints, 2]
+            gt_pos = gt_batch[:, :, :-1]  # [num_lines, max_keypoints, 2]
+            
+            pred_mask = torch.all((pred_batch[:, :, -1] > conf_th), dim=-1)  # [num_lines]
+            gt_mask = torch.all((gt_batch[:, :, -1] > conf_th), dim=-1)  # [num_lines]
+            
+            gt_flip = torch.flip(gt_pos, dims=[1])  # [num_lines, max_keypoints, 2]
+            
+            distances1 = torch.norm(pred_pos - gt_pos, dim=-1)  # [num_lines, max_keypoints]
+            distances2 = torch.norm(pred_pos - gt_flip, dim=-1)  # [num_lines, max_keypoints]
+            
+            distances1_bool = torch.all((distances1 < dist_th), dim=-1)  # [num_lines]
+            distances2_bool = torch.all((distances2 < dist_th), dim=-1)  # [num_lines]
+            
+            # Count true positives, false positives, and false negatives based on distance threshold
+            true_positives = ((distances1_bool | distances2_bool) & pred_mask & gt_mask).sum().item()
+            true_negatives = (~pred_mask & ~gt_mask).sum().item()
+            false_positives = (
+                    (pred_mask & ~gt_mask) | ((~distances1_bool & ~distances2_bool) & pred_mask & gt_mask)).sum().item()
+            false_negatives = (~pred_mask & gt_mask).sum().item()
+            
+            # Calculate metrics for this batch
+            total_lines = gt_batch.shape[0]
+            if total_lines > 0:
+                accuracy = (true_positives + true_negatives) / total_lines
+                precision = true_positives / (true_positives + false_positives + 1e-10)
+                recall = true_positives / (true_positives + false_negatives + 1e-10)
+                f1 = 2 * (precision * recall) / (precision + recall + 1e-10)
+            else:
+                accuracy = precision = recall = f1 = 0.0
+            
+            batch_metrics.append((accuracy, precision, recall, f1))
+        
+        return batch_metrics
 
     def compute_keypoints_metrics(self, pred_keypoints_heatmap, targets):
         """
@@ -1736,32 +1755,32 @@ class DetectionMetrics(nn.Module):
             return
             
         # 获取GT lines heatmap和mask
-        try:
-            lines_gt_list = [t.get("lines_target", None) for t in targets]
+        # try:
+        lines_gt_list = [t["lines_target"] for t in targets]
+        
+        # 只处理有效的数据
+        lines_gt = torch.stack(lines_gt_list, dim=0)
+        
+        # 从heatmap中提取lines
+        l_gt = self.get_keypoints_from_heatmap_batch_maxpool_l(lines_gt[:,:-1,:,:], return_scores=True, max_keypoints=2)
+        lines_pred = self.get_keypoints_from_heatmap_batch_maxpool_l(pred_lines_heatmap[:,:-1,:,:], return_scores=True, max_keypoints=2)
+        
+        # 计算metrics
+        batch_metrics = self.calculate_lines_metrics(l_gt, lines_pred)
+        
+        # 收集metrics
+        for accuracy, precision, recall, f1 in batch_metrics:
+            self.lines_metrics_data['accuracies'].append(accuracy)
+            self.lines_metrics_data['precisions'].append(precision)
+            self.lines_metrics_data['recalls'].append(recall)
+            self.lines_metrics_data['f1_scores'].append(f1)
+        
+        self.lines_metrics_data['valid_count'] += len(batch_metrics)
             
-            # 只处理有效的数据
-            lines_gt = torch.stack(lines_gt_list[i], dim=0)
-            
-            # 从heatmap中提取lines
-            lines_gt = self.get_lines_from_heatmap_batch_maxpool_l(lines_gt[:,:-1,:,:], return_scores=True, max_lines=2)
-            lines_pred = self.get_lines_from_heatmap_batch_maxpool_l(pred_lines_heatmap[:,:-1,:,:], return_scores=True, max_lines=2)
-            
-            # 计算metrics
-            batch_metrics = self.calculate_lines_metrics(lines_gt, lines_pred)
-            
-            # 收集metrics
-            for accuracy, precision, recall, f1 in batch_metrics:
-                self.lines_metrics_data['accuracies'].append(accuracy)
-                self.lines_metrics_data['precisions'].append(precision)
-                self.lines_metrics_data['recalls'].append(recall)
-                self.lines_metrics_data['f1_scores'].append(f1)
-            
-            self.lines_metrics_data['valid_count'] += len(batch_metrics)
-            
-        except Exception as e:
-            # 如果lines计算失败，静默跳过
-            # print(f"Warning: lines metrics calculation failed: {e}")
-            pass
+        # except Exception as e:
+        #     # 如果lines计算失败，静默跳过
+        #     # print(f"Warning: lines metrics calculation failed: {e}")
+        #     pass
 
     def update(self, outputs, targets, target_sizes):
         """
