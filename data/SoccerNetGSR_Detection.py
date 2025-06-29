@@ -148,8 +148,8 @@ class SoccerNetGSR_Detection(Dataset):
                     continue
                 # if anno['supercategory'] != 'object' or anno['attributes']['role'] == 'ball':
                 #     continue
+                frame_idx = int(anno['image_id'][-6:]) - 1
                 if anno['supercategory'] == 'object' and anno['attributes']['role'] != 'ball':
-                    frame_idx = int(anno['image_id'][-6:]) - 1
                     obj_id = anno['track_id']
                     x, y, w, h = anno['bbox_image']['x'], anno['bbox_image']['y'], anno['bbox_image']['w'], anno['bbox_image']['h']
                     bbox = [x, y, w, h]
@@ -188,8 +188,6 @@ class SoccerNetGSR_Detection(Dataset):
                         # 如果jersey number为None，则digit_head和digit_tail也设置为None
                         annotations[sequence_name][frame_idx]["digit_head"].append(digit_head_mapping[None])
                         annotations[sequence_name][frame_idx]["digit_tail"].append(digit_tail_mapping[None])
-                        
-                    
                 elif anno['supercategory']== 'pitch':
                     annotations[sequence_name][frame_idx]['lines'] = self.correct_lines_labels(anno['lines'])
                 else:

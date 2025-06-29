@@ -607,24 +607,48 @@ class SetCriterion(nn.Module):
 
         # Camera loss:
         valid_camera_mask = torch.stack([t["valid_camera"] for t in targets], dim=0)
-        quaternion_gt = torch.stack([t["quaternion"] for t in targets], dim=0)[valid_camera_mask]
-        translation_gt = torch.stack([t["translation"] for t in targets], dim=0)[valid_camera_mask]
-        fov_hw_gt = torch.stack([t["fov_hw"] for t in targets], dim=0)[valid_camera_mask]
         
-        quaternion_pred = outputs["pred_camera"]["quaternion"][valid_camera_mask]
-        translation_pred = outputs["pred_camera"]["translation"][valid_camera_mask]
-        fov_hw_pred = outputs["pred_camera"]["fov"][valid_camera_mask]
+        if valid_camera_mask.any():
+            quaternion_gt = torch.stack([t["quaternion"] for t in targets], dim=0)[valid_camera_mask]
+            translation_gt = torch.stack([t["translation"] for t in targets], dim=0)[valid_camera_mask]
+            fov_hw_gt = torch.stack([t["fov_hw"] for t in targets], dim=0)[valid_camera_mask]
+            
+            quaternion_pred = outputs["pred_camera"]["quaternion"][valid_camera_mask]
+            translation_pred = outputs["pred_camera"]["translation"][valid_camera_mask]
+            fov_hw_pred = outputs["pred_camera"]["fov"][valid_camera_mask]
+            
+            # print('fov_hw_gt', fov_hw_gt)
+            # print('fov_hw_pred', fov_hw_pred)
+            
+            cur_pred_pose_enc = torch.cat([translation_pred, quaternion_pred, fov_hw_pred], dim=-1)
+            gt_pose_encoding = torch.cat([translation_gt, quaternion_gt, fov_hw_gt], dim=-1)
+            
+            loss_T, loss_R, loss_fl = camera_loss_single(cur_pred_pose_enc, gt_pose_encoding, loss_type="huber")
+            losses["loss_T"] = loss_T
+            losses["loss_R"] = loss_R
+            losses["loss_fl"] = loss_fl
+        else:
+            losses["loss_T"] = torch.tensor(0.0, device=next(iter(outputs.values())).device)
+            losses["loss_R"] = torch.tensor(0.0, device=next(iter(outputs.values())).device)
+            losses["loss_fl"] = torch.tensor(0.0, device=next(iter(outputs.values())).device)
         
-        # print('fov_hw_gt', fov_hw_gt)
-        # print('fov_hw_pred', fov_hw_pred)
+        if torch.isnan(losses["loss_T"]):
+            print(f"Error: loss_T is nan!")
+            # print(f"translation_pred: {translation_pred}")
+            # print(f"translation_gt: {translation_gt}")
+            exit(0)
         
-        cur_pred_pose_enc = torch.cat([translation_pred, quaternion_pred, fov_hw_pred], dim=-1)
-        gt_pose_encoding = torch.cat([translation_gt, quaternion_gt, fov_hw_gt], dim=-1)
+        if torch.isnan(losses["loss_R"]):
+            print(f"Error: loss_R is nan!")
+            # print(f"quaternion_pred: {quaternion_pred}")
+            # print(f"quaternion_gt: {quaternion_gt}")
+            exit(0)
         
-        loss_T, loss_R, loss_fl = camera_loss_single(cur_pred_pose_enc, gt_pose_encoding, loss_type="huber")
-        losses["loss_T"] = loss_T
-        losses["loss_R"] = loss_R
-        losses["loss_fl"] = loss_fl
+        if torch.isnan(losses["loss_fl"]):
+            print(f"Error: loss_fl is nan!")
+            # print(f"fov_hw_pred: {fov_hw_pred}")
+            # print(f"fov_hw_gt: {fov_hw_gt}")
+            exit(0)
         
         # Keypoints loss:
         keypoints_gt = torch.stack([t["keypoints_target"] for t in targets], dim=0)
