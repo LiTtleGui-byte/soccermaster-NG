@@ -15,7 +15,7 @@ Deformable DETR model and criterion classes.
 """
 import torch
 import torch.nn.functional as F
-from torch import nn, Tensor, Callable
+from torch import nn, Tensor
 import math
 from typing import Optional
 
