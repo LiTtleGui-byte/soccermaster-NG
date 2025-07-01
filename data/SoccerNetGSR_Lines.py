@@ -218,7 +218,8 @@ def build_gsr_lines_dataloader(config: dict, split: str):
     dataset = build_gsr_lines_dataset(config, split)
     shuffle = True if split == "train" else False
     prefetch_factor = config["PREFETCH_FACTOR"] if config["NUM_WORKERS"] > 0 else None
-    return DataLoader(dataset, batch_size=config["BATCH_SIZE"], shuffle=shuffle, collate_fn=collate_fn, num_workers=config["NUM_WORKERS"], prefetch_factor=prefetch_factor)
+    persistent_workers = config["NUM_WORKERS"] > 0
+    return DataLoader(dataset, batch_size=config["BATCH_SIZE"], shuffle=shuffle, collate_fn=collate_fn, num_workers=config["NUM_WORKERS"], prefetch_factor=prefetch_factor, persistent_workers=persistent_workers)
 
 def is_legal(annotation: dict):
     # 只检查是否有lines数据

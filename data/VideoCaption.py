@@ -213,4 +213,5 @@ def build_video_caption_dataloader(config: dict, split: str):
     dataset = build_video_caption_dataset(config, split)
     shuffle = True if split == "train" else False
     prefetch_factor = config["PREFETCH_FACTOR"] if config["VIDEO_CAPTION_NUM_WORKERS"] > 0 else None
-    return DataLoader(dataset, batch_size=config["VIDEO_CAPTION_BATCH_SIZE"], shuffle=shuffle, collate_fn=collate_fn, num_workers=config["VIDEO_CAPTION_NUM_WORKERS"], prefetch_factor=prefetch_factor)
+    persistent_workers = config["VIDEO_CAPTION_NUM_WORKERS"] > 0
+    return DataLoader(dataset, batch_size=config["VIDEO_CAPTION_BATCH_SIZE"], shuffle=shuffle, collate_fn=collate_fn, num_workers=config["VIDEO_CAPTION_NUM_WORKERS"], prefetch_factor=prefetch_factor, persistent_workers=persistent_workers)
