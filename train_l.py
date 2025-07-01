@@ -23,6 +23,7 @@ from runtime_option import runtime_option
 from utils.misc import set_seed
 from configs.util import load_super_config, update_config, yaml_to_dict
 from models.build import build_loss_fn, build_metrics_fn
+from models.SoccerNetGSR_Lines import HighResolutionNet
 
 # os.environ["NCCL_BLOCKING_WAIT"] = "1"      # 启用阻塞等待
 os.environ["NCCL_TIMEOUT_MS"] = "5400000"   # 5400秒 = 90分钟
@@ -83,7 +84,8 @@ def train_engine(config: dict):
     # global_rank = get_rank()
     # sampler_train = DistributedBatchTaskBalancedSampler(dataset_train_dict, config["BATCH_SIZE"], num_replicas=num_tasks, rank=global_rank, shuffle=True)
     
-    model = MultiTaskingSigLIP(config=config)
+    # model = MultiTaskingSigLIP(config=config)
+    model = HighResolutionNet(config=config)
     
     # TODO: set params groups
     optimizer = AdamW(
@@ -117,47 +119,47 @@ def train_engine(config: dict):
         "global_step": 0
     }
     
-    total_params = sum(p.numel() for p in model.parameters())
-    trainable_params = sum(p.numel() for p in model.parameters() if p.requires_grad)
-    trainable_percentage = (trainable_params / total_params) * 100
+    # total_params = sum(p.numel() for p in model.parameters())
+    # trainable_params = sum(p.numel() for p in model.parameters() if p.requires_grad)
+    # trainable_percentage = (trainable_params / total_params) * 100
     
-    # Get original model (handle DDP wrapper)
-    original_model = model.module if hasattr(model, 'module') else model
+    # # Get original model (handle DDP wrapper)
+    # original_model = model.module if hasattr(model, 'module') else model
     
-    # Calculate vision_model parameters
-    vision_params = sum(p.numel() for p in original_model.backbone.vision_model.parameters())
-    vision_trainable_params = sum(p.numel() for p in original_model.backbone.vision_model.parameters() if p.requires_grad)
+    # # Calculate vision_model parameters
+    # vision_params = sum(p.numel() for p in original_model.backbone.vision_model.parameters())
+    # vision_trainable_params = sum(p.numel() for p in original_model.backbone.vision_model.parameters() if p.requires_grad)
     
-    # Calculate each head parameters
-    head_params = {}
-    head_trainable_params = {}
-    total_head_params = 0
-    total_head_trainable_params = 0
+    # # Calculate each head parameters
+    # head_params = {}
+    # head_trainable_params = {}
+    # total_head_params = 0
+    # total_head_trainable_params = 0
     
-    for task_name, head in original_model.multi_task_head.items():
-        head_total = sum(p.numel() for p in head.parameters())
-        head_train = sum(p.numel() for p in head.parameters() if p.requires_grad)
-        head_params[task_name] = head_total
-        head_trainable_params[task_name] = head_train
-        total_head_params += head_total
-        total_head_trainable_params += head_train
+    # for task_name, head in original_model.multi_task_head.items():
+    #     head_total = sum(p.numel() for p in head.parameters())
+    #     head_train = sum(p.numel() for p in head.parameters() if p.requires_grad)
+    #     head_params[task_name] = head_total
+    #     head_trainable_params[task_name] = head_train
+    #     total_head_params += head_total
+    #     total_head_trainable_params += head_train
     
-    # Log parameter statistics (in millions)
-    logger.info(f"=== Model Parameter Statistics (Unit: M) ===")
-    logger.info(f"Total parameters: {total_params/1e6:.2f}M")
-    logger.info(f"Trainable parameters: {trainable_params/1e6:.2f}M ({trainable_percentage:.2f}%)")
-    logger.info(f"Non-trainable parameters: {(total_params - trainable_params)/1e6:.2f}M ({100 - trainable_percentage:.2f}%)")
-    logger.info(f"")
-    logger.info(f"Vision Model parameters: {vision_params/1e6:.2f}M")
-    logger.info(f"Vision Model trainable: {vision_trainable_params/1e6:.2f}M ({vision_trainable_params/vision_params*100:.2f}%)")
-    logger.info(f"")
-    logger.info(f"Total Head parameters: {total_head_params/1e6:.2f}M")
-    logger.info(f"Total Head trainable: {total_head_trainable_params/1e6:.2f}M ({total_head_trainable_params/total_head_params*100:.2f}%)")
-    logger.info(f"")
-    for task_name in head_params:
-        logger.info(f"{task_name} Head parameters: {head_params[task_name]/1e6:.2f}M")
-        logger.info(f"{task_name} Head trainable: {head_trainable_params[task_name]/1e6:.2f}M ({head_trainable_params[task_name]/head_params[task_name]*100:.2f}%)")
-    logger.info(f"============================================")
+    # # Log parameter statistics (in millions)
+    # logger.info(f"=== Model Parameter Statistics (Unit: M) ===")
+    # logger.info(f"Total parameters: {total_params/1e6:.2f}M")
+    # logger.info(f"Trainable parameters: {trainable_params/1e6:.2f}M ({trainable_percentage:.2f}%)")
+    # logger.info(f"Non-trainable parameters: {(total_params - trainable_params)/1e6:.2f}M ({100 - trainable_percentage:.2f}%)")
+    # logger.info(f"")
+    # logger.info(f"Vision Model parameters: {vision_params/1e6:.2f}M")
+    # logger.info(f"Vision Model trainable: {vision_trainable_params/1e6:.2f}M ({vision_trainable_params/vision_params*100:.2f}%)")
+    # logger.info(f"")
+    # logger.info(f"Total Head parameters: {total_head_params/1e6:.2f}M")
+    # logger.info(f"Total Head trainable: {total_head_trainable_params/1e6:.2f}M ({total_head_trainable_params/total_head_params*100:.2f}%)")
+    # logger.info(f"")
+    # for task_name in head_params:
+    #     logger.info(f"{task_name} Head parameters: {head_params[task_name]/1e6:.2f}M")
+    #     logger.info(f"{task_name} Head trainable: {head_trainable_params[task_name]/1e6:.2f}M ({head_trainable_params[task_name]/head_params[task_name]*100:.2f}%)")
+    # logger.info(f"============================================")
     
     # Print names of non-trainable parameters
     # logger.info("Non-trainable layers:")
@@ -202,30 +204,30 @@ def train_engine(config: dict):
             )
             logger.info(f"Evaluation completed for epoch {epoch}")
         
-        if (epoch + 1) % config["SAVE_CHECKPOINT_PER_EPOCH"] == 0:
-            # Use model.module to access original model attributes when using DDP
-            original_model = model.module if hasattr(model, 'module') else model
+        # if (epoch + 1) % config["SAVE_CHECKPOINT_PER_EPOCH"] == 0:
+        #     # Use model.module to access original model attributes when using DDP
+        #     original_model = model.module if hasattr(model, 'module') else model
             
-            # Create epoch directory
-            epoch_dir = os.path.join(outputs_dir, f"epoch_{epoch}")
-            os.makedirs(epoch_dir, exist_ok=True)
+        #     # Create epoch directory
+        #     epoch_dir = os.path.join(outputs_dir, f"epoch_{epoch}")
+        #     os.makedirs(epoch_dir, exist_ok=True)
             
-            # Save backbone weights in backbone subdirectory
-            backbone_dir = os.path.join(epoch_dir, 'backbone')
-            original_model.backbone.vision_model.save_pretrained(backbone_dir)
+        #     # Save backbone weights in backbone subdirectory
+        #     backbone_dir = os.path.join(epoch_dir, 'backbone')
+        #     original_model.backbone.vision_model.save_pretrained(backbone_dir)
             
-            # Save each head separately
-            for task_name, head in original_model.multi_task_head.items():
-                # head_dir = os.path.join(epoch_dir, f'head_{task_name}')
-                # os.makedirs(head_dir, exist_ok=True)
-                # torch.save(head.state_dict(), os.path.join(head_dir, 'model.pt'))
-                torch.save(head.state_dict(), os.path.join(epoch_dir, f'{task_name}.pt'))
+        #     # Save each head separately
+        #     for task_name, head in original_model.multi_task_head.items():
+        #         # head_dir = os.path.join(epoch_dir, f'head_{task_name}')
+        #         # os.makedirs(head_dir, exist_ok=True)
+        #         # torch.save(head.state_dict(), os.path.join(head_dir, 'model.pt'))
+        #         torch.save(head.state_dict(), os.path.join(epoch_dir, f'{task_name}.pt'))
                 
-                # # Optionally save head config if available
-                # if hasattr(head, 'config'):
-                #     torch.save(head.config, os.path.join(head_dir, 'config.json'))
+        #         # # Optionally save head config if available
+        #         # if hasattr(head, 'config'):
+        #         #     torch.save(head.config, os.path.join(head_dir, 'config.json'))
             
-            logger.info(f"Saved model checkpoint for epoch {epoch} to {epoch_dir}")
+        #     logger.info(f"Saved model checkpoint for epoch {epoch} to {epoch_dir}")
     
     # Close logger at the end of training
     if logger:
@@ -553,7 +555,7 @@ def train_one_epoch(
                 #     outputs = torch.utils.checkpoint.checkpoint(model, images, task, metas, text, use_reentrant=False)
                 # else:
                 outputs = model(images, task, metas, text)
-                    
+                
                 loss_output = loss_fn_dict[task](outputs[task], annotations)
                 if task in ["SoccerNetGSR_Detection",]:
                     loss_task_raw, weight_dict, _ = loss_output
@@ -599,26 +601,11 @@ def train_one_epoch(
         # 梯度裁剪和参数更新
         if (cur_iter + 1) % accumulate_steps == 0:
             if use_accelerate_clip_norm:
-                # Clip gradients separately for backbone and each head
-                # Use model.module to access original model attributes when using DDP
-                original_model = model.module if hasattr(model, 'module') else model
-                backbone_grad_norm = accelerator.clip_grad_norm_(original_model.backbone.parameters(), max_norm=max_clip_norm)
-                head_grad_norms = {}
-                for task_name, head in original_model.multi_task_head.items():
-                    head_grad_norms[task_name] = accelerator.clip_grad_norm_(head.parameters(), max_norm=max_clip_norm)
-                # For logging purposes, we can use the backbone grad norm as the main grad_norm
-                grad_norm = backbone_grad_norm
+                # Clip gradients for the entire model together
+                grad_norm = accelerator.clip_grad_norm_(model.parameters(), max_norm=max_clip_norm)
             else:
                 accelerator.unscale_gradients()
-                # Clip gradients separately for backbone and each head
-                # Use model.module to access original model attributes when using DDP
-                original_model = model.module if hasattr(model, 'module') else model
-                backbone_grad_norm = torch.nn.utils.clip_grad_norm_(original_model.backbone.parameters(), max_clip_norm)
-                head_grad_norms = {}
-                for task_name, head in original_model.multi_task_head.items():
-                    head_grad_norms[task_name] = torch.nn.utils.clip_grad_norm_(head.parameters(), max_norm=max_clip_norm)
-                # For logging purposes, we can use the backbone grad norm as the main grad_norm
-                grad_norm = backbone_grad_norm
+                grad_norm = accelerator.clip_grad_norm_(model.parameters(), max_norm=max_clip_norm)
             optimizer.step()
             optimizer.zero_grad()
                 
@@ -648,9 +635,11 @@ def train_one_epoch(
             
             logger.log_learning_rate(optimizer, states["global_step"])
             # Log separate gradient norms for backbone and each head
-            logger.log_scalar("train_grad_norm/backbone_grad_norm", backbone_grad_norm, states["global_step"])
-            for task_name, head_grad_norm in head_grad_norms.items():
-                logger.log_scalar(f"train_grad_norm/{task_name}_head_grad_norm", head_grad_norm, states["global_step"])
+            # logger.log_scalar("train_grad_norm/backbone_grad_norm", backbone_grad_norm, states["global_step"])
+            # for task_name, head_grad_norm in head_grad_norms.items():
+            #     logger.log_scalar(f"train_grad_norm/{task_name}_head_grad_norm", head_grad_norm, states["global_step"])
+            # Log gradient norm
+            logger.log_scalar("train_grad_norm/total_grad_norm", grad_norm, states["global_step"])
             
             # Log parameter and gradient statistics if enabled
             if config.get("LOG_PARAMS_GRADS", False):
@@ -691,10 +680,11 @@ def train_one_epoch(
             metrics["lr"].clear()
             metrics.update(name="lr", value=_lr)
             # Add gradient norm metrics
-            if 'backbone_grad_norm' in locals():
-                metrics.update(name="backbone_grad_norm", value=backbone_grad_norm.detach())
-                for task_name, head_grad_norm in head_grad_norms.items():
-                    metrics.update(name=f"{task_name}_head_grad_norm", value=head_grad_norm.detach())
+            # if 'backbone_grad_norm' in locals():
+            #     metrics.update(name="backbone_grad_norm", value=backbone_grad_norm.detach())
+            #     for task_name, head_grad_norm in head_grad_norms.items():
+            #         metrics.update(name=f"{task_name}_head_grad_norm", value=head_grad_norm.detach())
+            metrics.update(name="total_grad_norm", value=grad_norm.detach())
             torch.cuda.synchronize()
             _cuda_memory = torch.cuda.max_memory_allocated(device) / 1024 / 1024
             _cuda_memory = torch.tensor([_cuda_memory], device=device)

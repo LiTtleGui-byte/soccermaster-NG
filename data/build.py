@@ -1,5 +1,6 @@
 from data.tracking import build_tracking_dataset
 from data.SoccerNetGSR_Detection import build_gsr_detection_dataloader
+from data.SoccerNetGSR_Lines import build_gsr_lines_dataloader
 from data.SoccerNetGSR_ReID import build_gsr_reid_dataloader
 from data.VideoCaption import build_video_caption_dataloader
 
@@ -12,6 +13,10 @@ def build_dataloader(config: dict, only_test: bool = False):
             if not only_test:
                 dataloader_train_dict[task] = build_gsr_detection_dataloader(config=config, split="train")
             dataloader_test_dict[task] = build_gsr_detection_dataloader(config=config, split="test")
+        elif task == "SoccerNetGSR_Lines":
+            if not only_test:
+                dataloader_train_dict[task] = build_gsr_lines_dataloader(config=config, split="train")
+            dataloader_test_dict[task] = build_gsr_lines_dataloader(config=config, split="test")
         elif task == "SoccerNetGSR_ReID":
             if not only_test:
                 dataloader_train_dict[task] = build_gsr_reid_dataloader(config=config, split="train")

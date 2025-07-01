@@ -9,11 +9,13 @@
 import os
 import json
 import torch
+import numpy as np
 from PIL import Image
 from torchvision.transforms import v2
 from collections import defaultdict
 from torch.utils.data import Dataset
 import random
+import math
 from math import floor
 from torch.utils.data import DataLoader
 import torch.nn.functional as F
@@ -23,6 +25,8 @@ from data.SoccerNetGSR_ReID import role_mapping, jn_mapping, digit_head_mapping,
 from data.pnlcalib_utils.utils_keypoints import KeypointsDB
 from data.pnlcalib_utils.utils_lines import LineKeypointsDB
 import copy
+
+from sn_calibration.src.evaluate_extremities import mirror_labels
 
 class SoccerNetGSR_Detection(Dataset):
     def __init__(
@@ -428,6 +432,110 @@ class BoxXYWHtoCXCYWH:
         annotation["bbox"] = bbox_xywh_to_cxcywh(annotation["bbox"])
         return image, annotation, metas
 
+FLIP_POSTS = {
+    'Goal left post right': 'Goal left post left ',
+    'Goal left post left ': 'Goal left post right',
+    'Goal right post right': 'Goal right post left',
+    'Goal right post left': 'Goal right post right'
+}
+
+h_lines = ['Goal left crossbar', 'Side line left', 'Small rect. left main', 'Big rect. left main', 'Middle line',
+                   'Big rect. right main', 'Small rect. right main', 'Side line right', 'Goal right crossbar']
+
+v_lines = ['Side line top', 'Big rect. left top', 'Small rect. left top', 'Small rect. left bottom',
+                   'Big rect. left bottom', 'Big rect. right top', 'Small rect. right top', 'Small rect. right bottom',
+                              'Big rect. right bottom', 'Side line bottom']
+
+def swap_top_bottom_names(line_name: str) -> str:
+    x: str = 'top'
+    y: str = 'bottom'
+    if x in line_name or y in line_name:
+        return y.join(part.replace(y, x) for part in line_name.split(x))
+    return line_name
+
+
+def swap_posts_names(line_name: str) -> str:
+    if line_name in FLIP_POSTS:
+        return FLIP_POSTS[line_name]
+    return line_name
+
+def flip_annot_names(annot, swap_top_bottom: bool = True, swap_posts: bool = True):
+    annot = mirror_labels(annot)
+    if swap_top_bottom:
+        annot = {swap_top_bottom_names(k): v for k, v in annot.items()}
+    if swap_posts:
+        annot = {swap_posts_names(k): v for k, v in annot.items()}
+    return annot
+
+class LRAmbiguityFix():
+    def __init__(self, v_th=70, h_th=20):
+        self.v_th = v_th
+        self.h_th = h_th
+
+    def __call__(self, image, annotation, metas):
+        data = annotation['lines']
+
+        if len(data) == 0:
+            return image, annotation, metas
+
+        n_left, n_right = self.compute_n_sides(data)
+
+        angles_v, angles_h = [], []
+        for line in data.keys():
+            line_points = []
+            for point in data[line]:
+                line_points.append((point['x'], point['y']))
+
+            sorted_points = sorted(line_points, key=lambda point: (point[0], point[1]))
+            pi, pf = sorted_points[0], sorted_points[-1]
+            if line in h_lines:
+                angle_h = self.calculate_angle_h(pi[0], pi[1], pf[0], pf[1])
+                if angle_h:
+                    angles_h.append(abs(angle_h))
+            if line in v_lines:
+                angle_v = self.calculate_angle_v(pi[0], pi[1], pf[0], pf[1])
+                if angle_v:
+                    angles_v.append(abs(angle_v))
+
+
+        if len(angles_h) > 0 and len(angles_v) > 0:
+            if np.mean(angles_h) < self.h_th and np.mean(angles_v) < self.v_th:
+                if n_right > n_left:
+                    data = flip_annot_names(data, swap_top_bottom=False, swap_posts=False)
+        annotation['lines'] = data
+
+        return image, annotation, metas
+
+    def calculate_angle_h(self, x1, y1, x2, y2):
+        if not x2 - x1 == 0:
+            slope = (y2 - y1) / (x2 - x1)
+            angle = math.atan(slope)
+            angle_degrees = math.degrees(angle)
+            return angle_degrees
+        else:
+            return None
+    def calculate_angle_v(self, x1, y1, x2, y2):
+        if not x2 - x1 == 0:
+            slope = (y2 - y1) / (x2 - x1)
+            angle = math.atan(1 / slope) if slope != 0 else math.pi / 2  # Avoid division by zero
+            angle_degrees = math.degrees(angle)
+            return angle_degrees
+        else:
+            return None
+
+    def compute_n_sides(self, data):
+        n_left, n_right = 0, 0
+        for line in data:
+            line_words = line.split()[:3]
+            if 'left' in line_words:
+                n_left += 1
+            elif 'right' in line_words:
+                n_right += 1
+        return n_left, n_right
+
+    def __repr__(self) -> str:
+        return f"{self.__class__.__name__}(v_th={self.v_th}, h_th={self.h_th})"
+
 def build_transforms(config: dict):
 
     return Compose([
@@ -435,6 +543,7 @@ def build_transforms(config: dict):
         RandomResize(sizes=config["AUG_RANDOM_RESIZE"], max_size=config["AUG_MAX_SIZE"], keep_aspect_ratio=config["KEEP_ASPECT_RATIO"]),
         Normalize(mean=config["AUG_MEAN"], std=config["AUG_STD"]),
         BoxXYWHtoCXCYWH(),
+        LRAmbiguityFix(),
     ])
     
 def collate_fn(batch):
