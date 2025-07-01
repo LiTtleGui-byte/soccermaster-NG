@@ -125,6 +125,10 @@ DETR_CRITERION_BATCH_LEN: 10
 NUM_KEYPOINTS: 58
 NUM_LINES: 24
 
+# Lines Head settings:
+LINES_HEAD_TYPE: dpt  # 'default' for LinesHead, 'dpt' for DPTLinesHead
+DPT_SELECTED_LAYERS: [2, 5, 8, 11]  # 当使用DPT时，选择的SigLIP hidden_states层索引 (0-11)
+
 # SoccerNetGSR_ReID settings:
 SOCCER_NET_GSR_REID_OUTPUT_REID_DIM: 256
 SOCCER_NET_GSR_REID_NUM_PIDS: 1343 # hack implementation

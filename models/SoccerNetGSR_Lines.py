@@ -29,7 +29,7 @@ def _get_clones(module, N):
 
 class SoccerNetGSR_LinesHead(nn.Module):
     """ This is the Deformable DETR module that performs object detection """
-    def __init__(self, backbone_num_channels, num_lines, backbone_type='image'):
+    def __init__(self, backbone_num_channels, num_lines, backbone_type='image', head_type='default', selected_layers=None):
         """ Initializes the model.
         Parameters:
             backbone: torch module of the backbone to be used. See backbone.py
@@ -40,11 +40,19 @@ class SoccerNetGSR_LinesHead(nn.Module):
             aux_loss: True if auxiliary decoding losses (loss at each decoder layer) are to be used.
             with_box_refine: iterative bounding box refinement
             two_stage: two-stage Deformable DETR
+            head_type: str, 'default' for LinesHead, 'dpt' for DPTLinesHead
+            selected_layers: list, 当使用DPT时选择的层索引
         """
         # TODO: find a way to handle positional encoding, strides, channels, etc.
         super().__init__()
         self.backbone_type = backbone_type
-        self.lines_head = LinesHead(dim_in=backbone_num_channels[0], num_lines=num_lines)
+        self.head_type = head_type
+        self.selected_layers = selected_layers
+        
+        if head_type == 'dpt':
+            self.lines_head = DPTLinesHead(dim_in=backbone_num_channels[0], num_lines=num_lines)
+        else:
+            self.lines_head = LinesHead(dim_in=backbone_num_channels[0], num_lines=num_lines)
 
     def forward(self, backbone_outputs, metas, is_training: bool = False):
         """ The forward expects a NestedTensor, which consists of:
@@ -62,16 +70,38 @@ class SoccerNetGSR_LinesHead(nn.Module):
                                 dictionnaries containing the two above keys for each decoder layer.
         """
         global_features, local_features = backbone_outputs['global_features'], backbone_outputs['local_features']
+        hidden_states = backbone_outputs['hidden_states']
+        
         if self.backbone_type == 'video':
             global_features = global_features[:, 0]
             local_features = local_features[:, 0]
+            if hidden_states is not None:
+                hidden_states = [hs[:, 0] for hs in hidden_states]
 
-        N, L, D = local_features.shape
-        reshaped_local_features = local_features.permute(0, 2, 1).contiguous()
-        Hf = Wf = int(math.sqrt(L))
-        reshaped_local_features = reshaped_local_features.reshape(N, D, Hf, Wf)
-        
-        lines_heatmap = self.lines_head(reshaped_local_features)
+        if self.head_type == 'dpt':
+            # DPT使用多层hidden_states
+            # hidden_states是一个tuple/list，包含所有层的输出
+            multi_layer_features = []
+            
+            for layer_idx in self.selected_layers:
+                if layer_idx < len(hidden_states):
+                    layer_feat = hidden_states[layer_idx]  # (N, L, D)
+                    N, L, D = layer_feat.shape
+                    # 重塑为2D特征图格式
+                    layer_feat = layer_feat.permute(0, 2, 1).contiguous()  # (N, D, L)
+                    Hf = Wf = int(math.sqrt(L))
+                    layer_feat = layer_feat.reshape(N, D, Hf, Wf)  # (N, D, Hf, Wf)
+                    multi_layer_features.append(layer_feat)
+            
+            lines_heatmap = self.lines_head(multi_layer_features)
+        else:
+            # 默认使用最后一层local_features
+            N, L, D = local_features.shape
+            reshaped_local_features = local_features.permute(0, 2, 1).contiguous()
+            Hf = Wf = int(math.sqrt(L))
+            reshaped_local_features = reshaped_local_features.reshape(N, D, Hf, Wf)
+            
+            lines_heatmap = self.lines_head(reshaped_local_features)
 
         out = {}
         out['pred_lines_heatmap'] = lines_heatmap
@@ -191,6 +221,8 @@ class LinesHead(nn.Module):
         x = self.final_conv(x)  # (N, output_channels, 512, 512)
         
         return x
+
+
 
 class LinesMetrics(nn.Module):
     """
@@ -521,11 +553,15 @@ def build_soccer_net_gsr_lines_head(config: dict):
     backbone_num_channels = [768]  # 根据SigLIP backbone的输出通道数
     num_lines = config["NUM_LINES"]
     backbone_type = config["BACKBONE_TYPE"]
+    head_type = config.get("LINES_HEAD_TYPE", "default")  # 默认使用原来的LinesHead
+    selected_layers = config["DPT_SELECTED_LAYERS"]  # DPT选择的层
     
     head = SoccerNetGSR_LinesHead(
         backbone_num_channels=backbone_num_channels,
         num_lines=num_lines,
-        backbone_type=backbone_type
+        backbone_type=backbone_type,
+        head_type=head_type,
+        selected_layers=selected_layers
     )
     return head
 
@@ -1040,3 +1076,156 @@ class HighResolutionNet(nn.Module):
                 #print('=> loading {} pretrained model {}'.format(k, pretrained))
                 model_dict.update(pretrained_dict)
                 self.load_state_dict(model_dict)
+
+
+class DPTLinesHead(nn.Module):
+    """
+    DPT-based Lines Head for dense line prediction
+    采用DPT架构进行更好的密集预测性能
+    
+    DPT特点：
+    1. 多层特征融合（第2、5、8、11层）
+    2. 渐进式特征解码：32x32 -> 64x64 -> 128x128 -> 256x256 
+    3. 更强的特征表示能力
+    """
+    def __init__(self, dim_in=768, num_lines=24, hidden_dim=256):
+        super(DPTLinesHead, self).__init__()
+        self.dim_in = dim_in
+        self.hidden_dim = hidden_dim
+        self.num_lines = num_lines
+        
+        # DPT-style projection layers for different transformer layers
+        # 为4个不同层级创建投影层
+        self.proj_layers = nn.ModuleList([
+            nn.Conv2d(dim_in, hidden_dim, kernel_size=1) for _ in range(4)
+        ])
+        
+        # Stage 1: 32x32 融合最深两层特征 (layer11 + layer8)
+        self.stage1_fusion = nn.Sequential(
+            nn.Conv2d(hidden_dim * 2, hidden_dim, kernel_size=3, padding=1),
+            nn.BatchNorm2d(hidden_dim),
+            nn.ReLU(inplace=True),
+            nn.Conv2d(hidden_dim, hidden_dim, kernel_size=3, padding=1),
+            nn.BatchNorm2d(hidden_dim),
+            nn.ReLU(inplace=True)
+        )
+        
+        # Stage 1->2: 32x32 -> 64x64
+        self.upsample_stage1 = nn.Sequential(
+            nn.ConvTranspose2d(hidden_dim, hidden_dim, kernel_size=4, stride=2, padding=1),
+            nn.BatchNorm2d(hidden_dim),
+            nn.ReLU(inplace=True)
+        )
+        
+        # Stage 2: 64x64 融合上采样特征和layer5特征
+        self.stage2_fusion = nn.Sequential(
+            nn.Conv2d(hidden_dim * 2, hidden_dim, kernel_size=3, padding=1),
+            nn.BatchNorm2d(hidden_dim),
+            nn.ReLU(inplace=True),
+            nn.Conv2d(hidden_dim, hidden_dim, kernel_size=3, padding=1),
+            nn.BatchNorm2d(hidden_dim),
+            nn.ReLU(inplace=True)
+        )
+        
+        # Stage 2->3: 64x64 -> 128x128
+        self.upsample_stage2 = nn.Sequential(
+            nn.ConvTranspose2d(hidden_dim, hidden_dim, kernel_size=4, stride=2, padding=1),
+            nn.BatchNorm2d(hidden_dim),
+            nn.ReLU(inplace=True)
+        )
+        
+        # Stage 3: 128x128 融合上采样特征和layer2特征
+        self.stage3_fusion = nn.Sequential(
+            nn.Conv2d(hidden_dim * 2, hidden_dim, kernel_size=3, padding=1),
+            nn.BatchNorm2d(hidden_dim),
+            nn.ReLU(inplace=True),
+            nn.Conv2d(hidden_dim, hidden_dim, kernel_size=3, padding=1),
+            nn.BatchNorm2d(hidden_dim),
+            nn.ReLU(inplace=True)
+        )
+        
+        # Stage 3->4: 128x128 -> 256x256
+        self.upsample_stage3 = nn.Sequential(
+            nn.ConvTranspose2d(hidden_dim, hidden_dim // 2, kernel_size=4, stride=2, padding=1),
+            nn.BatchNorm2d(hidden_dim // 2),
+            nn.ReLU(inplace=True)
+        )
+        
+        # 最终输出层：256x256 -> 256x256
+        self.final_conv = nn.Sequential(
+            nn.Conv2d(hidden_dim // 2, hidden_dim // 4, kernel_size=3, padding=1),
+            nn.BatchNorm2d(hidden_dim // 4),
+            nn.ReLU(inplace=True),
+            nn.Conv2d(hidden_dim // 4, num_lines, kernel_size=3, padding=1),
+            nn.Sigmoid()
+        )
+        
+        # 权重初始化
+        self._init_weights()
+    
+    def _init_weights(self):
+        """权重初始化"""
+        for m in self.modules():
+            if isinstance(m, nn.Conv2d):
+                nn.init.kaiming_normal_(m.weight, mode='fan_out', nonlinearity='relu')
+                if m.bias is not None:
+                    nn.init.constant_(m.bias, 0)
+            elif isinstance(m, (nn.BatchNorm2d, nn.GroupNorm)):
+                nn.init.constant_(m.weight, 1)
+                nn.init.constant_(m.bias, 0)
+            elif isinstance(m, nn.ConvTranspose2d):
+                nn.init.kaiming_normal_(m.weight, mode='fan_out', nonlinearity='relu')
+                if m.bias is not None:
+                    nn.init.constant_(m.bias, 0)
+    
+    def forward(self, multi_layer_features):
+        """
+        Forward pass using DPT-based architecture with progressive upsampling
+        Args:
+            multi_layer_features: List of 4 feature maps from different layers
+                                Each feature map has shape (N, 768, 32, 32)
+                                [layer2, layer5, layer8, layer11]
+        Returns:
+            output: Reconstructed features of shape (N, num_lines, 256, 256)
+        """
+        # 对每层特征进行投影
+        projected_features = []
+        for i, layer_feat in enumerate(multi_layer_features):
+            projected_feat = self.proj_layers[i](layer_feat)  # (N, hidden_dim, 32, 32)
+            projected_features.append(projected_feat)
+        
+        # 按深度顺序排列：[layer2, layer5, layer8, layer11]
+        feat_layer2 = projected_features[0]   # [N, hidden_dim, 32, 32]
+        feat_layer5 = projected_features[1]   # [N, hidden_dim, 32, 32]
+        feat_layer8 = projected_features[2]   # [N, hidden_dim, 32, 32]
+        feat_layer11 = projected_features[3]  # [N, hidden_dim, 32, 32]
+        
+        # Stage 1: 32x32 - 融合最深两层特征 (layer11 + layer8)
+        stage1_concat = torch.cat([feat_layer11, feat_layer8], dim=1)  # [N, hidden_dim*2, 32, 32]
+        stage1_fused = self.stage1_fusion(stage1_concat)  # [N, hidden_dim, 32, 32]
+        
+        # Stage 1->2: 32x32 -> 64x64 上采样
+        stage1_upsampled = self.upsample_stage1(stage1_fused)  # [N, hidden_dim, 64, 64]
+        
+        # Stage 2: 64x64 - 融合上采样特征和layer5特征
+        # 首先将layer5特征上采样到64x64
+        feat_layer5_up = F.interpolate(feat_layer5, size=(64, 64), mode='bilinear', align_corners=False)
+        stage2_concat = torch.cat([stage1_upsampled, feat_layer5_up], dim=1)  # [N, hidden_dim*2, 64, 64]
+        stage2_fused = self.stage2_fusion(stage2_concat)  # [N, hidden_dim, 64, 64]
+        
+        # Stage 2->3: 64x64 -> 128x128 上采样
+        stage2_upsampled = self.upsample_stage2(stage2_fused)  # [N, hidden_dim, 128, 128]
+        
+        # Stage 3: 128x128 - 融合上采样特征和layer2特征
+        # 首先将layer2特征上采样到128x128
+        feat_layer2_up = F.interpolate(feat_layer2, size=(128, 128), mode='bilinear', align_corners=False)
+        stage3_concat = torch.cat([stage2_upsampled, feat_layer2_up], dim=1)  # [N, hidden_dim*2, 128, 128]
+        stage3_fused = self.stage3_fusion(stage3_concat)  # [N, hidden_dim, 128, 128]
+        
+        # Stage 3->4: 128x128 -> 256x256 最终上采样
+        stage3_upsampled = self.upsample_stage3(stage3_fused)  # [N, hidden_dim//2, 256, 256]
+        
+        # 最终输出
+        output = self.final_conv(stage3_upsampled)  # [N, num_lines, 256, 256]
+
+        return output

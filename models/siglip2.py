@@ -71,8 +71,9 @@ class SiglipBackbone(nn.Module):
             text_pooled_output = None
         
         last_hidden_state = vision_outputs.last_hidden_state # [N, L, D] or [N, T, L, D]
+        hidden_states = vision_outputs.hidden_states  # 修正属性名
         pooled_output = vision_outputs.pooler_output # [N, D] or [N, T, D]
-        output = {'global_features': pooled_output, 'local_features': last_hidden_state, 'text_features': text_pooled_output}
+        output = {'global_features': pooled_output, 'local_features': last_hidden_state, 'hidden_states': hidden_states, 'text_features': text_pooled_output}
         return output
 
 class TextEncoder(nn.Module):

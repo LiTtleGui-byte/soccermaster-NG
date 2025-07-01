@@ -1,0 +1,17 @@
+SUPER_CONFIG_PATH: ./configs/default.yaml
+
+TASKS: [SoccerNetGSR_Lines]
+DATASETS: [SoccerNetGSR_Lines]
+
+LINES_HEAD_TYPE: dpt  # 'default' for LinesHead, 'dpt' for DPTLinesHead
+DPT_SELECTED_LAYERS: [2, 5, 8, 11]  # 当使用DPT时，选择的SigLIP hidden_states层索引 (0-11)
+LR: 1.0e-3
+LR_WARMUP_EPOCHS: 0
+BATCH_SIZE: 32
+NUM_WORKERS: 48
+AUG_RESIZE_SCALES: [512]
+AUG_MAX_SIZE: 512
+AUG_RANDOM_RESIZE: [512]
+BACKBONE_TYPE: image
+CKPT_PATH: ./pretrained_models/google/siglip2-base-patch16-512
+TEXT_ENCODER_CKPT_PATH: ./pretrained_models/google/siglip2-base-patch16-512
