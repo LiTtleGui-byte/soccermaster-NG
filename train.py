@@ -56,8 +56,8 @@ def train_engine(config: dict):
         log_dir=log_dir,
         accelerator=accelerator,
         config=config,
-        use_tensorboard=config.get("USE_TENSORBOARD", False),
-        tensorboard_flush_secs=config.get("TENSORBOARD_FLUSH_SECS", 30)
+        use_tensorboard=config["USE_TENSORBOARD"],
+        tensorboard_flush_secs=config["TENSORBOARD_FLUSH_SECS"]
     )
     logger.config(config=config)
     
@@ -81,12 +81,54 @@ def train_engine(config: dict):
     
     model = MultiTaskingSigLIP(config=config)
     
-    # TODO: set params groups
-    optimizer = AdamW(
-        params=model.parameters(),
-        lr=config["LR"],
-        weight_decay=config["WEIGHT_DECAY"],
-    )
+    # Create parameter groups with different learning rates
+    def create_param_groups(model, config):
+        # Get the original model (handle DDP wrapper)
+        original_model = model.module if hasattr(model, 'module') else model
+        
+        param_groups = []
+        
+        # Backbone parameters
+        backbone_params = []
+        for param in original_model.backbone.parameters():
+            if param.requires_grad:
+                backbone_params.append(param)
+        
+        if backbone_params:
+            param_groups.append({
+                'params': backbone_params,
+                'lr': config["LR_BACKBONE"],
+                'weight_decay': config["WEIGHT_DECAY"],
+                'name': 'backbone'
+            })
+        
+        # Head parameters with different learning rates
+        head_lr_mapping = {
+            'SoccerNetGSR_ReID': config["LR_SOCCERNET_GSR_REID"],
+            'SoccerNetGSR_Detection': config["LR_SOCCERNET_GSR_DETECTION"],
+            'LinesDetection': config["LR_LINES_DETECTION"]
+        }
+        
+        for head_name, head in original_model.multi_task_head.items():
+            head_params = []
+            for param in head.parameters():
+                if param.requires_grad:
+                    head_params.append(param)
+            
+            if head_params:
+                lr = head_lr_mapping[head_name]  # Default to base LR if not specified
+                param_groups.append({
+                    'params': head_params,
+                    'lr': lr,
+                    'weight_decay': config["WEIGHT_DECAY"],
+                    'name': head_name
+                })
+        
+        return param_groups
+    
+    # Create optimizer with parameter groups
+    param_groups = create_param_groups(model, config)
+    optimizer = AdamW(param_groups)
     scheduler = MultiStepLR(
         optimizer=optimizer,
         milestones=config["SCHEDULER_MILESTONES"],
@@ -155,6 +197,15 @@ def train_engine(config: dict):
         logger.info(f"{head_name} Head trainable: {head_trainable_params[head_name]/1e6:.2f}M ({head_trainable_params[head_name]/head_params[head_name]*100:.2f}%)")
     logger.info(f"============================================")
     
+    # Log parameter groups and their learning rates
+    logger.info(f"=== Learning Rate Configuration ===")
+    for i, param_group in enumerate(optimizer.param_groups):
+        group_name = param_group['name']
+        group_lr = param_group['lr']
+        group_params = len(param_group['params'])
+        logger.info(f"{group_name}: LR={group_lr:.0e}, Parameters={group_params}")
+    logger.info(f"=====================================")
+    
     # Print names of non-trainable parameters
     # logger.info("Non-trainable layers:")
     # for name, param in model.named_parameters():
@@ -176,10 +227,10 @@ def train_engine(config: dict):
             lr_warmup_epochs=config["LR_WARMUP_EPOCHS"],
             lr_warmup_tgt_lr=config["LR"],
             accumulate_steps=config["ACCUMULATE_STEPS"],
-            separate_clip_norm=config.get("SEPARATE_CLIP_NORM", True),
-            max_clip_norm=config.get("MAX_CLIP_NORM", 0.1),
-            use_accelerate_clip_norm=config.get("USE_ACCELERATE_CLIP_NORM", True),
-            logging_interval=config.get("LOGGING_INTERVAL", 20),
+            separate_clip_norm=config["SEPARATE_CLIP_NORM"],
+            max_clip_norm=config["MAX_CLIP_NORM"],
+            use_accelerate_clip_norm=config["USE_ACCELERATE_CLIP_NORM"],
+            logging_interval=config["LOGGING_INTERVAL"],
         )
         scheduler.step()
         
@@ -477,10 +528,10 @@ def train_one_epoch(
     assert accumulate_steps == 1, "accumulate_steps must be 1 for now."
     
     datasets_to_heads = config["DATASETS_TO_HEADS"]
-    heads = []
+    all_heads = []
     for dataset_name, heads in datasets_to_heads.items():
-        heads.extend(heads)
-    heads = list(set(heads))
+        all_heads.extend(heads)
+    all_heads = list(set(all_heads))
     
     max_iterations = max(len(dataloader) for dataloader in dataloader_dict.values())
     
@@ -541,9 +592,9 @@ def train_one_epoch(
                 # Learning rate warmup:
                 if epoch < lr_warmup_epochs:
                     # Do warmup:
-                    lr_warmup(
+                    lr_warmup_multi_groups(
                         optimizer=optimizer,
-                        epoch=epoch, curr_iter=cur_iter, tgt_lr=lr_warmup_tgt_lr,
+                        epoch=epoch, curr_iter=cur_iter,
                         warmup_epochs=lr_warmup_epochs, num_iter_per_epoch=max_iterations,
                     )
                 
@@ -572,8 +623,8 @@ def train_one_epoch(
                     log_only_loss_dict[head_name] = {k: v for k, v in loss_task_raw.items() if k not in weight_dict}
             
             # 立即对当前dataset所属的所有heads计算的loss进行backward，减少显存占用
-            dataset_total_loss = sum(weighted_loss_dict[dataset_name].values())
-            dataset_total_loss /= (accumulate_steps * len_tasks)  # 除以任务数量进行平均
+            dataset_total_loss = sum(sum(weighted_loss_dict[head].values()) for head in datasets_to_heads[dataset_name])
+            # dataset_total_loss /= (accumulate_steps * len_tasks)  # 除以任务数量进行平均
             accelerator.backward(dataset_total_loss)
             
             # 可选：每个任务后清理CUDA缓存（会影响性能，但最大化显存释放）
@@ -667,9 +718,12 @@ def train_one_epoch(
                 for loss_name, loss_value in task_losses.items():
                     metrics.update(name=f"{head_name}_{loss_name}", value=loss_value.detach())
             
-            _lr = optimizer.state_dict()["param_groups"][-1]["lr"]
-            metrics["lr"].clear()
-            metrics.update(name="lr", value=_lr)
+            # Log learning rates for all parameter groups
+            for i, param_group in enumerate(optimizer.param_groups):
+                group_name = param_group['name']
+                _lr = param_group['lr']
+                metrics[f"lr_{group_name}"].clear()
+                metrics.update(name=f"lr_{group_name}", value=_lr)
             # Add gradient norm metrics
             # if 'backbone_grad_norm' in locals():
             metrics.update(name="backbone_grad_norm", value=backbone_grad_norm.detach())
@@ -751,6 +805,29 @@ def train_one_epoch(
         # Flush logger at the end of epoch
         logger.flush_tb_writer()
         logger.info(f"Epoch {epoch} completed. Time per epoch: {time_per_epoch}")
+
+def lr_warmup_multi_groups(optimizer, epoch: int, curr_iter: int, warmup_epochs: int, num_iter_per_epoch: int):
+    """
+    Learning rate warmup for multiple parameter groups with different target learning rates.
+    Each parameter group's initial learning rate is used as the target learning rate.
+    """
+    total_warmup_iters = warmup_epochs * num_iter_per_epoch
+    current_lr_ratio = (epoch * num_iter_per_epoch + curr_iter + 1) / total_warmup_iters
+    
+    for param_group in optimizer.param_groups:
+        # Use the group's initial learning rate as the target learning rate
+        if 'initial_lr' not in param_group:
+            # Store the initial learning rate on first call
+            param_group['initial_lr'] = param_group['lr']
+        
+        tgt_lr = param_group['initial_lr']
+        current_lr = tgt_lr * current_lr_ratio
+        
+        if "lr_scale" in param_group:
+            param_group["lr"] = current_lr * param_group["lr_scale"]
+        else:
+            param_group["lr"] = current_lr
+    return
 
 def lr_warmup(optimizer, epoch: int, curr_iter: int, tgt_lr: float, warmup_epochs: int, num_iter_per_epoch: int):
     # min_lr = 1e-8

@@ -49,11 +49,12 @@ class MultiTaskingSigLIP(nn.Module):
         self.multi_task_head = nn.ModuleDict()
         # tasks = config["TASKS"]
         self.datasets_to_heads = config["DATASETS_TO_HEADS"]
-        heads = []
+        all_heads = []
         for dataset, heads in self.datasets_to_heads.items():
-            heads.extend(heads)
-        heads = list(set(heads))
-        for head in heads:
+            all_heads.extend(heads)
+        all_heads = list(set(all_heads))
+        all_heads.sort()
+        for head in all_heads:
             if head == "SoccerNetGSR_Detection":
                 self.multi_task_head[head] = build_deformable_detr_head(config)
             elif head == "LinesDetection":

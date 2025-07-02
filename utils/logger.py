@@ -266,7 +266,9 @@ class Logger:
         if self.tb_writer is not None:
             for i, param_group in enumerate(optimizer.param_groups):
                 lr = param_group['lr']
-                self.log_scalar(f"lr/group_{i}", lr, step)
+                # Use group name if available, otherwise use index
+                group_name = param_group['name']
+                self.log_scalar(f"lr/{group_name}", lr, step)
     
     def log_model_parameters(self, model, step: int):
         """Log model parameter statistics"""

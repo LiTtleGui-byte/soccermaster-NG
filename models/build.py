@@ -7,12 +7,12 @@ def build_loss_fn(config: dict):
     loss_fn_dict = {}
     # tasks = config["TASKS"]
     datasets_to_heads = config["DATASETS_TO_HEADS"]
-    heads = []
+    all_heads = []
     for dataset, heads in datasets_to_heads.items():
-        heads.extend(heads)
-    heads = list(set(heads))
+        all_heads.extend(heads)
+    all_heads = list(set(all_heads))
     
-    for head in heads:
+    for head in all_heads:
         if head == "SoccerNetGSR_Detection":
             loss_fn_dict[head] = build_deformable_detr_criterion(config=config)
         elif head == "LinesDetection":
@@ -33,11 +33,11 @@ def build_metrics_fn(config: dict):
     metrics_fn_dict = {}
     # tasks = config["TASKS"]
     datasets_to_heads = config["DATASETS_TO_HEADS"]
-    heads = []
+    all_heads = []
     for dataset, heads in datasets_to_heads.items():
-        heads.extend(heads)
-    heads = list(set(heads))
-    for head in heads:
+        all_heads.extend(heads)
+    all_heads = list(set(all_heads))
+    for head in all_heads:
         if head == "SoccerNetGSR_Detection":
             metrics_fn_dict[head] = build_detection_metrics(config=config)
         elif head == "LinesDetection":
