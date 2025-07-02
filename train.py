@@ -65,7 +65,7 @@ def train_engine(config: dict):
     dataloader_train_dict, dataloader_test_dict = build_dataloader(config=config)
     
     # Filter out None test dataloaders (some tasks might not have test sets)
-    dataloader_test_dict = {task: dataloader for task, dataloader in dataloader_test_dict.items() 
+    dataloader_test_dict = {dataset: dataloader for dataset, dataloader in dataloader_test_dict.items() 
                            if dataloader is not None}
     
     if dataloader_test_dict:
@@ -78,10 +78,6 @@ def train_engine(config: dict):
     
     # Build metrics functions:
     metrics_fn_dict = build_metrics_fn(config=config)
-    
-    # num_tasks = get_world_size()
-    # global_rank = get_rank()
-    # sampler_train = DistributedBatchTaskBalancedSampler(dataset_train_dict, config["BATCH_SIZE"], num_replicas=num_tasks, rank=global_rank, shuffle=True)
     
     model = MultiTaskingSigLIP(config=config)
     
@@ -98,9 +94,9 @@ def train_engine(config: dict):
     )
     
     model, optimizer = accelerator.prepare(model, optimizer)
-    dataloader_train_dict = {task: accelerator.prepare(dataloader) for task, dataloader in dataloader_train_dict.items()}
+    dataloader_train_dict = {dataset: accelerator.prepare(dataloader) for dataset, dataloader in dataloader_train_dict.items()}
     if dataloader_test_dict:
-        dataloader_test_dict = {task: accelerator.prepare(dataloader) for task, dataloader in dataloader_test_dict.items()}
+        dataloader_test_dict = {dataset: accelerator.prepare(dataloader) for dataset, dataloader in dataloader_test_dict.items()}
     
     # if config["USE_GRADIENT_CHECKPOINTING"]:
     #     accelerator.gradient_checkpointing_enable()
@@ -134,11 +130,11 @@ def train_engine(config: dict):
     total_head_params = 0
     total_head_trainable_params = 0
     
-    for task_name, head in original_model.multi_task_head.items():
+    for head_name, head in original_model.multi_task_head.items():
         head_total = sum(p.numel() for p in head.parameters())
         head_train = sum(p.numel() for p in head.parameters() if p.requires_grad)
-        head_params[task_name] = head_total
-        head_trainable_params[task_name] = head_train
+        head_params[head_name] = head_total
+        head_trainable_params[head_name] = head_train
         total_head_params += head_total
         total_head_trainable_params += head_train
     
@@ -154,9 +150,9 @@ def train_engine(config: dict):
     logger.info(f"Total Head parameters: {total_head_params/1e6:.2f}M")
     logger.info(f"Total Head trainable: {total_head_trainable_params/1e6:.2f}M ({total_head_trainable_params/total_head_params*100:.2f}%)")
     logger.info(f"")
-    for task_name in head_params:
-        logger.info(f"{task_name} Head parameters: {head_params[task_name]/1e6:.2f}M")
-        logger.info(f"{task_name} Head trainable: {head_trainable_params[task_name]/1e6:.2f}M ({head_trainable_params[task_name]/head_params[task_name]*100:.2f}%)")
+    for head_name in head_params:
+        logger.info(f"{head_name} Head parameters: {head_params[head_name]/1e6:.2f}M")
+        logger.info(f"{head_name} Head trainable: {head_trainable_params[head_name]/1e6:.2f}M ({head_trainable_params[head_name]/head_params[head_name]*100:.2f}%)")
     logger.info(f"============================================")
     
     # Print names of non-trainable parameters
@@ -215,11 +211,11 @@ def train_engine(config: dict):
             original_model.backbone.vision_model.save_pretrained(backbone_dir)
             
             # Save each head separately
-            for task_name, head in original_model.multi_task_head.items():
-                # head_dir = os.path.join(epoch_dir, f'head_{task_name}')
+            for head_name, head in original_model.multi_task_head.items():
+                # head_dir = os.path.join(epoch_dir, f'head_{head_name}')
                 # os.makedirs(head_dir, exist_ok=True)
                 # torch.save(head.state_dict(), os.path.join(head_dir, 'model.pt'))
-                torch.save(head.state_dict(), os.path.join(epoch_dir, f'{task_name}.pt'))
+                torch.save(head.state_dict(), os.path.join(epoch_dir, f'{head_name}.pt'))
                 
                 # # Optionally save head config if available
                 # if hasattr(head, 'config'):
@@ -249,9 +245,9 @@ def evaluate_one_epoch(
         config: Configuration dictionary
         accelerator: Accelerator instance
         epoch: Current epoch number
-        dataloader_dict: Dictionary of test dataloaders for each task
-        loss_fn_dict: Dictionary of loss functions for each task
-        metrics_fn_dict: Dictionary of metrics functions for each task
+        dataloader_dict: Dictionary of test dataloaders for each dataset
+        loss_fn_dict: Dictionary of loss functions for each head
+        metrics_fn_dict: Dictionary of metrics functions for each head
         model: Model to evaluate
         logger: Logger instance
         
@@ -261,176 +257,173 @@ def evaluate_one_epoch(
     model.eval()
     device = accelerator.device
     
-    # Initialize metrics tracker for evaluation - 使用二级字典结构
-    eval_weighted_losses = {task: MetricsTracker() for task in dataloader_dict.keys()}
-    eval_unweighted_losses = {task: MetricsTracker() for task in dataloader_dict.keys()}
-    eval_log_only_losses = {task: MetricsTracker() for task in dataloader_dict.keys()}
-    eval_metrics = {task: MetricsTracker() for task in dataloader_dict.keys()}
+    # Get dataset to heads mapping
+    datasets_to_heads = config["DATASETS_TO_HEADS"]
     
-    task_sample_counts = {task: 0 for task in dataloader_dict.keys()}
+    # Collect all heads
+    all_heads = []
+    for dataset_name, heads in datasets_to_heads.items():
+        all_heads.extend(heads)
+    all_heads = list(set(all_heads))
     
-    # Process each task separately
-    for task_name, dataloader in dataloader_dict.items():
-        logger.info(f"Evaluating task: {task_name}")
+    # Initialize metrics tracker for evaluation - 使用二级字典结构，按head分组
+    eval_weighted_losses = {head: MetricsTracker() for head in all_heads}
+    eval_unweighted_losses = {head: MetricsTracker() for head in all_heads}
+    eval_log_only_losses = {head: MetricsTracker() for head in all_heads}
+    eval_metrics = {head: MetricsTracker() for head in all_heads}
+    
+    head_sample_counts = {head: 0 for head in all_heads}
+    
+    # Process each dataset separately
+    for dataset_name, dataloader in dataloader_dict.items():
+        logger.info(f"Evaluating dataset: {dataset_name}")
         
         with torch.no_grad():
             for batch_idx, batch in enumerate(dataloader):
                 images, annotations, metas = batch.values()
                 batch_size = images.size(0)
-                if 'text' in annotations[0].keys():
+                if dataset_name in ["VideoCaption"]:
                     text = [annotation['text'] for annotation in annotations]
                 else:
                     text = None
                 
                 # Forward pass
                 with accelerator.autocast():
-                    outputs = model(images, task_name, metas, text)
+                    outputs = model(images, dataset_name, metas, text)
                     
-                    # Compute loss
-                    loss_output = loss_fn_dict[task_name](outputs[task_name], annotations)
-                    
-                    # Parse loss output based on task type
-                    if task_name in ["SoccerNetGSR_Detection"]:
-                        loss_task_raw, weight_dict, _ = loss_output
+                    # Process each head for this dataset
+                    for head_name in datasets_to_heads[dataset_name]:
+                        # Compute loss
+                        loss_output = loss_fn_dict[head_name](outputs[head_name], annotations)
                         
-                        # Compute weighted and unweighted losses
-                        weighted_losses = {k: (v * weight_dict[k]) for k, v in loss_task_raw.items() if k in weight_dict}
-                        unweighted_losses = {k: v for k, v in loss_task_raw.items() if k in weight_dict}
-                        log_only_losses = {k: v for k, v in loss_task_raw.items() if k not in weight_dict}
-                        
-                        # Update metrics trackers
-                        eval_weighted_losses[task_name].update(weighted_losses)
-                        eval_unweighted_losses[task_name].update(unweighted_losses)
-                        eval_log_only_losses[task_name].update(log_only_losses)
-                        
-                        # Compute metrics if metrics function is available
-                        if metrics_fn_dict[task_name] is not None:
-                            # 获取target_sizes - 从metas中提取或使用默认值
-                            if 'target_sizes' in metas:
-                                target_sizes = metas['target_sizes']
-                            else:
-                                target_sizes = torch.tensor([[512, 512]] * batch_size, device=device)
+                        # Parse loss output based on task type
+                        if head_name in ["SoccerNetGSR_Detection", "LinesDetection"]:
+                            loss_task_raw, weight_dict, _ = loss_output
                             
-                            # 使用新的update方法收集数据
-                            metrics_fn_dict[task_name].update(outputs[task_name], annotations, target_sizes)
+                            # Compute weighted and unweighted losses
+                            weighted_losses = {k: (v * weight_dict[k]) for k, v in loss_task_raw.items() if k in weight_dict}
+                            unweighted_losses = {k: v for k, v in loss_task_raw.items() if k in weight_dict}
+                            log_only_losses = {k: v for k, v in loss_task_raw.items() if k not in weight_dict}
                             
-                    elif task_name in ["SoccerNetGSR_Lines"]:
-                        loss_task_raw, weight_dict, _ = loss_output
-                        
-                        # Compute weighted and unweighted losses
-                        weighted_losses = {k: (v * weight_dict[k]) for k, v in loss_task_raw.items() if k in weight_dict}
-                        unweighted_losses = {k: v for k, v in loss_task_raw.items() if k in weight_dict}
-                        log_only_losses = {k: v for k, v in loss_task_raw.items() if k not in weight_dict}
-                        
-                        # Update metrics trackers
-                        eval_weighted_losses[task_name].update(weighted_losses)
-                        eval_unweighted_losses[task_name].update(unweighted_losses)
-                        eval_log_only_losses[task_name].update(log_only_losses)
-                        
-                        # Compute metrics if metrics function is available
-                        if metrics_fn_dict[task_name] is not None:
-                            # Lines任务不需要target_sizes，直接使用新的update方法
-                            metrics_fn_dict[task_name].update(outputs[task_name], annotations)
+                            # Update metrics trackers
+                            eval_weighted_losses[head_name].update(weighted_losses)
+                            eval_unweighted_losses[head_name].update(unweighted_losses)
+                            eval_log_only_losses[head_name].update(log_only_losses)
                             
-                    elif task_name in ["SoccerNetGSR_ReID", "VideoCaption"]:
-                        loss_task_raw, weight_dict = loss_output
-                        
-                        # Compute weighted and unweighted losses
-                        weighted_losses = {k: (v * weight_dict[k]) for k, v in loss_task_raw.items() if k in weight_dict}
-                        unweighted_losses = {k: v for k, v in loss_task_raw.items() if k in weight_dict}
-                        log_only_losses = {k: v for k, v in loss_task_raw.items() if k not in weight_dict}
-                        
-                        # Update metrics trackers
-                        eval_weighted_losses[task_name].update(weighted_losses)
-                        eval_unweighted_losses[task_name].update(unweighted_losses)
-                        eval_log_only_losses[task_name].update(log_only_losses)
-                        
-                        # Compute metrics if metrics function is available
-                        if metrics_fn_dict[task_name] is not None:
-                            # ReID metrics can be implemented later
-                            pass
+                            # Compute metrics if metrics function is available
+                            if metrics_fn_dict[head_name] is not None:
+                                if head_name == "SoccerNetGSR_Detection":
+                                    # 获取target_sizes - 从metas中提取或使用默认值
+                                    if 'target_sizes' in metas:
+                                        target_sizes = metas['target_sizes']
+                                    else:
+                                        target_sizes = torch.tensor([[512, 512]] * batch_size, device=device)
+                                    
+                                    # 使用新的update方法收集数据
+                                    metrics_fn_dict[head_name].update(outputs[head_name], annotations, target_sizes)
+                                elif head_name == "LinesDetection":
+                                    # Lines任务不需要target_sizes，直接使用新的update方法
+                                    metrics_fn_dict[head_name].update(outputs[head_name], annotations)
+                                
+                        elif head_name in ["SoccerNetGSR_ReID", "VideoCaption"]:
+                            loss_task_raw, weight_dict = loss_output
                             
-                    else:
-                        # For other tasks, assume loss_output is a dictionary of losses
-                        if isinstance(loss_output, dict):
-                            # For other tasks, weighted and unweighted are the same
-                            eval_weighted_losses[task_name].update(loss_output)
-                            eval_unweighted_losses[task_name].update(loss_output)
+                            # Compute weighted and unweighted losses
+                            weighted_losses = {k: (v * weight_dict[k]) for k, v in loss_task_raw.items() if k in weight_dict}
+                            unweighted_losses = {k: v for k, v in loss_task_raw.items() if k in weight_dict}
+                            log_only_losses = {k: v for k, v in loss_task_raw.items() if k not in weight_dict}
+                            
+                            # Update metrics trackers
+                            eval_weighted_losses[head_name].update(weighted_losses)
+                            eval_unweighted_losses[head_name].update(unweighted_losses)
+                            eval_log_only_losses[head_name].update(log_only_losses)
+                            
+                            # Compute metrics if metrics function is available
+                            if metrics_fn_dict[head_name] is not None:
+                                # ReID and VideoCaption metrics can be implemented later
+                                pass
+                                
                         else:
-                            # Single loss value
-                            loss_dict = {"total_loss": loss_output}
-                            eval_weighted_losses[task_name].update(loss_dict)
-                            eval_unweighted_losses[task_name].update(loss_dict)
+                            # For other tasks, assume loss_output is a dictionary of losses
+                            if isinstance(loss_output, dict):
+                                # For other tasks, weighted and unweighted are the same
+                                eval_weighted_losses[head_name].update(loss_output)
+                                eval_unweighted_losses[head_name].update(loss_output)
+                            else:
+                                # Single loss value
+                                loss_dict = {"total_loss": loss_output}
+                                eval_weighted_losses[head_name].update(loss_dict)
+                                eval_unweighted_losses[head_name].update(loss_dict)
+                            
+                            # Compute metrics if metrics function is available
+                            if metrics_fn_dict[head_name] is not None:
+                                # Generic metrics computation
+                                pass
                         
-                        # Compute metrics if metrics function is available
-                        if metrics_fn_dict[task_name] is not None:
-                            # Generic metrics computation
-                            pass
-                
-                task_sample_counts[task_name] += batch_size
+                        head_sample_counts[head_name] += batch_size
         
-        logger.info(f"Task {task_name} eval completed - Samples: {task_sample_counts[task_name]}")
+        logger.info(f"Dataset {dataset_name} eval completed")
     
     # 计算最终的metrics（在所有数据收集完成后）
     final_metrics_results = {}
-    for task_name in dataloader_dict.keys():
-        if metrics_fn_dict[task_name] is not None:
+    for head_name in all_heads:
+        if metrics_fn_dict[head_name] is not None:
             # 计算最终metrics并只在主进程返回结果
-            final_metrics = metrics_fn_dict[task_name].compute_final_metrics(accelerator)
+            final_metrics = metrics_fn_dict[head_name].compute_final_metrics(accelerator)
             if accelerator.is_main_process:
-                final_metrics_results[task_name] = final_metrics
+                final_metrics_results[head_name] = final_metrics
                 # 重置metrics收集器为下次evaluation准备
-                metrics_fn_dict[task_name].reset()
+                metrics_fn_dict[head_name].reset()
             else:
-                final_metrics_results[task_name] = {}
+                final_metrics_results[head_name] = {}
     
     # Log evaluation results to tensorboard
     if logger:
         # Calculate overall losses
         total_weighted_loss = 0.0
         total_unweighted_loss = 0.0
-        total_samples = sum(task_sample_counts.values())
+        total_samples = sum(head_sample_counts.values())
         
-        # Log task-specific results and accumulate overall losses
-        for task_name in dataloader_dict.keys():
-            # Get average metrics for this task
-            task_weighted_avg = eval_weighted_losses[task_name].get_averages()
-            task_unweighted_avg = eval_unweighted_losses[task_name].get_averages()
-            task_log_only_avg = eval_log_only_losses[task_name].get_averages()
-            task_metrics_avg = eval_metrics[task_name].get_averages()
+        # Log head-specific results and accumulate overall losses
+        for head_name in all_heads:
+            # Get average metrics for this head
+            head_weighted_avg = eval_weighted_losses[head_name].get_averages()
+            head_unweighted_avg = eval_unweighted_losses[head_name].get_averages()
+            head_log_only_avg = eval_log_only_losses[head_name].get_averages()
+            head_metrics_avg = eval_metrics[head_name].get_averages()
             
-            # Calculate task total losses
-            task_weighted_total = sum(task_weighted_avg.values()) if task_weighted_avg else 0.0
-            task_unweighted_total = sum(task_unweighted_avg.values()) if task_unweighted_avg else 0.0
+            # Calculate head total losses
+            head_weighted_total = sum(head_weighted_avg.values()) if head_weighted_avg else 0.0
+            head_unweighted_total = sum(head_unweighted_avg.values()) if head_unweighted_avg else 0.0
             
             # Weight by sample count for overall calculation
-            sample_weight = task_sample_counts[task_name] / total_samples if total_samples > 0 else 0.0
-            total_weighted_loss += task_weighted_total * sample_weight
-            total_unweighted_loss += task_unweighted_total * sample_weight
+            sample_weight = head_sample_counts[head_name] / total_samples if total_samples > 0 else 0.0
+            total_weighted_loss += head_weighted_total * sample_weight
+            total_unweighted_loss += head_unweighted_total * sample_weight
             
-            # Log task-specific loss metrics
-            if task_weighted_avg:
-                for metric_name, value in task_weighted_avg.items():
-                    logger.log_scalar(f"eval_weighted_{task_name}/{metric_name}", value, epoch)
-                logger.log_scalar(f"eval_weighted_{task_name}/total_loss", task_weighted_total, epoch)
+            # Log head-specific loss metrics
+            if head_weighted_avg:
+                for metric_name, value in head_weighted_avg.items():
+                    logger.log_scalar(f"eval_weighted_{head_name}/{metric_name}", value, epoch)
+                logger.log_scalar(f"eval_weighted_{head_name}/total_loss", head_weighted_total, epoch)
             
-            if task_unweighted_avg:
-                for metric_name, value in task_unweighted_avg.items():
-                    logger.log_scalar(f"eval_unweighted_{task_name}/{metric_name}", value, epoch)
-                logger.log_scalar(f"eval_unweighted_{task_name}/total_loss", task_unweighted_total, epoch)
+            if head_unweighted_avg:
+                for metric_name, value in head_unweighted_avg.items():
+                    logger.log_scalar(f"eval_unweighted_{head_name}/{metric_name}", value, epoch)
+                logger.log_scalar(f"eval_unweighted_{head_name}/total_loss", head_unweighted_total, epoch)
             
-            if task_log_only_avg:
-                for metric_name, value in task_log_only_avg.items():
-                    logger.log_scalar(f"eval_unweighted_{task_name}/{metric_name}", value, epoch)
+            if head_log_only_avg:
+                for metric_name, value in head_log_only_avg.items():
+                    logger.log_scalar(f"eval_unweighted_{head_name}/{metric_name}", value, epoch)
             
-            # Log task-specific detection/evaluation metrics (mAP, precision, recall等)
+            # Log head-specific detection/evaluation metrics (mAP, precision, recall等)
             # 使用最终计算的metrics而不是平均的metrics
-            if task_name in final_metrics_results and final_metrics_results[task_name]:
-                for metric_name, value in final_metrics_results[task_name].items():
-                    logger.log_scalar(f"eval_metrics_{task_name}/{metric_name}", value, epoch)
-            elif task_metrics_avg:
-                for metric_name, value in task_metrics_avg.items():
-                    logger.log_scalar(f"eval_metrics_{task_name}/{metric_name}", value, epoch)
+            if head_name in final_metrics_results and final_metrics_results[head_name]:
+                for metric_name, value in final_metrics_results[head_name].items():
+                    logger.log_scalar(f"eval_metrics_{head_name}/{metric_name}", value, epoch)
+            elif head_metrics_avg:
+                for metric_name, value in head_metrics_avg.items():
+                    logger.log_scalar(f"eval_metrics_{head_name}/{metric_name}", value, epoch)
         
         # Log overall metrics
         logger.log_scalar("eval_overall/weighted_total_loss", total_weighted_loss, epoch)
@@ -442,11 +435,11 @@ def evaluate_one_epoch(
     
     # Return evaluation results
     results = {
-        "task_weighted_results": {task: eval_weighted_losses[task].get_averages() for task in dataloader_dict.keys()},
-        "task_unweighted_results": {task: eval_unweighted_losses[task].get_averages() for task in dataloader_dict.keys()},
-        "task_log_only_results": {task: eval_log_only_losses[task].get_averages() for task in dataloader_dict.keys()},
-        "task_metrics_results": final_metrics_results,  # 使用最终计算的metrics
-        "task_sample_counts": task_sample_counts,
+        "head_weighted_results": {head: eval_weighted_losses[head].get_averages() for head in all_heads},
+        "head_unweighted_results": {head: eval_unweighted_losses[head].get_averages() for head in all_heads},
+        "head_log_only_results": {head: eval_log_only_losses[head].get_averages() for head in all_heads},
+        "head_metrics_results": final_metrics_results,  # 使用最终计算的metrics
+        "head_sample_counts": head_sample_counts,
         "overall_weighted_loss": total_weighted_loss if logger else 0.0,
         "overall_unweighted_loss": total_unweighted_loss if logger else 0.0
     }
@@ -483,6 +476,12 @@ def train_one_epoch(
     
     assert accumulate_steps == 1, "accumulate_steps must be 1 for now."
     
+    datasets_to_heads = config["DATASETS_TO_HEADS"]
+    heads = []
+    for dataset_name, heads in datasets_to_heads.items():
+        heads.extend(heads)
+    heads = list(set(heads))
+    
     max_iterations = max(len(dataloader) for dataloader in dataloader_dict.values())
     
     # Initialize metrics tracker for epoch-level logging
@@ -514,27 +513,27 @@ def train_one_epoch(
     logger.info(f"Dataloader lengths: {dataloader_lengths}")
 
     for cur_iter in range(max_iterations):
-        # 改为二级字典结构 {task: loss_dict}
+        # {head_name: loss_dict}
         weighted_loss_dict = {}  # 用于backward的加权loss
         unweighted_loss_dict = {}  # 记录加权前的原始loss
         log_only_loss_dict = {}
         
         # 逐任务处理，每个任务计算完立即backward以减少显存占用
-        for task, dataloader_iter in dataloader_iters.items():
+        for dataset_name, dataloader_iter in dataloader_iters.items():
             with accelerator.autocast():
                 # batch = next(dataloader)
                 try:
                     batch = next(dataloader_iter)
-                    dataloader_counters[task] += 1
+                    dataloader_counters[dataset_name] += 1
                 except StopIteration:
                     # Reset the dataloader iterator and counter when exhausted
-                    logger.info(f"Task {task} dataloader exhausted at iteration {cur_iter}, resetting...")
-                    dataloader_iters[task] = iter(dataloader_dict[task])
-                    dataloader_counters[task] = 1  # Reset counter to 1 (current batch)
-                    batch = next(dataloader_iters[task])
+                    logger.info(f"Dataset {dataset_name} dataloader exhausted at iteration {cur_iter}, resetting...")
+                    dataloader_iters[dataset_name] = iter(dataloader_dict[dataset_name])
+                    dataloader_counters[dataset_name] = 1  # Reset counter to 1 (current batch)
+                    batch = next(dataloader_iters[dataset_name])
                     
                 images, annotations, metas = batch.values()
-                if task in ["VideoCaption"]:
+                if dataset_name in ["VideoCaption"]:
                     text = [annotation['text'] for annotation in annotations]
                 else:
                     text = None
@@ -552,45 +551,30 @@ def train_one_epoch(
                 # if config["USE_GRADIENT_CHECKPOINTING"]:
                 #     outputs = torch.utils.checkpoint.checkpoint(model, images, task, metas, text, use_reentrant=False)
                 # else:
-                outputs = model(images, task, metas, text)
+                outputs = model(images, dataset_name, metas, text)
+                
+                loss_outputs = {}
+                for head in datasets_to_heads[dataset_name]:
+                    loss_outputs[head] = loss_fn_dict[head](outputs[head], annotations)
                     
-                loss_output = loss_fn_dict[task](outputs[task], annotations)
-                if task in ["SoccerNetGSR_Detection",]:
-                    loss_task_raw, weight_dict, _ = loss_output
-                    # 初始化任务级别的loss字典
-                    unweighted_loss_dict[task] = {k: v for k, v in loss_task_raw.items() if k in weight_dict}
-                    weighted_loss_dict[task] = {k: (v * weight_dict[k]) for k, v in loss_task_raw.items() if k in weight_dict}
-                    log_only_loss_dict[task] = {k: v for k, v in loss_task_raw.items() if k not in weight_dict}
-                elif task in ["SoccerNetGSR_Lines",]:
-                    loss_task_raw, weight_dict, _ = loss_output
-                    # 初始化任务级别的loss字典
-                    unweighted_loss_dict[task] = {k: v for k, v in loss_task_raw.items() if k in weight_dict}
-                    weighted_loss_dict[task] = {k: (v * weight_dict[k]) for k, v in loss_task_raw.items() if k in weight_dict}
-                    log_only_loss_dict[task] = {k: v for k, v in loss_task_raw.items() if k not in weight_dict}
-                elif task in ["SoccerNetGSR_ReID", "VideoCaption"]:
-                    loss_task_raw, weight_dict = loss_output
-                    # 初始化任务级别的loss字典
-                    unweighted_loss_dict[task] = {k: v for k, v in loss_task_raw.items() if k in weight_dict}
-                    weighted_loss_dict[task] = {k: (v * weight_dict[k]) for k, v in loss_task_raw.items() if k in weight_dict}
-                    log_only_loss_dict[task] = {k: v for k, v in loss_task_raw.items() if k not in weight_dict}
-                else:
-                    raise ValueError(f"Task {task} not supported.")
-                    # loss_task = loss_output
-                    # # 对于其他任务，未加权和加权的loss相同
-                    # unweighted_loss_dict[task] = loss_task
-                    # weighted_loss_dict[task] = loss_task
-                    # log_only_loss_dict[task] = {}
+                # loss_output = loss_fn_dict[dataset_name](outputs[dataset_name], annotations)
+                # TODO:这里似乎应该依靠head来分，而非dataset来分
+                for head_name in datasets_to_heads[dataset_name]:
+                    loss_output = loss_outputs[head_name]
+                    if head_name in ["SoccerNetGSR_Detection", "LinesDetection"]:
+                        loss_task_raw, weight_dict, _ = loss_output
+                    elif head_name in ["SoccerNetGSR_ReID", "VideoCaption"]:
+                        loss_task_raw, weight_dict = loss_output
+                    else:
+                        raise ValueError(f"Head {head_name} not supported.")
+                    unweighted_loss_dict[head_name] = {k: v for k, v in loss_task_raw.items() if k in weight_dict}
+                    weighted_loss_dict[head_name] = {k: (v * weight_dict[k]) for k, v in loss_task_raw.items() if k in weight_dict}
+                    log_only_loss_dict[head_name] = {k: v for k, v in loss_task_raw.items() if k not in weight_dict}
             
-            # 立即对当前任务进行backward，减少显存占用
-            task_total_loss = sum(weighted_loss_dict[task].values())
-            task_total_loss /= (accumulate_steps * len_tasks)  # 除以任务数量进行平均
-            accelerator.backward(task_total_loss)
-            
-            # 显式释放当前任务的中间变量，防止显存泄漏
-            # del images, annotations, metas, outputs, loss_output
-            # if 'loss_task_raw' in locals():
-            #     del loss_task_raw
-            # del loss_task, task_total_loss
+            # 立即对当前dataset所属的所有heads计算的loss进行backward，减少显存占用
+            dataset_total_loss = sum(weighted_loss_dict[dataset_name].values())
+            dataset_total_loss /= (accumulate_steps * len_tasks)  # 除以任务数量进行平均
+            accelerator.backward(dataset_total_loss)
             
             # 可选：每个任务后清理CUDA缓存（会影响性能，但最大化显存释放）
             if config.get("AGGRESSIVE_MEMORY_CLEANUP", False):
@@ -604,10 +588,8 @@ def train_one_epoch(
                 original_model = model.module if hasattr(model, 'module') else model
                 backbone_grad_norm = accelerator.clip_grad_norm_(original_model.backbone.parameters(), max_norm=max_clip_norm)
                 head_grad_norms = {}
-                for task_name, head in original_model.multi_task_head.items():
-                    head_grad_norms[task_name] = accelerator.clip_grad_norm_(head.parameters(), max_norm=max_clip_norm)
-                # For logging purposes, we can use the backbone grad norm as the main grad_norm
-                grad_norm = backbone_grad_norm
+                for head_name, head in original_model.multi_task_head.items():
+                    head_grad_norms[head_name] = accelerator.clip_grad_norm_(head.parameters(), max_norm=max_clip_norm)
             else:
                 accelerator.unscale_gradients()
                 # Clip gradients separately for backbone and each head
@@ -615,10 +597,8 @@ def train_one_epoch(
                 original_model = model.module if hasattr(model, 'module') else model
                 backbone_grad_norm = torch.nn.utils.clip_grad_norm_(original_model.backbone.parameters(), max_clip_norm)
                 head_grad_norms = {}
-                for task_name, head in original_model.multi_task_head.items():
-                    head_grad_norms[task_name] = torch.nn.utils.clip_grad_norm_(head.parameters(), max_norm=max_clip_norm)
-                # For logging purposes, we can use the backbone grad norm as the main grad_norm
-                grad_norm = backbone_grad_norm
+                for head_name, head in original_model.multi_task_head.items():
+                    head_grad_norms[head_name] = torch.nn.utils.clip_grad_norm_(head.parameters(), max_norm=max_clip_norm)
             optimizer.step()
             optimizer.zero_grad()
                 
@@ -638,63 +618,63 @@ def train_one_epoch(
             logger.log_scalar("train_overall/unweighted_total_loss", total_unweighted_loss, states["global_step"])
             
             # Log task-specific losses
-            for task_name in weighted_loss_dict.keys():
-                if weighted_loss_dict[task_name]:
-                    logger.log_loss_dict(weighted_loss_dict[task_name], states["global_step"], prefix=f"train_weighted_{task_name}")
-                if unweighted_loss_dict[task_name]:
-                    logger.log_loss_dict(unweighted_loss_dict[task_name], states["global_step"], prefix=f"train_unweighted_{task_name}")
-                if log_only_loss_dict[task_name]:
-                    logger.log_loss_dict(log_only_loss_dict[task_name], states["global_step"], prefix=f"train_unweighted_{task_name}", count_sum=False)
+            for head_name in weighted_loss_dict.keys():
+                if weighted_loss_dict[head_name]:
+                    logger.log_loss_dict(weighted_loss_dict[head_name], states["global_step"], prefix=f"train_weighted_{head_name}")
+                if unweighted_loss_dict[head_name]:
+                    logger.log_loss_dict(unweighted_loss_dict[head_name], states["global_step"], prefix=f"train_unweighted_{head_name}")
+                if log_only_loss_dict[head_name]:
+                    logger.log_loss_dict(log_only_loss_dict[head_name], states["global_step"], prefix=f"train_unweighted_{head_name}", count_sum=False)
             
             logger.log_learning_rate(optimizer, states["global_step"])
             # Log separate gradient norms for backbone and each head
             logger.log_scalar("train_grad_norm/backbone_grad_norm", backbone_grad_norm, states["global_step"])
-            for task_name, head_grad_norm in head_grad_norms.items():
-                logger.log_scalar(f"train_grad_norm/{task_name}_head_grad_norm", head_grad_norm, states["global_step"])
+            for head_name, head_grad_norm in head_grad_norms.items():
+                logger.log_scalar(f"train_grad_norm/{head_name}_head_grad_norm", head_grad_norm, states["global_step"])
             
             # Log parameter and gradient statistics if enabled
-            if config.get("LOG_PARAMS_GRADS", False):
-                logger.log_model_parameters(model, states["global_step"])
+            # if config.get("LOG_PARAMS_GRADS", False):
+            #     logger.log_model_parameters(model, states["global_step"])
             
             # Update metrics tracker (epoch metrics) - 记录所有类型的loss
             # 为epoch级别的metrics更新，需要将二级字典展平
-            for task_name, task_losses in weighted_loss_dict.items():
+            for head_name, task_losses in weighted_loss_dict.items():
                 for loss_name, loss_value in task_losses.items():
-                    epoch_metrics.update({f"weighted_{task_name}_{loss_name}": loss_value})
+                    epoch_metrics.update({f"weighted_{head_name}_{loss_name}": loss_value})
             
-            for task_name, task_losses in unweighted_loss_dict.items():
+            for head_name, task_losses in unweighted_loss_dict.items():
                 for loss_name, loss_value in task_losses.items():
-                    epoch_metrics.update({f"unweighted_{task_name}_{loss_name}": loss_value})
+                    epoch_metrics.update({f"unweighted_{head_name}_{loss_name}": loss_value})
             
-            for task_name, task_losses in log_only_loss_dict.items():
+            for head_name, task_losses in log_only_loss_dict.items():
                 for loss_name, loss_value in task_losses.items():
-                    epoch_metrics.update({f"{task_name}_{loss_name}": loss_value})
+                    epoch_metrics.update({f"{head_name}_{loss_name}": loss_value})
             
             # Update metrics (iteration metrics)
             metrics.update(name="weighted_total_loss", value=total_weighted_loss.detach())
             metrics.update(name="unweighted_total_loss", value=total_unweighted_loss.detach())
             
             # 为iteration级别的metrics更新，需要将二级字典展平
-            for task_name, task_losses in weighted_loss_dict.items():
+            for head_name, task_losses in weighted_loss_dict.items():
                 for loss_name, loss_value in task_losses.items():
-                    metrics.update(name=f"weighted_{task_name}_{loss_name}", value=loss_value.detach())
+                    metrics.update(name=f"weighted_{head_name}_{loss_name}", value=loss_value.detach())
             
-            for task_name, task_losses in unweighted_loss_dict.items():
+            for head_name, task_losses in unweighted_loss_dict.items():
                 for loss_name, loss_value in task_losses.items():
-                    metrics.update(name=f"unweighted_{task_name}_{loss_name}", value=loss_value.detach())
+                    metrics.update(name=f"unweighted_{head_name}_{loss_name}", value=loss_value.detach())
             
-            for task_name, task_losses in log_only_loss_dict.items():
+            for head_name, task_losses in log_only_loss_dict.items():
                 for loss_name, loss_value in task_losses.items():
-                    metrics.update(name=f"{task_name}_{loss_name}", value=loss_value.detach())
+                    metrics.update(name=f"{head_name}_{loss_name}", value=loss_value.detach())
             
             _lr = optimizer.state_dict()["param_groups"][-1]["lr"]
             metrics["lr"].clear()
             metrics.update(name="lr", value=_lr)
             # Add gradient norm metrics
-            if 'backbone_grad_norm' in locals():
-                metrics.update(name="backbone_grad_norm", value=backbone_grad_norm.detach())
-                for task_name, head_grad_norm in head_grad_norms.items():
-                    metrics.update(name=f"{task_name}_head_grad_norm", value=head_grad_norm.detach())
+            # if 'backbone_grad_norm' in locals():
+            metrics.update(name="backbone_grad_norm", value=backbone_grad_norm.detach())
+            for head_name, head_grad_norm in head_grad_norms.items():
+                metrics.update(name=f"{head_name}_head_grad_norm", value=head_grad_norm.detach())
             torch.cuda.synchronize()
             _cuda_memory = torch.cuda.max_memory_allocated(device) / 1024 / 1024
             _cuda_memory = torch.tensor([_cuda_memory], device=device)
@@ -748,25 +728,25 @@ def train_one_epoch(
                 # Extract task name from key like "weighted_TaskName_loss_type"
                 parts = key.split("_", 2)  # Split into ["weighted", "TaskName", "loss_type"]
                 if len(parts) >= 3:
-                    task_name = parts[1]
-                    if task_name not in task_weighted_totals:
-                        task_weighted_totals[task_name] = 0.0
-                    task_weighted_totals[task_name] += value
+                    head_name = parts[1]
+                    if head_name not in task_weighted_totals:
+                        task_weighted_totals[head_name] = 0.0
+                    task_weighted_totals[head_name] += value
             elif key.startswith("unweighted_"):
                 # Extract task name from key like "unweighted_TaskName_loss_type"
                 parts = key.split("_", 2)  # Split into ["unweighted", "TaskName", "loss_type"]
                 if len(parts) >= 3:
-                    task_name = parts[1]
-                    if task_name not in task_unweighted_totals:
-                        task_unweighted_totals[task_name] = 0.0
-                    task_unweighted_totals[task_name] += value
+                    head_name = parts[1]
+                    if head_name not in task_unweighted_totals:
+                        task_unweighted_totals[head_name] = 0.0
+                    task_unweighted_totals[head_name] += value
         
         # Log task totals
-        for task_name, total_loss in task_weighted_totals.items():
-            logger.log_scalar(f"epoch_weighted_{task_name}/total_loss", total_loss, epoch)
+        for head_name, total_loss in task_weighted_totals.items():
+            logger.log_scalar(f"epoch_weighted_{head_name}/total_loss", total_loss, epoch)
         
-        for task_name, total_loss in task_unweighted_totals.items():
-            logger.log_scalar(f"epoch_unweighted_{task_name}/total_loss", total_loss, epoch)
+        for head_name, total_loss in task_unweighted_totals.items():
+            logger.log_scalar(f"epoch_unweighted_{head_name}/total_loss", total_loss, epoch)
         
         # Flush logger at the end of epoch
         logger.flush_tb_writer()

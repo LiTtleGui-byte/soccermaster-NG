@@ -24,7 +24,7 @@ from transformers.utils import (
 
 from models.siglip2 import SiglipBackbone
 from models.deformable_detr.deformable_detr import build_deformable_detr_head
-from models.SoccerNetGSR_Lines import build_soccer_net_gsr_lines_head
+from models.LinesDetection import build_lines_detection_head
 from models.SoccerNetGSR_ReID import build_soccer_net_gsr_reid_head
 from models.VideoCaption import build_video_caption_head
 
@@ -47,24 +47,29 @@ class MultiTaskingSigLIP(nn.Module):
         
         # multi-task heads
         self.multi_task_head = nn.ModuleDict()
-        tasks = config["TASKS"]
-        for task in tasks:
-            if task == "SoccerNetGSR_Detection":
-                self.multi_task_head[task] = build_deformable_detr_head(config)
-            elif task == "SoccerNetGSR_Lines":
-                self.multi_task_head[task] = build_soccer_net_gsr_lines_head(config)
-            elif task == "SoccerNetGSR_ReID":
-                self.multi_task_head[task] = build_soccer_net_gsr_reid_head(config)
-            elif task == "VideoCaption":
-                self.multi_task_head[task] = build_video_caption_head(config)
+        # tasks = config["TASKS"]
+        self.datasets_to_heads = config["DATASETS_TO_HEADS"]
+        heads = []
+        for dataset, heads in self.datasets_to_heads.items():
+            heads.extend(heads)
+        heads = list(set(heads))
+        for head in heads:
+            if head == "SoccerNetGSR_Detection":
+                self.multi_task_head[head] = build_deformable_detr_head(config)
+            elif head == "LinesDetection":
+                self.multi_task_head[head] = build_lines_detection_head(config)
+            elif head == "SoccerNetGSR_ReID":
+                self.multi_task_head[head] = build_soccer_net_gsr_reid_head(config)
+            elif head == "VideoCaption":
+                self.multi_task_head[head] = build_video_caption_head(config)
             else:
-                raise ValueError(f"Task {task} is not supported.")
+                raise ValueError(f"Head {head} is not supported.")
 
-    def forward(self, images, task, metas, text=None):
+    def forward(self, images, dataset_name, metas, text=None):
         backbone_outputs = self.backbone(images, text=text)
         
-        # outputs = {task: self.multi_task_head[task](backbone_outputs) for task in self.multi_task_head.keys()}
-        # 不同数据对应了不同的head，只给对应的那个
-        outputs = {task: self.multi_task_head[task](backbone_outputs, metas)}
+        outputs = {}
+        for head in self.datasets_to_heads[dataset_name]:
+            outputs[head] = self.multi_task_head[head](backbone_outputs, metas)
         
         return outputs

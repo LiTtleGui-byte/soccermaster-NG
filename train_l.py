@@ -23,7 +23,7 @@ from runtime_option import runtime_option
 from utils.misc import set_seed
 from configs.util import load_super_config, update_config, yaml_to_dict
 from models.build import build_loss_fn, build_metrics_fn
-from models.SoccerNetGSR_Lines import HighResolutionNet
+from models.LinesDetection import HighResolutionNet
 
 # os.environ["NCCL_BLOCKING_WAIT"] = "1"      # 启用阻塞等待
 os.environ["NCCL_TIMEOUT_MS"] = "5400000"   # 5400秒 = 90分钟

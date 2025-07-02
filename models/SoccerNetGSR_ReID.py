@@ -8,7 +8,7 @@ from prtreid.losses import init_part_based_triplet_loss, CrossEntropyLoss
 from prtreid.utils.constants import GLOBAL, FOREGROUND, CONCAT_PARTS, PARTS
 import torch.nn.functional as F
 import math
-from data.SoccerNetGSR_ReID import role_mapping, jn_mapping, digit_head_mapping, digit_tail_mapping
+from data.soccernet_gsr_reid import role_mapping, jn_mapping, digit_head_mapping, digit_tail_mapping
 from models.deformable_detr.deformable_detr import MLP
 import warnings
 

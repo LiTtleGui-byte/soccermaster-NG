@@ -34,7 +34,7 @@ from .matcher import build_matcher
 from .segmentation import (DETRsegm, PostProcessPanoptic, PostProcessSegm,
                            dice_loss, sigmoid_focal_loss)
 from .deformable_transformer import build_deforamble_transformer
-from data.SoccerNetGSR_ReID import role_mapping, jn_mapping, digit_head_mapping, digit_tail_mapping
+from data.soccernet_gsr_reid import role_mapping, jn_mapping, digit_head_mapping, digit_tail_mapping
 
 def _get_clones(module, N):
     return nn.ModuleList([copy.deepcopy(module) for i in range(N)])
@@ -42,7 +42,7 @@ def _get_clones(module, N):
 
 class DeformableDetrHead(nn.Module):
     """ This is the Deformable DETR module that performs object detection """
-    def __init__(self, position_encoding, transformer, num_classes, num_queries, num_feature_levels, backbone_strides, backbone_num_channels, num_keypoints, num_lines,
+    def __init__(self, position_encoding, transformer, num_classes, num_queries, num_feature_levels, backbone_strides, backbone_num_channels, num_keypoints,
                  aux_loss=True, with_box_refine=False, two_stage=False, backbone_type='image'):
         """ Initializes the model.
         Parameters:
@@ -102,7 +102,6 @@ class DeformableDetrHead(nn.Module):
         self.backbone_type = backbone_type
         self.camera_head = ConvCameraHead(input_channels=backbone_num_channels[0])
         self.keypoints_head = KeypointsHead(dim_in=backbone_num_channels[0], num_keypoints=num_keypoints)
-        self.lines_head = LinesHead(dim_in=backbone_num_channels[0], num_lines=num_lines)
 
         prior_prob = 0.01
         bias_value = -math.log((1 - prior_prob) / prior_prob)
@@ -245,7 +244,6 @@ class DeformableDetrHead(nn.Module):
         quaternion, translation, fov = self.camera_head(reshaped_local_features)
         # Use KeypointsHead with reshaped features
         keypoints_heatmap = self.keypoints_head(reshaped_local_features)
-        lines_heatmap = self.lines_head(reshaped_local_features)
 
         out = {'pred_logits': outputs_class[-1], 'pred_boxes': outputs_coord[-1], 'pred_roles': outputs_role[-1], 'pred_jn_holistic': outputs_jn_holistic[-1], 'pred_digit_head': outputs_digit_head[-1], 'pred_digit_tail': outputs_digit_tail[-1]}
         # Add camera predictions to output
@@ -255,7 +253,6 @@ class DeformableDetrHead(nn.Module):
             'fov': fov
         }
         out['pred_keypoints_heatmap'] = keypoints_heatmap
-        out['pred_lines_heatmap'] = lines_heatmap
         if self.aux_loss:
             out['aux_outputs'] = self._set_aux_loss(outputs_class, outputs_coord, outputs_role, outputs_jn_holistic, outputs_digit_head, outputs_digit_tail)
 
@@ -659,12 +656,6 @@ class SetCriterion(nn.Module):
         loss_keypoints = (loss_keypoints * keypoints_mask.unsqueeze(-1).unsqueeze(-1)).sum() / (keypoints_mask.sum() + 1e-6)
         losses["loss_keypoints"] = loss_keypoints
         
-        # Lines loss:
-        lines_gt = torch.stack([t["lines_target"] for t in targets], dim=0)
-        lines_pred = outputs["pred_lines_heatmap"]
-        loss_lines = F.mse_loss(lines_pred, lines_gt)
-        losses["loss_lines"] = loss_lines
-        
         # losses = {k: (v * self.weight_dict[k] if k in self.weight_dict else v) for k, v in losses.items()}
 
         return losses, self.weight_dict, indices
@@ -917,9 +908,7 @@ def cvt_config_to_args(config: dict):
     detr_args.gsr_camera_r_loss_weight = config["GSR_CAMERA_R_LOSS_WEIGHT"]
     detr_args.gsr_camera_fl_loss_weight = config["GSR_CAMERA_FL_LOSS_WEIGHT"]
     detr_args.num_keypoints = config["NUM_KEYPOINTS"]
-    detr_args.num_lines = config["NUM_LINES"]
     detr_args.gsr_keypoints_loss_weight = config["GSR_KEYPOINTS_LOSS_WEIGHT"]
-    detr_args.gsr_lines_loss_weight = config["GSR_LINES_LOSS_WEIGHT"]
     detr_args.backbone_strides = [16]
     detr_args.backbone_num_channels = [768]
     
@@ -939,7 +928,6 @@ def build_deformable_detr_head(config: dict):
         backbone_strides=args.backbone_strides,
         backbone_num_channels=args.backbone_num_channels,
         num_keypoints=args.num_keypoints,
-        num_lines=args.num_lines,
         aux_loss=args.aux_loss,
         with_box_refine=args.with_box_refine,
         two_stage=args.two_stage,
@@ -959,7 +947,6 @@ def build_deformable_detr_criterion(config: dict):
     weight_dict["loss_R"] = args.gsr_camera_r_loss_weight
     weight_dict["loss_fl"] = args.gsr_camera_fl_loss_weight
     weight_dict["loss_keypoints"] = args.gsr_keypoints_loss_weight
-    weight_dict["loss_lines"] = args.gsr_lines_loss_weight
     
     assert args.masks is False, "MASKS is not supported yet."
     if args.masks:
@@ -1232,85 +1219,6 @@ class KeypointsHead(nn.Module):
         
         return x
 
-class LinesHead(nn.Module):
-    def __init__(self, dim_in=768, num_lines=24):
-        super(LinesHead, self).__init__()
-        self.dim_in = dim_in
-        # Using sub-pixel convolution (pixel shuffle) for learnable upsampling
-        # This is more parameter-efficient and often works better than transposed convolution
-        
-        # Stage 1: (768, 32, 32) -> (192, 64, 64) using 2x upsampling
-        self.stage1 = nn.Sequential(
-            nn.Conv2d(dim_in, 192 * 4, kernel_size=3, padding=1),  # 4x channels for 2x upsampling
-            nn.PixelShuffle(2),  # (192*4, 32, 32) -> (192, 64, 64)
-            nn.BatchNorm2d(192),
-            nn.ReLU(inplace=True),
-            nn.Conv2d(192, 192, kernel_size=3, padding=1),
-            nn.BatchNorm2d(192),
-            nn.ReLU(inplace=True)
-        )
-        
-        # Stage 2: (192, 64, 64) -> (96, 128, 128)
-        self.stage2 = nn.Sequential(
-            nn.Conv2d(192, 96 * 4, kernel_size=3, padding=1),
-            nn.PixelShuffle(2),  # (96*4, 64, 64) -> (96, 128, 128)
-            nn.BatchNorm2d(96),
-            nn.ReLU(inplace=True),
-            nn.Conv2d(96, 96, kernel_size=3, padding=1),
-            nn.BatchNorm2d(96),
-            nn.ReLU(inplace=True)
-        )
-        
-        # Stage 3: (96, 128, 128) -> (48, 256, 256)
-        self.stage3 = nn.Sequential(
-            nn.Conv2d(96, 48 * 4, kernel_size=3, padding=1),
-            nn.PixelShuffle(2),  # (48*4, 128, 128) -> (48, 256, 256)
-            nn.BatchNorm2d(48),
-            nn.ReLU(inplace=True),
-            # nn.Conv2d(48, 48, kernel_size=3, padding=1),
-            # nn.BatchNorm2d(48),
-            nn.Conv2d(48, num_lines, kernel_size=3, padding=1),
-            nn.BatchNorm2d(num_lines),
-            nn.ReLU(inplace=True)
-        )
-        
-        # Final stage: (24, 512, 512) -> (output_channels, 512, 512)
-        self.final_conv = nn.Sequential(
-            # nn.Conv2d(24, num_lines, kernel_size=3, padding=1),
-            nn.Conv2d(num_lines, num_lines, kernel_size=3, padding=1),
-            nn.Sigmoid()
-        )
-        
-        # Initialize weights
-        self._init_weights()
-    
-    def _init_weights(self):
-        """Initialize weights"""
-        for m in self.modules():
-            if isinstance(m, nn.Conv2d):
-                nn.init.kaiming_normal_(m.weight, mode='fan_out', nonlinearity='relu')
-                if m.bias is not None:
-                    nn.init.constant_(m.bias, 0)
-            elif isinstance(m, nn.BatchNorm2d):
-                nn.init.constant_(m.weight, 1)
-                nn.init.constant_(m.bias, 0)
-    
-    def forward(self, x):
-        """
-        Forward pass using learnable upsampling
-        Args:
-            x: Input features of shape (N, 768, 32, 32)
-        Returns:
-            output: Reconstructed features of shape (N, output_channels, 512, 512)
-        """
-        x = self.stage1(x)      # (N, 192, 64, 64)
-        x = self.stage2(x)      # (N, 96, 128, 128)
-        x = self.stage3(x)      # (N, 48, 256, 256)
-        # x = self.stage4(x)      # (N, 24, 512, 512)
-        x = self.final_conv(x)  # (N, output_channels, 512, 512)
-        
-        return x
-
 class DetectionMetrics(nn.Module):
     """
     计算detection常见的metrics，包括mAP、IoU、precision、recall等指标
@@ -1352,15 +1260,6 @@ class DetectionMetrics(nn.Module):
             'valid_count': 0      # 有效样本数量
         }
         
-        # 为lines收集数据
-        self.lines_metrics_data = {
-            'accuracies': [],     # 准确度
-            'precisions': [],     # 精确度
-            'recalls': [],        # 召回率
-            'f1_scores': [],      # F1分数
-            'valid_count': 0      # 有效样本数量
-        }
-        
     def reset(self):
         """重置收集的数据"""
         self.tp_fp_scores_per_thresh = {thresh: {'tp': [], 'fp': [], 'scores': []} for thresh in self.iou_thresholds}
@@ -1378,13 +1277,6 @@ class DetectionMetrics(nn.Module):
             'valid_count': 0
         }
         self.keypoints_metrics_data = {
-            'accuracies': [],
-            'precisions': [],
-            'recalls': [],
-            'f1_scores': [],
-            'valid_count': 0
-        }
-        self.lines_metrics_data = {
             'accuracies': [],
             'precisions': [],
             'recalls': [],
@@ -1665,57 +1557,6 @@ class DetectionMetrics(nn.Module):
         
         return batch_metrics
 
-    
-    def calculate_lines_metrics(self, gt, pred, conf_th=0.1, dist_th=5):
-        """计算lines的metrics，按batch处理"""
-        # Ensure gt and pred are on CPU for computation
-        gt = gt.cpu()
-        pred = pred.cpu()
-        
-        batch_size = gt.shape[0]
-        batch_metrics = []
-        
-        for batch_idx in range(batch_size):
-            # Get data for current batch
-            gt_batch = gt[batch_idx]  # [num_lines, max_keypoints, 3]
-            pred_batch = pred[batch_idx]  # [num_lines, max_keypoints, 3]
-            
-            # Extract positions and confidence scores
-            pred_pos = pred_batch[:, :, :-1]  # [num_lines, max_keypoints, 2]
-            gt_pos = gt_batch[:, :, :-1]  # [num_lines, max_keypoints, 2]
-            
-            pred_mask = torch.all((pred_batch[:, :, -1] > conf_th), dim=-1)  # [num_lines]
-            gt_mask = torch.all((gt_batch[:, :, -1] > conf_th), dim=-1)  # [num_lines]
-            
-            gt_flip = torch.flip(gt_pos, dims=[1])  # [num_lines, max_keypoints, 2]
-            
-            distances1 = torch.norm(pred_pos - gt_pos, dim=-1)  # [num_lines, max_keypoints]
-            distances2 = torch.norm(pred_pos - gt_flip, dim=-1)  # [num_lines, max_keypoints]
-            
-            distances1_bool = torch.all((distances1 < dist_th), dim=-1)  # [num_lines]
-            distances2_bool = torch.all((distances2 < dist_th), dim=-1)  # [num_lines]
-            
-            # Count true positives, false positives, and false negatives based on distance threshold
-            true_positives = ((distances1_bool | distances2_bool) & pred_mask & gt_mask).sum().item()
-            true_negatives = (~pred_mask & ~gt_mask).sum().item()
-            false_positives = (
-                    (pred_mask & ~gt_mask) | ((~distances1_bool & ~distances2_bool) & pred_mask & gt_mask)).sum().item()
-            false_negatives = (~pred_mask & gt_mask).sum().item()
-            
-            # Calculate metrics for this batch
-            total_lines = gt_batch.shape[0]
-            if total_lines > 0:
-                accuracy = (true_positives + true_negatives) / total_lines
-                precision = true_positives / (true_positives + false_positives + 1e-10)
-                recall = true_positives / (true_positives + false_negatives + 1e-10)
-                f1 = 2 * (precision * recall) / (precision + recall + 1e-10)
-            else:
-                accuracy = precision = recall = f1 = 0.0
-            
-            batch_metrics.append((accuracy, precision, recall, f1))
-        
-        return batch_metrics
-
     def compute_keypoints_metrics(self, pred_keypoints_heatmap, targets):
         """
         计算keypoints的metrics
@@ -1766,46 +1607,6 @@ class DetectionMetrics(nn.Module):
             # print(f"Warning: Keypoints metrics calculation failed: {e}")
             pass
         
-    def compute_lines_metrics(self, pred_lines_heatmap, targets):
-        """
-        计算lines的metrics
-        
-        Args:
-            pred_lines_heatmap: 预测的lines heatmap [B, num_lines, H, W]
-            targets: 目标数据列表
-        """
-        # 检查是否有lines数据
-        if pred_lines_heatmap is None:
-            return
-            
-        # 获取GT lines heatmap和mask
-        # try:
-        lines_gt_list = [t["lines_target"] for t in targets]
-        
-        # 只处理有效的数据
-        lines_gt = torch.stack(lines_gt_list, dim=0)
-        
-        # 从heatmap中提取lines
-        l_gt = self.get_keypoints_from_heatmap_batch_maxpool_l(lines_gt[:,:-1,:,:], return_scores=True, max_keypoints=2)
-        lines_pred = self.get_keypoints_from_heatmap_batch_maxpool_l(pred_lines_heatmap[:,:-1,:,:], return_scores=True, max_keypoints=2)
-        
-        # 计算metrics
-        batch_metrics = self.calculate_lines_metrics(l_gt, lines_pred)
-        
-        # 收集metrics
-        for accuracy, precision, recall, f1 in batch_metrics:
-            self.lines_metrics_data['accuracies'].append(accuracy)
-            self.lines_metrics_data['precisions'].append(precision)
-            self.lines_metrics_data['recalls'].append(recall)
-            self.lines_metrics_data['f1_scores'].append(f1)
-        
-        self.lines_metrics_data['valid_count'] += len(batch_metrics)
-            
-        # except Exception as e:
-        #     # 如果lines计算失败，静默跳过
-        #     # print(f"Warning: lines metrics calculation failed: {e}")
-        #     pass
-
     def update(self, outputs, targets, target_sizes):
         """
         在当前batch上计算TP/FP并收集结果
@@ -1917,9 +1718,6 @@ class DetectionMetrics(nn.Module):
         if 'pred_keypoints_heatmap' in outputs:
             self.compute_keypoints_metrics(outputs['pred_keypoints_heatmap'], targets)
             
-        if 'pred_lines_heatmap' in outputs:
-            self.compute_lines_metrics(outputs['pred_lines_heatmap'], targets)
-    
     def _compute_attribute_accuracy(self, pred, target, pred_idx, gt_idx):
         """
         计算匹配成功的预测的attribute准确度
@@ -2008,16 +1806,9 @@ class DetectionMetrics(nn.Module):
             gathered_keypoints_metrics[key] = accelerator.gather_for_metrics(self.keypoints_metrics_data[key])
         gathered_keypoints_metrics['valid_count'] = accelerator.gather_for_metrics([self.keypoints_metrics_data['valid_count']])
         
-        # 聚合lines metrics数据
-        lines_key_list = ['accuracies', 'precisions', 'recalls', 'f1_scores']
-        gathered_lines_metrics = {}
-        for key in lines_key_list:
-            gathered_lines_metrics[key] = accelerator.gather_for_metrics(self.lines_metrics_data[key])
-        gathered_lines_metrics['valid_count'] = accelerator.gather_for_metrics([self.lines_metrics_data['valid_count']])
-        
-        return gathered_tp_fp_scores, gathered_gt_count, gathered_attribute_matches, gathered_camera_metrics, gathered_keypoints_metrics, gathered_lines_metrics
+        return gathered_tp_fp_scores, gathered_gt_count, gathered_attribute_matches, gathered_camera_metrics, gathered_keypoints_metrics
 
-    def compute_metrics_from_gathered_tp_fp(self, gathered_tp_fp_scores, gathered_gt_count, gathered_attribute_matches=None, gathered_camera_metrics=None, gathered_keypoints_metrics=None, gathered_lines_metrics=None):
+    def compute_metrics_from_gathered_tp_fp(self, gathered_tp_fp_scores, gathered_gt_count, gathered_attribute_matches=None, gathered_camera_metrics=None, gathered_keypoints_metrics=None):
         """
         从聚合的TP/FP/scores数据计算metrics
         
@@ -2228,54 +2019,6 @@ class DetectionMetrics(nn.Module):
                     metrics[metric_name] = 0.0
                 metrics['keypoints_valid_samples'] = 0
         
-        # 计算lines metrics
-        if gathered_lines_metrics is not None:
-            # 展平所有进程的lines数据
-            all_accuracies = flatten_data(gathered_lines_metrics['accuracies'])
-            all_precisions = flatten_data(gathered_lines_metrics['precisions'])
-            all_recalls = flatten_data(gathered_lines_metrics['recalls'])
-            all_f1_scores = flatten_data(gathered_lines_metrics['f1_scores'])
-            
-            # 计算总的有效样本数
-            total_valid_count = sum(gathered_lines_metrics['valid_count'])
-            
-            if total_valid_count > 0 and len(all_accuracies) > 0:
-                # 计算lines metrics的平均值
-                accuracies = torch.tensor(all_accuracies, dtype=torch.float32)
-                precisions = torch.tensor(all_precisions, dtype=torch.float32)
-                recalls = torch.tensor(all_recalls, dtype=torch.float32)
-                f1_scores = torch.tensor(all_f1_scores, dtype=torch.float32)
-                
-                metrics['lines_accuracy'] = accuracies.mean().item()
-                metrics['lines_precision'] = precisions.mean().item()
-                metrics['lines_recall'] = recalls.mean().item()
-                metrics['lines_f1'] = f1_scores.mean().item()
-                
-                # 计算中位数
-                metrics['lines_accuracy_median'] = accuracies.median().item()
-                metrics['lines_precision_median'] = precisions.median().item()
-                metrics['lines_recall_median'] = recalls.median().item()
-                metrics['lines_f1_median'] = f1_scores.median().item()
-                
-                # 计算高精度阈值下的性能
-                # 精度 > 0.8 的比例
-                high_acc_ratio = (accuracies > 0.8).float().mean().item()
-                metrics['lines_high_accuracy_ratio'] = high_acc_ratio
-                
-                # F1 > 0.7 的比例
-                high_f1_ratio = (f1_scores > 0.7).float().mean().item()
-                metrics['lines_high_f1_ratio'] = high_f1_ratio
-                
-                # 记录样本数量
-                metrics['lines_valid_samples'] = total_valid_count
-            else:
-                # 没有有效的lines数据
-                for metric_name in ['lines_accuracy', 'lines_precision', 'lines_recall', 'lines_f1',
-                                  'lines_accuracy_median', 'lines_precision_median', 'lines_recall_median', 'lines_f1_median',
-                                  'lines_high_accuracy_ratio', 'lines_high_f1_ratio']:
-                    metrics[metric_name] = 0.0
-                metrics['lines_valid_samples'] = 0
-        
         return metrics
 
     @torch.no_grad()
@@ -2299,11 +2042,11 @@ class DetectionMetrics(nn.Module):
             dict: 包含各种metrics的字典
         """
         # 聚合所有进程的TP/FP/scores结果、attribute匹配结果、相机metrics数据和keypoints metrics数据
-        gathered_tp_fp_scores, gathered_gt_count, gathered_attribute_matches, gathered_camera_metrics, gathered_keypoints_metrics, gathered_lines_metrics = self.gather_tp_fp_scores(accelerator)
+        gathered_tp_fp_scores, gathered_gt_count, gathered_attribute_matches, gathered_camera_metrics, gathered_keypoints_metrics = self.gather_tp_fp_scores(accelerator)
         
         # 只在主进程计算metrics
         if accelerator.is_main_process:
-            return self.compute_metrics_from_gathered_tp_fp(gathered_tp_fp_scores, gathered_gt_count, gathered_attribute_matches, gathered_camera_metrics, gathered_keypoints_metrics, gathered_lines_metrics)
+            return self.compute_metrics_from_gathered_tp_fp(gathered_tp_fp_scores, gathered_gt_count, gathered_attribute_matches, gathered_camera_metrics, gathered_keypoints_metrics)
         else:
             return {}
 

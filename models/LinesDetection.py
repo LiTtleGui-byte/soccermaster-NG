@@ -22,12 +22,7 @@ import os
 from typing import List, Tuple
 import copy
 
-
-def _get_clones(module, N):
-    return nn.ModuleList([copy.deepcopy(module) for i in range(N)])
-
-
-class SoccerNetGSR_LinesHead(nn.Module):
+class LinesDetection(nn.Module):
     """ This is the Deformable DETR module that performs object detection """
     def __init__(self, backbone_num_channels, num_lines, backbone_type='image', head_type='default', selected_layers=None):
         """ Initializes the model.
@@ -103,11 +98,10 @@ class SoccerNetGSR_LinesHead(nn.Module):
             
             lines_heatmap = self.lines_head(reshaped_local_features)
 
-        out = {}
-        out['pred_lines_heatmap'] = lines_heatmap
+        out = {'pred_lines_heatmap': lines_heatmap}
         return out
 
-class SetCriterion(nn.Module):
+class LinesDetectionLoss(nn.Module):
     """ This class computes the loss for DETR.
     The process happens in two steps:
         1) we compute hungarian assignment between ground truth boxes and the outputs of the model
@@ -224,7 +218,7 @@ class LinesHead(nn.Module):
 
 
 
-class LinesMetrics(nn.Module):
+class LinesDetectionMetrics(nn.Module):
     """
     计算lines相关的metrics，包括accuracy、precision、recall、F1等指标
     支持多进程聚合和整个数据集上的lines性能计算
@@ -531,7 +525,7 @@ class LinesMetrics(nn.Module):
             return {}
 
 
-def build_soccer_net_gsr_lines_head(config: dict):
+def build_lines_detection_head(config: dict):
     """
     构建SoccerNetGSR Lines任务的head
     """
@@ -542,7 +536,7 @@ def build_soccer_net_gsr_lines_head(config: dict):
     head_type = config.get("LINES_HEAD_TYPE", "default")  # 默认使用原来的LinesHead
     selected_layers = config["DPT_SELECTED_LAYERS"]  # DPT选择的层
     
-    head = SoccerNetGSR_LinesHead(
+    head = LinesDetection(
         backbone_num_channels=backbone_num_channels,
         num_lines=num_lines,
         backbone_type=backbone_type,
@@ -551,7 +545,7 @@ def build_soccer_net_gsr_lines_head(config: dict):
     )
     return head
 
-def build_lines_criterion(config: dict):
+def build_lines_detection_loss(config: dict):
     """
     构建lines criterion (loss function)
     """
@@ -559,14 +553,14 @@ def build_lines_criterion(config: dict):
         "loss_lines": config["GSR_LINES_LOSS_WEIGHT"]
     }
     
-    criterion = SetCriterion(weight_dict=weight_dict)
+    criterion = LinesDetectionLoss(weight_dict=weight_dict)
     return criterion
 
-def build_lines_metrics(config: dict):
+def build_lines_detection_metrics(config: dict):
     """
     构建lines metrics计算器
     """
-    metrics = LinesMetrics()
+    metrics = LinesDetectionMetrics()
     return metrics
 
 BatchNorm2d = nn.BatchNorm2d

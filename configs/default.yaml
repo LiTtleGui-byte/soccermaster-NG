@@ -45,8 +45,13 @@ SCHEDULER_GAMMA: 0.1          # learning rate decay factor
 
 # Dataset settings:
 DATA_ROOT: ./datasets/
-TASKS: [SoccerNetGSR_ReID, SoccerNetGSR_Detection, VideoCaption]
-DATASETS: [SoccerNetGSR_ReID, SoccerNetGSR_Detection, VideoCaption]
+# TASKS: [SoccerNetGSR_ReID, SoccerNetGSR_Detection, VideoCaption]
+# DATASETS: [SoccerNetGSR_ReID, SoccerNetGSR_Detection, VideoCaption]
+DATASETS_TO_HEADS:
+  SoccerNetGSR_ReID: [SoccerNetGSR_ReID]
+  SoccerNetGSR_Detection: [SoccerNetGSR_Detection, LinesDetection]
+  VideoCaption: [VideoCaption]
+
 DATASET_SPLITS: train
 
 SoccerNetGSR_SUB_DIR: SN-GSR-2024

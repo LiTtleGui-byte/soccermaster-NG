@@ -21,7 +21,7 @@ from torch.utils.data import DataLoader
 import torch.nn.functional as F
 from utils.box_ops import box_xywh_to_xyxy, box_xyxy_to_cxcywh, box_cxcywh_to_xywh, bbox_xywh_to_cxcywh
 from data.utils import Compose, ToTensor, RandomResize, Normalize, get_image_hw
-from data.SoccerNetGSR_ReID import role_mapping, jn_mapping, digit_head_mapping, digit_tail_mapping
+from data.soccernet_gsr_reid import role_mapping, jn_mapping, digit_head_mapping, digit_tail_mapping
 from data.pnlcalib_utils.utils_keypoints import KeypointsDB
 from data.pnlcalib_utils.utils_lines import LineKeypointsDB
 import copy

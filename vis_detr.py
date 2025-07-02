@@ -25,7 +25,7 @@ from models.multi_task import MultiTaskingSigLIP
 from models.deformable_detr.deformable_detr import PostProcess
 from utils.misc import set_seed
 from configs.util import load_super_config, update_config, yaml_to_dict
-from data.SoccerNetGSR_ReID import role_mapping, jn_mapping
+from data.soccernet_gsr_reid import role_mapping, jn_mapping
 
 
 def load_checkpoint(model, checkpoint_path, device):
