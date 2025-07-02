@@ -481,18 +481,6 @@ class LinesMetrics(nn.Module):
                 metrics['lines_recall'] = recalls.mean().item()
                 metrics['lines_f1'] = f1_scores.mean().item()
                 
-                # 计算中位数
-                metrics['lines_accuracy_median'] = accuracies.median().item()
-                metrics['lines_precision_median'] = precisions.median().item()
-                metrics['lines_recall_median'] = recalls.median().item()
-                metrics['lines_f1_median'] = f1_scores.median().item()
-                
-                # 计算标准差
-                metrics['lines_accuracy_std'] = accuracies.std().item()
-                metrics['lines_precision_std'] = precisions.std().item()
-                metrics['lines_recall_std'] = recalls.std().item()
-                metrics['lines_f1_std'] = f1_scores.std().item()
-                
                 # 计算高精度阈值下的性能
                 # 精度 > 0.8 的比例
                 high_acc_ratio = (accuracies > 0.8).float().mean().item()
@@ -507,8 +495,6 @@ class LinesMetrics(nn.Module):
             else:
                 # 没有有效的lines数据
                 for metric_name in ['lines_accuracy', 'lines_precision', 'lines_recall', 'lines_f1',
-                                  'lines_accuracy_median', 'lines_precision_median', 'lines_recall_median', 'lines_f1_median',
-                                  'lines_accuracy_std', 'lines_precision_std', 'lines_recall_std', 'lines_f1_std',
                                   'lines_high_accuracy_ratio', 'lines_high_f1_ratio']:
                     metrics[metric_name] = 0.0
                 metrics['lines_valid_samples'] = 0
