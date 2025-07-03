@@ -24,10 +24,11 @@ from transformers.utils import (
 
 from models.siglip2 import SiglipBackbone
 from models.deformable_detr.deformable_detr import build_deformable_detr_head
-from models.LinesDetection import build_lines_detection_head
-from models.KeypointsDetection import build_keypoints_detection_head
-from models.SoccerNetGSR_ReID import build_soccer_net_gsr_reid_head
-from models.VideoCaption import build_video_caption_head
+from models.lines_detection import build_lines_detection_head
+from models.keypoints_detection import build_keypoints_detection_head
+from models.soccer_net_gsr_reid import build_soccer_net_gsr_reid_head
+from models.video_caption import build_video_caption_head
+from models.camera import build_camera_head
 
 # def build_backbone(config: dict):
 #     # position_embedding = build_position_encoding(args)
@@ -66,6 +67,8 @@ class MultiTaskingSigLIP(nn.Module):
                 self.multi_task_head[head] = build_soccer_net_gsr_reid_head(config)
             elif head == "VideoCaption":
                 self.multi_task_head[head] = build_video_caption_head(config)
+            elif head == "CameraRegression":
+                self.multi_task_head[head] = build_camera_head(config)
             else:
                 raise ValueError(f"Head {head} is not supported.")
 

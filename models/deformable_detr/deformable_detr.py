@@ -26,8 +26,6 @@ from utils.misc import is_distributed, distributed_world_size
 from typing import Any, Dict, List, Tuple, Union, Generator
 from collections import defaultdict
 import copy
-from models.deformable_detr.vggt.head_act import activate_pose
-
 
 from models.deformable_detr.position_encoding import build_position_encoding
 from .matcher import build_matcher
@@ -35,6 +33,7 @@ from .segmentation import (DETRsegm, PostProcessPanoptic, PostProcessSegm,
                            dice_loss, sigmoid_focal_loss)
 from .deformable_transformer import build_deforamble_transformer
 from data.soccernet_gsr_reid import role_mapping, jn_mapping, digit_head_mapping, digit_tail_mapping
+
 
 def _get_clones(module, N):
     return nn.ModuleList([copy.deepcopy(module) for i in range(N)])
@@ -100,7 +99,6 @@ class DeformableDetrHead(nn.Module):
         self.with_box_refine = with_box_refine
         self.two_stage = two_stage
         self.backbone_type = backbone_type
-        self.camera_head = ConvCameraHead(input_channels=backbone_num_channels[0])
 
         prior_prob = 0.01
         bias_value = -math.log((1 - prior_prob) / prior_prob)
@@ -239,16 +237,7 @@ class DeformableDetrHead(nn.Module):
         outputs_digit_head = torch.stack(outputs_digit_head)
         outputs_digit_tail = torch.stack(outputs_digit_tail)
 
-        # Use ConvCameraHead with reshaped features
-        quaternion, translation, fov = self.camera_head(reshaped_local_features)
-
         out = {'pred_logits': outputs_class[-1], 'pred_boxes': outputs_coord[-1], 'pred_roles': outputs_role[-1], 'pred_jn_holistic': outputs_jn_holistic[-1], 'pred_digit_head': outputs_digit_head[-1], 'pred_digit_tail': outputs_digit_tail[-1]}
-        # Add camera predictions to output
-        out['pred_camera'] = {
-            'quaternion': quaternion,
-            'translation': translation,
-            'fov': fov
-        }
         if self.aux_loss:
             out['aux_outputs'] = self._set_aux_loss(outputs_class, outputs_coord, outputs_role, outputs_jn_holistic, outputs_digit_head, outputs_digit_tail)
 
@@ -598,50 +587,7 @@ class SetCriterion(nn.Module):
                 l_dict = {k + f'_enc': v for k, v in l_dict.items()}
                 losses.update(l_dict)
 
-        # Camera loss:
-        valid_camera_mask = torch.stack([t["valid_camera"] for t in targets], dim=0)
-        
-        if valid_camera_mask.any():
-            quaternion_gt = torch.stack([t["quaternion"] for t in targets], dim=0)[valid_camera_mask]
-            translation_gt = torch.stack([t["translation"] for t in targets], dim=0)[valid_camera_mask]
-            fov_hw_gt = torch.stack([t["fov_hw"] for t in targets], dim=0)[valid_camera_mask]
-            
-            quaternion_pred = outputs["pred_camera"]["quaternion"][valid_camera_mask]
-            translation_pred = outputs["pred_camera"]["translation"][valid_camera_mask]
-            fov_hw_pred = outputs["pred_camera"]["fov"][valid_camera_mask]
-            
-            # print('fov_hw_gt', fov_hw_gt)
-            # print('fov_hw_pred', fov_hw_pred)
-            
-            cur_pred_pose_enc = torch.cat([translation_pred, quaternion_pred, fov_hw_pred], dim=-1)
-            gt_pose_encoding = torch.cat([translation_gt, quaternion_gt, fov_hw_gt], dim=-1)
-            
-            loss_T, loss_R, loss_fl = camera_loss_single(cur_pred_pose_enc, gt_pose_encoding, loss_type="huber")
-            losses["loss_T"] = loss_T
-            losses["loss_R"] = loss_R
-            losses["loss_fl"] = loss_fl
-        else:
-            losses["loss_T"] = torch.tensor(0.0, device=next(iter(outputs.values())).device)
-            losses["loss_R"] = torch.tensor(0.0, device=next(iter(outputs.values())).device)
-            losses["loss_fl"] = torch.tensor(0.0, device=next(iter(outputs.values())).device)
-        
-        if torch.isnan(losses["loss_T"]):
-            print(f"Error: loss_T is nan!")
-            # print(f"translation_pred: {translation_pred}")
-            # print(f"translation_gt: {translation_gt}")
-            exit(0)
-        
-        if torch.isnan(losses["loss_R"]):
-            print(f"Error: loss_R is nan!")
-            # print(f"quaternion_pred: {quaternion_pred}")
-            # print(f"quaternion_gt: {quaternion_gt}")
-            exit(0)
-        
-        if torch.isnan(losses["loss_fl"]):
-            print(f"Error: loss_fl is nan!")
-            # print(f"fov_hw_pred: {fov_hw_pred}")
-            # print(f"fov_hw_gt: {fov_hw_gt}")
-            exit(0)
+
         
 
         
@@ -649,58 +595,7 @@ class SetCriterion(nn.Module):
 
         return losses, self.weight_dict, indices
 
-def camera_loss_single(cur_pred_pose_enc, gt_pose_encoding, loss_type="l1"):
-    if loss_type == "l1":
-        loss_T = (cur_pred_pose_enc[..., :3] - gt_pose_encoding[..., :3]).abs()
-        loss_R = (cur_pred_pose_enc[..., 3:7] - gt_pose_encoding[..., 3:7]).abs()
-        loss_fl = (cur_pred_pose_enc[..., 7:] - gt_pose_encoding[..., 7:]).abs()
-    elif loss_type == "l2":
-        loss_T = (cur_pred_pose_enc[..., :3] - gt_pose_encoding[..., :3]).norm(dim=-1, keepdim=True)
-        loss_R = (cur_pred_pose_enc[..., 3:7] - gt_pose_encoding[..., 3:7]).norm(dim=-1)
-        loss_fl = (cur_pred_pose_enc[..., 7:] - gt_pose_encoding[..., 7:]).norm(dim=-1)
-    elif loss_type == "huber":
-        loss_T = F.smooth_l1_loss(cur_pred_pose_enc[..., :3], gt_pose_encoding[..., :3], reduction='none')
-        loss_R = F.smooth_l1_loss(cur_pred_pose_enc[..., 3:7], gt_pose_encoding[..., 3:7], reduction='none')
-        loss_fl = F.smooth_l1_loss(cur_pred_pose_enc[..., 7:], gt_pose_encoding[..., 7:], reduction='none')
-    else:
-        raise ValueError(f"Unknown loss type: {loss_type}")
 
-    loss_T = check_and_fix_inf_nan(loss_T, "loss_T")
-    loss_R = check_and_fix_inf_nan(loss_R, "loss_R")
-    loss_fl = check_and_fix_inf_nan(loss_fl, "loss_fl")
-
-    loss_T = loss_T.clamp(max=100) # TODO: remove this
-    loss_T = loss_T.mean()
-    loss_R = loss_R.mean()
-    loss_fl = loss_fl.mean()
-
-    return loss_T, loss_R, loss_fl
-
-def check_and_fix_inf_nan(loss_tensor, loss_name, hard_max = 100):
-    """
-    Checks if 'loss_tensor' contains inf or nan. If it does, replace those 
-    values with zero and print the name of the loss tensor.
-
-    Args:
-        loss_tensor (torch.Tensor): The loss tensor to check.
-        loss_name (str): Name of the loss (for diagnostic prints).
-
-    Returns:
-        torch.Tensor: The checked and fixed loss tensor, with inf/nan replaced by 0.
-    """
-        
-    if torch.isnan(loss_tensor).any() or torch.isinf(loss_tensor).any():
-        for _ in range(10):
-            print(f"{loss_name} has inf or nan. Setting those values to 0.")
-        loss_tensor = torch.where(
-            torch.isnan(loss_tensor) | torch.isinf(loss_tensor),
-            torch.tensor(0.0, device=loss_tensor.device),
-            loss_tensor
-        )
-
-    loss_tensor = torch.clamp(loss_tensor, min=-hard_max, max=hard_max)
-
-    return loss_tensor
 
 class PostProcess(nn.Module):
     """ This module converts the model's output into the format expected by the coco api"""
@@ -893,9 +788,6 @@ def cvt_config_to_args(config: dict):
     detr_args.set_cost_class = config["DETR_SET_COST_CLASS"]
     detr_args.set_cost_bbox = config["DETR_SET_COST_BBOX"]
     detr_args.set_cost_giou = config["DETR_SET_COST_GIOU"]
-    detr_args.gsr_camera_t_loss_weight = config["GSR_CAMERA_T_LOSS_WEIGHT"]
-    detr_args.gsr_camera_r_loss_weight = config["GSR_CAMERA_R_LOSS_WEIGHT"]
-    detr_args.gsr_camera_fl_loss_weight = config["GSR_CAMERA_FL_LOSS_WEIGHT"]
     detr_args.backbone_strides = [16]
     detr_args.backbone_num_channels = [768]
     
@@ -929,9 +821,6 @@ def build_deformable_detr_criterion(config: dict):
     weight_dict['loss_jn_holistic'] = args.jn_loss_coef
     weight_dict['loss_digit_head'] = args.digit_head_loss_coef
     weight_dict['loss_digit_tail'] = args.digit_tail_loss_coef
-    weight_dict["loss_T"] = args.gsr_camera_t_loss_weight
-    weight_dict["loss_R"] = args.gsr_camera_r_loss_weight
-    weight_dict["loss_fl"] = args.gsr_camera_fl_loss_weight
     
     assert args.masks is False, "MASKS is not supported yet."
     if args.masks:
@@ -977,144 +866,6 @@ def tensor_dict_index_select(tensor_dict, index, dim=0):
             raise ValueError(f"Unsupported type {type(tensor_dict[k])} in the tensor dict index select.")
     return dict(res_tensor_dict)
 
-class ConvCameraHead(nn.Module):
-    def __init__(
-        self, 
-        input_channels=768,
-        trans_act: str = "linear",
-        quat_act: str = "linear",
-        # fl_act: str = "relu",  # Field of view activations: ensures FOV values are positive.
-        fl_act: str = "linear",  # Field of view activations: ensures FOV values are positive.
-        ):
-        super(ConvCameraHead, self).__init__()
-        
-        self.input_channels = input_channels
-        self.trans_act = trans_act
-        self.quat_act = quat_act
-        self.fl_act = fl_act
-        
-        # Define convolutional layers similar to PoseCNN
-        self.convs = {}
-        self.convs[0] = nn.Conv2d(input_channels, 256, 7, 2, 3)
-        self.convs[1] = nn.Conv2d(256, 256, 5, 2, 2)
-        self.convs[2] = nn.Conv2d(256, 256, 3, 2, 1)
-        self.convs[3] = nn.Conv2d(256, 256, 3, 2, 1)
-        self.convs[4] = nn.Conv2d(256, 256, 3, 2, 1)
-        
-        # Final prediction layer: 4 (quaternion) + 3 (translation) + 2 (fov) = 9
-        self.camera_conv = nn.Conv2d(256, 9, 1)
-        
-        self.num_convs = len(self.convs)
-        self.relu = nn.ReLU(True)
-        
-        # Convert to ModuleList for proper parameter registration
-        self.net = nn.ModuleList(list(self.convs.values()))
-        
-        # Initialize weights
-        self._init_weights()
-    
-    def _init_weights(self):
-        """Initialize weights for the camera head"""
-        for m in self.modules():
-            if isinstance(m, nn.Conv2d):
-                nn.init.kaiming_normal_(m.weight, mode='fan_out', nonlinearity='relu')
-                if m.bias is not None:
-                    nn.init.constant_(m.bias, 0)
-    
-    def forward(self, x):
-        """
-        Forward pass for camera head
-        Args:
-            x: input features of shape (N, C, H, W)
-        Returns:
-            quaternion: (N, 4) - camera rotation as quaternion
-            translation: (N, 3) - camera translation
-            fov: (N, 2) - field of view parameters
-        """
-        # Apply convolutional layers with ReLU activation
-        for i in range(self.num_convs):
-            x = self.convs[i](x)
-            x = self.relu(x)
-        
-        # Final prediction layer
-        x = self.camera_conv(x)
-        
-        # Global average pooling to get a single prediction per image
-        x = x.mean(3).mean(2)  # Shape: (N, 9)
-        
-        x = activate_pose(x, self.trans_act, self.quat_act, self.fl_act)
-        
-        # Split the output into quaternion, translation, and fov
-        quaternion = x[:, :4]  # First 4 values
-        translation = x[:, 4:7]  # Next 3 values  
-        fov = x[:, 7:9]  # Last 2 values
-        
-        # Normalize quaternion to unit length
-        quaternion = F.normalize(quaternion, p=2, dim=1)
-        
-        return quaternion, translation, fov
-
-# class CameraHead(nn.Module):
-#     """Simple camera head that works on flattened features"""
-#     def __init__(self, dim_in=768):
-#         super(CameraHead, self).__init__()
-        
-#         self.dim_in = dim_in
-        
-#         # Simple MLP for camera prediction
-#         self.camera_mlp = nn.Sequential(
-#             nn.Linear(dim_in, 512),
-#             nn.ReLU(),
-#             nn.Dropout(0.1),
-#             nn.Linear(512, 256),
-#             nn.ReLU(),
-#             nn.Dropout(0.1),
-#             nn.Linear(256, 9)  # 4 quaternion + 3 translation + 2 fov
-#         )
-        
-#         self._init_weights()
-    
-#     def _init_weights(self):
-#         """Initialize weights for the camera head"""
-#         for m in self.modules():
-#             if isinstance(m, nn.Linear):
-#                 nn.init.xavier_uniform_(m.weight)
-#                 if m.bias is not None:
-#                     nn.init.constant_(m.bias, 0)
-    
-#     def forward(self, local_features):
-#         """
-#         Forward pass for camera head
-#         Args:
-#             local_features: input features of shape (N, L, D) where L is sequence length, D is feature dim
-#         Returns:
-#             camera_tokens: (N, 9) - concatenated camera parameters
-#         """
-#         # Global average pooling over the spatial dimension
-#         global_features = local_features.mean(dim=1)  # Shape: (N, D)
-        
-#         # Predict camera parameters
-#         camera_params = self.camera_mlp(global_features)  # Shape: (N, 9)
-        
-#         # Split into components
-#         quaternion = camera_params[:, :4]
-#         translation = camera_params[:, 4:7] 
-#         fov = camera_params[:, 7:9]
-        
-#         # Normalize quaternion
-#         quaternion = F.normalize(quaternion, p=2, dim=1)
-        
-#         # Scale translation
-#         translation = 0.01 * translation
-        
-#         # Apply sigmoid to fov
-#         fov = torch.sigmoid(fov)
-        
-#         # Concatenate all camera parameters
-#         camera_tokens = torch.cat([quaternion, translation, fov], dim=1)
-        
-#         return camera_tokens
-
 class DetectionMetrics(nn.Module):
     """
     计算detection常见的metrics，包括mAP、IoU、precision、recall等指标
@@ -1127,27 +878,7 @@ class DetectionMetrics(nn.Module):
         self.score_threshold = score_threshold
         self.postprocess = PostProcess()
         
-        # 为每个IoU阈值收集TP/FP/scores和GT数量
-        self.tp_fp_scores_per_thresh = {thresh: {'tp': [], 'fp': [], 'scores': []} for thresh in self.iou_thresholds}
-        self.total_gt_count = 0
-        
-        # 为attributes收集匹配结果（只在IoU@0.5时收集）
-        self.attribute_matches = {
-            'role': {'correct': [], 'total': []},
-            'jersey': {'correct': [], 'total': []}, 
-            'digit_head': {'correct': [], 'total': []},
-            'digit_tail': {'correct': [], 'total': []}
-        }
-        
-        # 为相机参数收集数据
-        self.camera_metrics_data = {
-            'translation_errors': [],  # 欧氏距离误差
-            'rotation_errors': [],     # 角度误差(degrees)
-            'fov_errors': [],         # FOV误差
-            'valid_count': 0          # 有效样本数量
-        }
-        
-
+        self.reset()
         
     def reset(self):
         """重置收集的数据"""
@@ -1159,13 +890,6 @@ class DetectionMetrics(nn.Module):
             'digit_head': {'correct': [], 'total': []},
             'digit_tail': {'correct': [], 'total': []}
         }
-        self.camera_metrics_data = {
-            'translation_errors': [],
-            'rotation_errors': [],
-            'fov_errors': [],
-            'valid_count': 0
-        }
-
         
     def box_iou(self, boxes1, boxes2):
         """
@@ -1203,75 +927,6 @@ class DetectionMetrics(nn.Module):
         i = torch.where(mrec[1:] != mrec[:-1])[0]
         ap = torch.sum((mrec[i + 1] - mrec[i]) * mpre[i + 1])
         return ap
-
-    def quaternion_angular_difference(self, q1, q2):
-        """
-        计算两个四元数之间的角度差异（以度为单位）
-        
-        Args:
-            q1, q2: 四元数 [N, 4]，格式为 [x, y, z, w]
-            
-        Returns:
-            角度差异（度）[N]
-        """
-        # 确保四元数是单位四元数
-        q1 = F.normalize(q1, p=2, dim=-1)
-        q2 = F.normalize(q2, p=2, dim=-1)
-        
-        # 计算四元数点积的绝对值
-        dot_product = torch.abs(torch.sum(q1 * q2, dim=-1))
-        
-        # 限制在有效范围内以避免数值误差
-        dot_product = torch.clamp(dot_product, 0.0, 1.0)
-        
-        # 计算角度差异（弧度）
-        angle_rad = 2 * torch.acos(dot_product)
-        
-        # 转换为度
-        angle_deg = angle_rad * 180.0 / math.pi
-        
-        return angle_deg
-
-    def compute_camera_metrics(self, pred_camera, targets):
-        """
-        计算相机参数的metrics
-        
-        Args:
-            pred_camera: 预测的相机参数字典，包含 'quaternion', 'translation', 'fov'
-            targets: 目标数据列表
-        """
-        # 获取有效相机mask
-        valid_camera_mask = torch.stack([t.get("valid_camera", torch.tensor(False)) for t in targets], dim=0)
-        
-        if not valid_camera_mask.any():
-            return  # 没有有效的相机数据
-        
-        # 获取GT相机参数
-        quaternion_gt = torch.stack([t["quaternion"] for t in targets], dim=0)[valid_camera_mask]
-        translation_gt = torch.stack([t["translation"] for t in targets], dim=0)[valid_camera_mask]
-        fov_hw_gt = torch.stack([t["fov_hw"] for t in targets], dim=0)[valid_camera_mask]
-        
-        # 获取预测相机参数
-        quaternion_pred = pred_camera["quaternion"][valid_camera_mask]
-        translation_pred = pred_camera["translation"][valid_camera_mask]
-        fov_hw_pred = pred_camera["fov"][valid_camera_mask]
-        
-        # 计算平移误差（欧氏距离）
-        translation_errors = torch.norm(translation_pred - translation_gt, dim=-1)  # [N]
-        
-        # 计算旋转误差（角度差异）
-        rotation_errors = self.quaternion_angular_difference(quaternion_pred, quaternion_gt)  # [N]
-        
-        # 计算FOV误差（L2距离）
-        fov_errors = torch.norm(fov_hw_pred - fov_hw_gt, dim=-1)  # [N]
-        
-        # 转移到CPU并添加到收集器
-        self.camera_metrics_data['translation_errors'].extend(translation_errors.cpu().tolist())
-        self.camera_metrics_data['rotation_errors'].extend(rotation_errors.cpu().tolist())
-        self.camera_metrics_data['fov_errors'].extend(fov_errors.cpu().tolist())
-        self.camera_metrics_data['valid_count'] += len(translation_errors)
-
-
         
     def update(self, outputs, targets, target_sizes):
         """
@@ -1375,12 +1030,6 @@ class DetectionMetrics(nn.Module):
         # 统计GT数量
         batch_gt_count = sum(len(target['labels']) for target in targets)
         self.total_gt_count += batch_gt_count
-        
-        # 计算相机metrics（如果有相机预测）
-        if 'pred_camera' in outputs:
-            self.compute_camera_metrics(outputs['pred_camera'], targets)
-        
-
             
     def _compute_attribute_accuracy(self, pred, target, pred_idx, gt_idx):
         """
@@ -1428,13 +1077,13 @@ class DetectionMetrics(nn.Module):
 
     def gather_tp_fp_scores(self, accelerator):
         """
-        在所有进程间聚合TP/FP/scores结果、attribute匹配结果、相机metrics数据和keypoints metrics数据
+        在所有进程间聚合TP/FP/scores结果和attribute匹配结果
         
         Args:
             accelerator: Accelerator实例
             
         Returns:
-            gathered_tp_fp_scores_per_thresh, gathered_total_gt_count, gathered_attribute_matches, gathered_camera_metrics, gathered_keypoints_metrics
+            gathered_tp_fp_scores_per_thresh, gathered_total_gt_count, gathered_attribute_matches
         """
         # 聚合每个IoU阈值的TP/FP/scores
         gathered_tp_fp_scores = {}
@@ -1456,17 +1105,9 @@ class DetectionMetrics(nn.Module):
             for key in key_list_attr:
                 gathered_attribute_matches[attr_name][key] = accelerator.gather_for_metrics(self.attribute_matches[attr_name][key])
         
-        # 聚合相机metrics数据
-        camera_key_list = ['translation_errors', 'rotation_errors', 'fov_errors']
-        gathered_camera_metrics = {}
-        for key in camera_key_list:
-            gathered_camera_metrics[key] = accelerator.gather_for_metrics(self.camera_metrics_data[key])
-        gathered_camera_metrics['valid_count'] = accelerator.gather_for_metrics([self.camera_metrics_data['valid_count']])
-        
-        
-        return gathered_tp_fp_scores, gathered_gt_count, gathered_attribute_matches, gathered_camera_metrics
+        return gathered_tp_fp_scores, gathered_gt_count, gathered_attribute_matches
 
-    def compute_metrics_from_gathered_tp_fp(self, gathered_tp_fp_scores, gathered_gt_count, gathered_attribute_matches=None, gathered_camera_metrics=None):
+    def compute_metrics_from_gathered_tp_fp(self, gathered_tp_fp_scores, gathered_gt_count, gathered_attribute_matches):
         """
         从聚合的TP/FP/scores数据计算metrics
         
@@ -1474,7 +1115,6 @@ class DetectionMetrics(nn.Module):
             gathered_tp_fp_scores: 聚合的TP/FP/scores数据
             gathered_gt_count: 聚合的GT总数
             gathered_attribute_matches: 聚合的attribute匹配结果
-            gathered_camera_metrics: 聚合的相机metrics数据
             
         Returns:
             dict: 包含各种metrics的字典
@@ -1500,10 +1140,6 @@ class DetectionMetrics(nn.Module):
             thresh_data = gathered_tp_fp_scores[iou_thresh]
             
             # 展平所有进程的数据
-            all_tp = []
-            all_fp = []
-            all_scores = []
-            
             all_tp = flatten_data(thresh_data['tp'])
             all_fp = flatten_data(thresh_data['fp'])
             all_scores = flatten_data(thresh_data['scores'])
@@ -1558,75 +1194,23 @@ class DetectionMetrics(nn.Module):
         metrics['mAP@0.75'] = metrics.get('AP@0.75', 0.0)
         
         # 计算attribute准确度
-        if gathered_attribute_matches is not None:
-            for attr_name in ['role', 'jersey', 'digit_head', 'digit_tail']:
-                attr_data = gathered_attribute_matches[attr_name]
-                
-                # 展平所有进程的数据
-                all_correct = flatten_data(attr_data['correct'])
-                all_total = flatten_data(attr_data['total'])
-                
-                # 计算准确度
-                if len(all_total) > 0:
-                    accuracy = sum(all_correct) / len(all_total)
-                    metrics[f'{attr_name}_accuracy'] = accuracy
-                    metrics[f'{attr_name}_matched_count'] = len(all_total)
-                else:
-                    metrics[f'{attr_name}_accuracy'] = 0.0
-                    metrics[f'{attr_name}_matched_count'] = 0
-        
-        # 计算相机metrics
-        if gathered_camera_metrics is not None:
-            # 展平所有进程的相机数据
-            all_translation_errors = flatten_data(gathered_camera_metrics['translation_errors'])
-            all_rotation_errors = flatten_data(gathered_camera_metrics['rotation_errors'])
-            all_fov_errors = flatten_data(gathered_camera_metrics['fov_errors'])
+        for attr_name in ['role', 'jersey', 'digit_head', 'digit_tail']:
+            attr_data = gathered_attribute_matches[attr_name]
             
-            # 计算总的有效样本数
-            total_valid_count = sum(gathered_camera_metrics['valid_count'])
+            # 展平所有进程的数据
+            all_correct = flatten_data(attr_data['correct'])
+            all_total = flatten_data(attr_data['total'])
             
-            if total_valid_count > 0:
-                # 计算平移误差统计
-                translation_errors = torch.tensor(all_translation_errors, dtype=torch.float32)
-                metrics['camera_translation_mae'] = translation_errors.mean().item()  # 平均绝对误差
-                metrics['camera_translation_rmse'] = torch.sqrt(translation_errors.pow(2).mean()).item()  # 均方根误差
-                metrics['camera_translation_median'] = translation_errors.median().item()  # 中位数误差
-                
-                # 计算旋转误差统计
-                rotation_errors = torch.tensor(all_rotation_errors, dtype=torch.float32)
-                metrics['camera_rotation_mae'] = rotation_errors.mean().item()  # 平均绝对角度误差(度)
-                metrics['camera_rotation_rmse'] = torch.sqrt(rotation_errors.pow(2).mean()).item()  # 均方根角度误差
-                metrics['camera_rotation_median'] = rotation_errors.median().item()  # 中位数角度误差
-                
-                # 计算FOV误差统计
-                fov_errors = torch.tensor(all_fov_errors, dtype=torch.float32)
-                metrics['camera_fov_mae'] = fov_errors.mean().item()  # 平均绝对FOV误差
-                metrics['camera_fov_rmse'] = torch.sqrt(fov_errors.pow(2).mean()).item()  # 均方根FOV误差
-                metrics['camera_fov_median'] = fov_errors.median().item()  # 中位数FOV误差
-                
-                # 记录样本数量
-                metrics['camera_valid_samples'] = total_valid_count
-                
-                # 计算精度阈值内的准确度
-                # 平移误差 < 1.0 的比例
-                translation_acc_1 = (translation_errors < 1.0).float().mean().item()
-                metrics['camera_translation_acc@1.0'] = translation_acc_1
-                
-                # 旋转误差 < 5度的比例
-                rotation_acc_5 = (rotation_errors < 5.0).float().mean().item()
-                metrics['camera_rotation_acc@5deg'] = rotation_acc_5
-                
-                # 旋转误差 < 10度的比例
-                rotation_acc_10 = (rotation_errors < 10.0).float().mean().item()
-                metrics['camera_rotation_acc@10deg'] = rotation_acc_10
+            # 计算准确度
+            if len(all_total) > 0:
+                accuracy = sum(all_correct) / len(all_total)
+                metrics[f'{attr_name}_accuracy'] = accuracy
+                metrics[f'{attr_name}_matched_count'] = len(all_total)
             else:
-                # 没有有效的相机数据
-                for metric_name in ['camera_translation_mae', 'camera_translation_rmse', 'camera_translation_median',
-                                  'camera_rotation_mae', 'camera_rotation_rmse', 'camera_rotation_median', 
-                                  'camera_fov_mae', 'camera_fov_rmse', 'camera_fov_median',
-                                  'camera_translation_acc@1.0', 'camera_rotation_acc@5deg', 'camera_rotation_acc@10deg']:
-                    metrics[metric_name] = 0.0
-                metrics['camera_valid_samples'] = 0
+                metrics[f'{attr_name}_accuracy'] = 0.0
+                metrics[f'{attr_name}_matched_count'] = 0
+        
+
         
         return metrics
 
@@ -1650,12 +1234,12 @@ class DetectionMetrics(nn.Module):
         Returns:
             dict: 包含各种metrics的字典
         """
-        # 聚合所有进程的TP/FP/scores结果、attribute匹配结果、相机metrics数据
-        gathered_tp_fp_scores, gathered_gt_count, gathered_attribute_matches, gathered_camera_metrics = self.gather_tp_fp_scores(accelerator)
+        # 聚合所有进程的TP/FP/scores结果和attribute匹配结果
+        gathered_tp_fp_scores, gathered_gt_count, gathered_attribute_matches = self.gather_tp_fp_scores(accelerator)
         
         # 只在主进程计算metrics
         if accelerator.is_main_process:
-            return self.compute_metrics_from_gathered_tp_fp(gathered_tp_fp_scores, gathered_gt_count, gathered_attribute_matches, gathered_camera_metrics)
+            return self.compute_metrics_from_gathered_tp_fp(gathered_tp_fp_scores, gathered_gt_count, gathered_attribute_matches)
         else:
             return {}
 

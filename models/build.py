@@ -1,8 +1,9 @@
 from models.deformable_detr.deformable_detr import build_deformable_detr_criterion, build_detection_metrics
-from models.LinesDetection import build_lines_detection_loss, build_lines_detection_metrics
-from models.KeypointsDetection import build_keypoints_detection_loss, build_keypoints_detection_metrics
-from models.SoccerNetGSR_ReID import build_soccer_net_gsr_reid_loss
-from models.VideoCaption import build_video_caption_loss
+from models.lines_detection import build_lines_detection_loss, build_lines_detection_metrics
+from models.keypoints_detection import build_keypoints_detection_loss, build_keypoints_detection_metrics
+from models.soccer_net_gsr_reid import build_soccer_net_gsr_reid_loss
+from models.video_caption import build_video_caption_loss
+from models.camera import build_camera_loss, build_camera_metrics
 
 def build_loss_fn(config: dict):
     loss_fn_dict = {}
@@ -25,6 +26,8 @@ def build_loss_fn(config: dict):
             loss_fn_dict[head] = build_soccer_net_gsr_reid_loss(config=config)
         elif head == "VideoCaption":
             loss_fn_dict[head] = build_video_caption_loss(config=config)
+        elif head == "CameraRegression":
+            loss_fn_dict[head] = build_camera_loss(config=config)
         else:
             raise ValueError(f"Head {head} is not supported.")
 
@@ -54,6 +57,8 @@ def build_metrics_fn(config: dict):
             metrics_fn_dict[head] = None
         elif head == "VideoCaption":
             metrics_fn_dict[head] = None
+        elif head == "CameraRegression":
+            metrics_fn_dict[head] = build_camera_metrics(config=config)
         else:
             raise ValueError(f"Head {head} is not supported.")
 

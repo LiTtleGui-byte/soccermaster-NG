@@ -189,10 +189,10 @@ class KeypointsDetectionMetrics(nn.Module):
     def reset(self):
         """重置收集的数据"""
         self.keypoints_metrics_data = {
-            'accuracies': [],     # 准确度
-            'precisions': [],     # 精确度
-            'recalls': [],        # 召回率
-            'f1_scores': [],      # F1分数
+            'accuracy': [],     # 准确度
+            'precision': [],     # 精确度
+            'recall': [],        # 召回率
+            'f1': [],      # F1分数
             'valid_count': 0      # 有效样本数量
         }
 
@@ -464,10 +464,10 @@ class KeypointsDetectionMetrics(nn.Module):
         
         # 收集metrics
         for accuracy, precision, recall, f1 in batch_metrics:
-            self.keypoints_metrics_data['accuracies'].append(accuracy)
-            self.keypoints_metrics_data['precisions'].append(precision)
-            self.keypoints_metrics_data['recalls'].append(recall)
-            self.keypoints_metrics_data['f1_scores'].append(f1)
+            self.keypoints_metrics_data['accuracy'].append(accuracy)
+            self.keypoints_metrics_data['precision'].append(precision)
+            self.keypoints_metrics_data['recall'].append(recall)
+            self.keypoints_metrics_data['f1'].append(f1)
         
         self.keypoints_metrics_data['valid_count'] += len(batch_metrics)
         
@@ -488,49 +488,34 @@ class KeypointsDetectionMetrics(nn.Module):
         
         for key, values in self.keypoints_metrics_data.items():
             if key == 'valid_count':
-                gathered_data[key] = accelerator.gather(torch.tensor(values, device=accelerator.device))
+                gathered_data[key] = accelerator.gather_for_metrics([values])
             else:
-                if values:  # 检查列表是否为空
-                    tensor_values = torch.tensor(values, device=accelerator.device)
-                    gathered_data[key] = accelerator.gather(tensor_values)
-                else:
-                    gathered_data[key] = torch.tensor([], device=accelerator.device)
+                gathered_data[key] = accelerator.gather_for_metrics(values)
         
         return gathered_data
 
     def compute_metrics_from_gathered_data(self, gathered_keypoints_metrics):
         """从聚合的数据计算最终指标"""
         def flatten_data(data):
-            if isinstance(data, torch.Tensor):
-                return data.flatten().tolist()
-            elif isinstance(data, list):
-                flattened = []
+            if isinstance(data, list):
+                result = []
                 for item in data:
-                    if isinstance(item, torch.Tensor):
-                        flattened.extend(item.flatten().tolist())
-                    elif isinstance(item, list):
-                        flattened.extend(item)
+                    if isinstance(item, list):
+                        result.extend(item)
                     else:
-                        flattened.append(item)
-                return flattened
+                        result.append(item)
+                return result
             else:
-                return [data]
+                return data if isinstance(data, list) else [data]
         
         # 计算keypoints指标
         keypoints_results = {}
-        if gathered_keypoints_metrics:
-            for metric_name in ['accuracies', 'precisions', 'recalls', 'f1_scores']:
-                if metric_name in gathered_keypoints_metrics:
-                    values = flatten_data(gathered_keypoints_metrics[metric_name])
-                    if values:
-                        keypoints_results[f'keypoints_{metric_name[:-1]}'] = sum(values) / len(values)
-                    else:
-                        keypoints_results[f'keypoints_{metric_name[:-1]}'] = 0.0
-                        
-            # 添加有效样本数量
-            if 'valid_count' in gathered_keypoints_metrics:
-                valid_counts = flatten_data(gathered_keypoints_metrics['valid_count'])
-                keypoints_results['keypoints_valid_samples'] = sum(valid_counts)
+        for metric_name in ['accuracy', 'precision', 'recall', 'f1']:
+            values = flatten_data(gathered_keypoints_metrics[metric_name])
+            keypoints_results[f'keypoints_{metric_name}'] = sum(values) / len(values)
+                    
+        # 添加有效样本数量
+        keypoints_results['keypoints_valid_samples'] = sum(gathered_keypoints_metrics['valid_count'])
         
         return keypoints_results
 

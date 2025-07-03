@@ -107,7 +107,8 @@ def train_engine(config: dict):
             'SoccerNetGSR_ReID': config["LR_SOCCERNET_GSR_REID"],
             'SoccerNetGSR_Detection': config["LR_SOCCERNET_GSR_DETECTION"],
             'LinesDetection': config["LR_LINES_DETECTION"],
-            'KeypointsDetection': config["LR_KEYPOINTS_DETECTION"]
+            'KeypointsDetection': config["LR_KEYPOINTS_DETECTION"],
+            'CameraRegression': config["LR_CAMERA_REGRESSION"]
         }
         
         for head_name, head in original_model.multi_task_head.items():
@@ -322,7 +323,6 @@ def evaluate_one_epoch(
     eval_weighted_losses = {head: MetricsTracker() for head in all_heads}
     eval_unweighted_losses = {head: MetricsTracker() for head in all_heads}
     eval_log_only_losses = {head: MetricsTracker() for head in all_heads}
-    eval_metrics = {head: MetricsTracker() for head in all_heads}
     
     head_sample_counts = {head: 0 for head in all_heads}
     
@@ -377,7 +377,7 @@ def evaluate_one_epoch(
                                     # Lines任务不需要target_sizes，直接使用新的update方法
                                     metrics_fn_dict[head_name].update(outputs[head_name], annotations)
                                 
-                        elif head_name in ["SoccerNetGSR_ReID", "VideoCaption", "LinesDetection", "KeypointsDetection"]:
+                        elif head_name in ["SoccerNetGSR_ReID", "VideoCaption", "LinesDetection", "KeypointsDetection", "CameraRegression"]:
                             loss_task_raw, weight_dict = loss_output
                             
                             # Compute weighted and unweighted losses
@@ -392,7 +392,7 @@ def evaluate_one_epoch(
                             
                             # Compute metrics if metrics function is available
                             if metrics_fn_dict[head_name] is not None:
-                                # ReID and VideoCaption metrics can be implemented later
+                                # ReID, VideoCaption, Camera metrics can be implemented later
                                 metrics_fn_dict[head_name].update(outputs[head_name], annotations)
                                 
                         else:
@@ -428,7 +428,6 @@ def evaluate_one_epoch(
             head_weighted_avg = eval_weighted_losses[head_name].get_averages()
             head_unweighted_avg = eval_unweighted_losses[head_name].get_averages()
             head_log_only_avg = eval_log_only_losses[head_name].get_averages()
-            head_metrics_avg = eval_metrics[head_name].get_averages()
             
             # Calculate head total losses
             head_weighted_total = sum(head_weighted_avg.values()) if head_weighted_avg else 0.0
@@ -455,12 +454,8 @@ def evaluate_one_epoch(
                     logger.log_scalar(f"eval_unweighted_{head_name}/{metric_name}", value, epoch)
             
             # Log head-specific detection/evaluation metrics (mAP, precision, recall等)
-            # 使用最终计算的metrics而不是平均的metrics
-            if head_name in final_metrics_results and final_metrics_results[head_name]:
+            if head_name in final_metrics_results:
                 for metric_name, value in final_metrics_results[head_name].items():
-                    logger.log_scalar(f"eval_metrics_{head_name}/{metric_name}", value, epoch)
-            elif head_metrics_avg:
-                for metric_name, value in head_metrics_avg.items():
                     logger.log_scalar(f"eval_metrics_{head_name}/{metric_name}", value, epoch)
         
         # Log overall metrics
@@ -599,7 +594,7 @@ def train_one_epoch(
                     loss_output = loss_outputs[head_name]
                     if head_name in ["SoccerNetGSR_Detection"]:
                         loss_task_raw, weight_dict, _ = loss_output
-                    elif head_name in ["SoccerNetGSR_ReID", "VideoCaption", "KeypointsDetection", "LinesDetection"]:
+                    elif head_name in ["SoccerNetGSR_ReID", "VideoCaption", "KeypointsDetection", "LinesDetection", "CameraRegression"]:
                         loss_task_raw, weight_dict = loss_output
                     else:
                         raise ValueError(f"Head {head_name} not supported.")
