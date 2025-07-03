@@ -29,9 +29,10 @@ PREFETCH_FACTOR: 6
 LR: 1.0e-4
 # Different learning rates for different components:
 LR_BACKBONE: 1.0e-4
-LR_SOCCERNET_GSR_REID: 1.0e-3
-LR_SOCCERNET_GSR_DETECTION: 1.0e-3
+LR_SOCCERNET_GSR_REID: 1.0e-4
+LR_SOCCERNET_GSR_DETECTION: 1.0e-4
 LR_LINES_DETECTION: 5.0e-3
+LR_KEYPOINTS_DETECTION: 1.0e-4
 # LR_BACKBONE_NAMES: [backbone.0]
 # LR_BACKBONE_SCALE: 0.1
 # LR_LINEAR_PROJ_NAMES: [reference_points, sampling_offsets]
@@ -54,7 +55,7 @@ DATA_ROOT: ./datasets/
 # DATASETS: [SoccerNetGSR_ReID, SoccerNetGSR_Detection, VideoCaption]
 DATASETS_TO_HEADS:
   SoccerNetGSR_ReID: [SoccerNetGSR_ReID]
-  SoccerNetGSR_Detection: [SoccerNetGSR_Detection, LinesDetection]
+  SoccerNetGSR_Detection: [SoccerNetGSR_Detection, LinesDetection, KeypointsDetection]
   # VideoCaption: [VideoCaption]
 
 DATASET_SPLITS: train

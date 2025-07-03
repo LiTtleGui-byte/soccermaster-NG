@@ -26,3 +26,4 @@ memory_demo.py
 .vscode
 
 models/bak
+.cursorignore

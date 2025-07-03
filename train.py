@@ -106,7 +106,8 @@ def train_engine(config: dict):
         head_lr_mapping = {
             'SoccerNetGSR_ReID': config["LR_SOCCERNET_GSR_REID"],
             'SoccerNetGSR_Detection': config["LR_SOCCERNET_GSR_DETECTION"],
-            'LinesDetection': config["LR_LINES_DETECTION"]
+            'LinesDetection': config["LR_LINES_DETECTION"],
+            'KeypointsDetection': config["LR_KEYPOINTS_DETECTION"]
         }
         
         for head_name, head in original_model.multi_task_head.items():
@@ -348,7 +349,7 @@ def evaluate_one_epoch(
                         loss_output = loss_fn_dict[head_name](outputs[head_name], annotations)
                         
                         # Parse loss output based on task type
-                        if head_name in ["SoccerNetGSR_Detection", "LinesDetection"]:
+                        if head_name in ["SoccerNetGSR_Detection", "LinesDetection", "KeypointsDetection"]:
                             loss_task_raw, weight_dict, _ = loss_output
                             
                             # Compute weighted and unweighted losses
@@ -372,7 +373,7 @@ def evaluate_one_epoch(
                                     
                                     # 使用新的update方法收集数据
                                     metrics_fn_dict[head_name].update(outputs[head_name], annotations, target_sizes)
-                                elif head_name == "LinesDetection":
+                                elif head_name in ["LinesDetection", "KeypointsDetection"]:
                                     # Lines任务不需要target_sizes，直接使用新的update方法
                                     metrics_fn_dict[head_name].update(outputs[head_name], annotations)
                                 
@@ -597,9 +598,9 @@ def train_one_epoch(
                 # TODO:这里似乎应该依靠head来分，而非dataset来分
                 for head_name in datasets_to_heads[dataset_name]:
                     loss_output = loss_outputs[head_name]
-                    if head_name in ["SoccerNetGSR_Detection", "LinesDetection"]:
+                    if head_name in ["SoccerNetGSR_Detection"]:
                         loss_task_raw, weight_dict, _ = loss_output
-                    elif head_name in ["SoccerNetGSR_ReID", "VideoCaption"]:
+                    elif head_name in ["SoccerNetGSR_ReID", "VideoCaption", "KeypointsDetection", "LinesDetection"]:
                         loss_task_raw, weight_dict = loss_output
                     else:
                         raise ValueError(f"Head {head_name} not supported.")

@@ -25,6 +25,7 @@ from transformers.utils import (
 from models.siglip2 import SiglipBackbone
 from models.deformable_detr.deformable_detr import build_deformable_detr_head
 from models.LinesDetection import build_lines_detection_head
+from models.KeypointsDetection import build_keypoints_detection_head
 from models.SoccerNetGSR_ReID import build_soccer_net_gsr_reid_head
 from models.VideoCaption import build_video_caption_head
 
@@ -59,6 +60,8 @@ class MultiTaskingSigLIP(nn.Module):
                 self.multi_task_head[head] = build_deformable_detr_head(config)
             elif head == "LinesDetection":
                 self.multi_task_head[head] = build_lines_detection_head(config)
+            elif head == "KeypointsDetection":
+                self.multi_task_head[head] = build_keypoints_detection_head(config)
             elif head == "SoccerNetGSR_ReID":
                 self.multi_task_head[head] = build_soccer_net_gsr_reid_head(config)
             elif head == "VideoCaption":

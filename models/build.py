@@ -1,5 +1,6 @@
 from models.deformable_detr.deformable_detr import build_deformable_detr_criterion, build_detection_metrics
 from models.LinesDetection import build_lines_detection_loss, build_lines_detection_metrics
+from models.KeypointsDetection import build_keypoints_detection_loss, build_keypoints_detection_metrics
 from models.SoccerNetGSR_ReID import build_soccer_net_gsr_reid_loss
 from models.VideoCaption import build_video_caption_loss
 
@@ -18,6 +19,8 @@ def build_loss_fn(config: dict):
             loss_fn_dict[head] = build_deformable_detr_criterion(config=config)
         elif head == "LinesDetection":
             loss_fn_dict[head] = build_lines_detection_loss(config=config)
+        elif head == "KeypointsDetection":
+            loss_fn_dict[head] = build_keypoints_detection_loss(config=config)
         elif head == "SoccerNetGSR_ReID":
             loss_fn_dict[head] = build_soccer_net_gsr_reid_loss(config=config)
         elif head == "VideoCaption":
@@ -44,6 +47,8 @@ def build_metrics_fn(config: dict):
             metrics_fn_dict[head] = build_detection_metrics(config=config)
         elif head == "LinesDetection":
             metrics_fn_dict[head] = build_lines_detection_metrics(config=config)
+        elif head == "KeypointsDetection":
+            metrics_fn_dict[head] = build_keypoints_detection_metrics(config=config)
         elif head == "SoccerNetGSR_ReID":
             # 这里可以添加ReID任务的metrics计算，暂时为None
             metrics_fn_dict[head] = None

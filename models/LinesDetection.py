@@ -135,7 +135,7 @@ class LinesDetectionLoss(nn.Module):
         
         # losses = {k: (v * self.weight_dict[k] if k in self.weight_dict else v) for k, v in losses.items()}
 
-        return losses, self.weight_dict, None
+        return losses, self.weight_dict
 
 class LinesHead(nn.Module):
     def __init__(self, dim_in=768, num_lines=24):

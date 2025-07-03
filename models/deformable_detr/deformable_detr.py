@@ -42,7 +42,7 @@ def _get_clones(module, N):
 
 class DeformableDetrHead(nn.Module):
     """ This is the Deformable DETR module that performs object detection """
-    def __init__(self, position_encoding, transformer, num_classes, num_queries, num_feature_levels, backbone_strides, backbone_num_channels, num_keypoints,
+    def __init__(self, position_encoding, transformer, num_classes, num_queries, num_feature_levels, backbone_strides, backbone_num_channels,
                  aux_loss=True, with_box_refine=False, two_stage=False, backbone_type='image'):
         """ Initializes the model.
         Parameters:
@@ -101,7 +101,6 @@ class DeformableDetrHead(nn.Module):
         self.two_stage = two_stage
         self.backbone_type = backbone_type
         self.camera_head = ConvCameraHead(input_channels=backbone_num_channels[0])
-        self.keypoints_head = KeypointsHead(dim_in=backbone_num_channels[0], num_keypoints=num_keypoints)
 
         prior_prob = 0.01
         bias_value = -math.log((1 - prior_prob) / prior_prob)
@@ -242,8 +241,6 @@ class DeformableDetrHead(nn.Module):
 
         # Use ConvCameraHead with reshaped features
         quaternion, translation, fov = self.camera_head(reshaped_local_features)
-        # Use KeypointsHead with reshaped features
-        keypoints_heatmap = self.keypoints_head(reshaped_local_features)
 
         out = {'pred_logits': outputs_class[-1], 'pred_boxes': outputs_coord[-1], 'pred_roles': outputs_role[-1], 'pred_jn_holistic': outputs_jn_holistic[-1], 'pred_digit_head': outputs_digit_head[-1], 'pred_digit_tail': outputs_digit_tail[-1]}
         # Add camera predictions to output
@@ -252,7 +249,6 @@ class DeformableDetrHead(nn.Module):
             'translation': translation,
             'fov': fov
         }
-        out['pred_keypoints_heatmap'] = keypoints_heatmap
         if self.aux_loss:
             out['aux_outputs'] = self._set_aux_loss(outputs_class, outputs_coord, outputs_role, outputs_jn_holistic, outputs_digit_head, outputs_digit_tail)
 
@@ -647,14 +643,7 @@ class SetCriterion(nn.Module):
             # print(f"fov_hw_gt: {fov_hw_gt}")
             exit(0)
         
-        # Keypoints loss:
-        keypoints_gt = torch.stack([t["keypoints_target"] for t in targets], dim=0)
-        keypoints_mask = torch.stack([t["keypoints_mask"] for t in targets], dim=0)
-        keypoints_pred = outputs["pred_keypoints_heatmap"]
-        
-        loss_keypoints = F.mse_loss(keypoints_pred, keypoints_gt, reduction='none')
-        loss_keypoints = (loss_keypoints * keypoints_mask.unsqueeze(-1).unsqueeze(-1)).sum() / (keypoints_mask.sum() + 1e-6)
-        losses["loss_keypoints"] = loss_keypoints
+
         
         # losses = {k: (v * self.weight_dict[k] if k in self.weight_dict else v) for k, v in losses.items()}
 
@@ -907,8 +896,6 @@ def cvt_config_to_args(config: dict):
     detr_args.gsr_camera_t_loss_weight = config["GSR_CAMERA_T_LOSS_WEIGHT"]
     detr_args.gsr_camera_r_loss_weight = config["GSR_CAMERA_R_LOSS_WEIGHT"]
     detr_args.gsr_camera_fl_loss_weight = config["GSR_CAMERA_FL_LOSS_WEIGHT"]
-    detr_args.num_keypoints = config["NUM_KEYPOINTS"]
-    detr_args.gsr_keypoints_loss_weight = config["GSR_KEYPOINTS_LOSS_WEIGHT"]
     detr_args.backbone_strides = [16]
     detr_args.backbone_num_channels = [768]
     
@@ -927,7 +914,6 @@ def build_deformable_detr_head(config: dict):
         num_feature_levels=args.num_feature_levels,
         backbone_strides=args.backbone_strides,
         backbone_num_channels=args.backbone_num_channels,
-        num_keypoints=args.num_keypoints,
         aux_loss=args.aux_loss,
         with_box_refine=args.with_box_refine,
         two_stage=args.two_stage,
@@ -946,7 +932,6 @@ def build_deformable_detr_criterion(config: dict):
     weight_dict["loss_T"] = args.gsr_camera_t_loss_weight
     weight_dict["loss_R"] = args.gsr_camera_r_loss_weight
     weight_dict["loss_fl"] = args.gsr_camera_fl_loss_weight
-    weight_dict["loss_keypoints"] = args.gsr_keypoints_loss_weight
     
     assert args.masks is False, "MASKS is not supported yet."
     if args.masks:
@@ -1129,95 +1114,6 @@ class ConvCameraHead(nn.Module):
 #         camera_tokens = torch.cat([quaternion, translation, fov], dim=1)
         
 #         return camera_tokens
-class KeypointsHead(nn.Module):
-    def __init__(self, dim_in=768, num_keypoints=58):
-        super(KeypointsHead, self).__init__()
-        self.dim_in = dim_in
-        # Using sub-pixel convolution (pixel shuffle) for learnable upsampling
-        # This is more parameter-efficient and often works better than transposed convolution
-        
-        # Stage 1: (768, 32, 32) -> (192, 64, 64) using 2x upsampling
-        self.stage1 = nn.Sequential(
-            nn.Conv2d(dim_in, 192 * 4, kernel_size=3, padding=1),  # 4x channels for 2x upsampling
-            nn.PixelShuffle(2),  # (192*4, 32, 32) -> (192, 64, 64)
-            nn.BatchNorm2d(192),
-            nn.ReLU(inplace=True),
-            nn.Conv2d(192, 192, kernel_size=3, padding=1),
-            nn.BatchNorm2d(192),
-            nn.ReLU(inplace=True)
-        )
-        
-        # Stage 2: (192, 64, 64) -> (96, 128, 128)
-        self.stage2 = nn.Sequential(
-            nn.Conv2d(192, 96 * 4, kernel_size=3, padding=1),
-            nn.PixelShuffle(2),  # (96*4, 64, 64) -> (96, 128, 128)
-            nn.BatchNorm2d(96),
-            nn.ReLU(inplace=True),
-            nn.Conv2d(96, 96, kernel_size=3, padding=1),
-            nn.BatchNorm2d(96),
-            nn.ReLU(inplace=True)
-        )
-        
-        # Stage 3: (96, 128, 128) -> (48, 256, 256)
-        self.stage3 = nn.Sequential(
-            nn.Conv2d(96, 48 * 4, kernel_size=3, padding=1),
-            nn.PixelShuffle(2),  # (48*4, 128, 128) -> (48, 256, 256)
-            nn.BatchNorm2d(48),
-            nn.ReLU(inplace=True),
-            # nn.Conv2d(48, 48, kernel_size=3, padding=1),
-            # nn.BatchNorm2d(48),
-            nn.Conv2d(48, num_keypoints, kernel_size=3, padding=1),
-            nn.BatchNorm2d(num_keypoints),
-            nn.ReLU(inplace=True)
-        )
-        
-        # # Stage 4: (48, 256, 256) -> (24, 512, 512)
-        # self.stage4 = nn.Sequential(
-        #     nn.Conv2d(48, 24 * 4, kernel_size=3, padding=1),
-        #     nn.PixelShuffle(2),  # (24*4, 256, 256) -> (24, 512, 512)
-        #     nn.BatchNorm2d(24),
-        #     nn.ReLU(inplace=True),
-        #     nn.Conv2d(24, 24, kernel_size=3, padding=1),
-        #     nn.BatchNorm2d(24),
-        #     nn.ReLU(inplace=True)
-        # )
-        
-        # Final stage: (24, 512, 512) -> (output_channels, 512, 512)
-        self.final_conv = nn.Sequential(
-            # nn.Conv2d(24, num_keypoints, kernel_size=3, padding=1),
-            nn.Conv2d(num_keypoints, num_keypoints, kernel_size=3, padding=1),
-            nn.Softmax(dim=1)
-        )
-        
-        # Initialize weights
-        self._init_weights()
-
-    def _init_weights(self):
-        """Initialize weights"""
-        for m in self.modules():
-            if isinstance(m, nn.Conv2d):
-                nn.init.kaiming_normal_(m.weight, mode='fan_out', nonlinearity='relu')
-                if m.bias is not None:
-                    nn.init.constant_(m.bias, 0)
-            elif isinstance(m, nn.BatchNorm2d):
-                nn.init.constant_(m.weight, 1)
-                nn.init.constant_(m.bias, 0)
-        
-    def forward(self, x):
-        """
-        Forward pass using learnable upsampling
-        Args:
-            x: Input features of shape (N, 768, 32, 32)
-        Returns:
-            output: Reconstructed features of shape (N, output_channels, 512, 512)
-        """
-        x = self.stage1(x)      # (N, 192, 64, 64)
-        x = self.stage2(x)      # (N, 96, 128, 128)
-        x = self.stage3(x)      # (N, 48, 256, 256)
-        # x = self.stage4(x)      # (N, 24, 512, 512)
-        x = self.final_conv(x)  # (N, output_channels, 512, 512)
-        
-        return x
 
 class DetectionMetrics(nn.Module):
     """
@@ -1251,14 +1147,7 @@ class DetectionMetrics(nn.Module):
             'valid_count': 0          # 有效样本数量
         }
         
-        # 为keypoints收集数据
-        self.keypoints_metrics_data = {
-            'accuracies': [],     # 准确度
-            'precisions': [],     # 精确度
-            'recalls': [],        # 召回率
-            'f1_scores': [],      # F1分数
-            'valid_count': 0      # 有效样本数量
-        }
+
         
     def reset(self):
         """重置收集的数据"""
@@ -1276,13 +1165,7 @@ class DetectionMetrics(nn.Module):
             'fov_errors': [],
             'valid_count': 0
         }
-        self.keypoints_metrics_data = {
-            'accuracies': [],
-            'precisions': [],
-            'recalls': [],
-            'f1_scores': [],
-            'valid_count': 0
-        }
+
         
     def box_iou(self, boxes1, boxes2):
         """
@@ -1388,224 +1271,7 @@ class DetectionMetrics(nn.Module):
         self.camera_metrics_data['fov_errors'].extend(fov_errors.cpu().tolist())
         self.camera_metrics_data['valid_count'] += len(translation_errors)
 
-    def get_keypoints_from_heatmap_batch_maxpool(
-            self, 
-            heatmap: torch.Tensor,
-            scale: int = 2,
-            max_keypoints: int = 1,
-            min_keypoint_pixel_distance: int = 15,
-            return_scores: bool = True,
-    ):
-        """Fast extraction of keypoints from a batch of heatmaps using maxpooling."""
-        batch_size, n_channels, height, width = heatmap.shape
 
-        kernel = min_keypoint_pixel_distance * 2 + 1
-        pad = min_keypoint_pixel_distance
-        
-        # exclude border keypoints by padding with highest possible value
-        padded_heatmap = torch.nn.functional.pad(heatmap, (pad, pad, pad, pad), mode="constant", value=1.0)
-        max_pooled_heatmap = torch.nn.functional.max_pool2d(padded_heatmap, kernel, stride=1, padding=0)
-        
-        # if the value equals the original value, it is the local maximum
-        local_maxima = max_pooled_heatmap == heatmap
-        heatmap = heatmap * local_maxima
-
-        # extract top-k from heatmap
-        scores, indices = torch.topk(heatmap.view(batch_size, n_channels, -1), max_keypoints, sorted=True)
-        indices = torch.stack([torch.div(indices, width, rounding_mode="floor"), indices % width], dim=-1)
-
-        # moving to CPU
-        indices = indices.detach().cpu().numpy()
-        scores = scores.detach().cpu().numpy()
-        
-        filtered_indices = []
-        for batch_idx in range(batch_size):
-            batch_keypoints = []
-            for channel_idx in range(n_channels):
-                candidates = indices[batch_idx, channel_idx]
-                locs = []
-                for candidate_idx in range(candidates.shape[0]):
-                    # convert to (u,v)
-                    loc = candidates[candidate_idx][::-1] * scale
-                    loc = loc.tolist()
-                    if return_scores:
-                        loc.append(scores[batch_idx, channel_idx, candidate_idx])
-                    locs.append(loc)
-                batch_keypoints.append(locs)
-            filtered_indices.append(batch_keypoints)
-
-        return torch.tensor(filtered_indices)
-
-    def get_keypoints_from_heatmap_batch_maxpool_l(
-            self,
-            heatmap: torch.Tensor,
-            scale: int = 2,
-            max_keypoints: int = 2,
-            min_keypoint_pixel_distance: int = 10,
-            return_scores: bool = True,
-    ) -> List[List[List[Tuple[int, int]]]]:
-        """Fast extraction of keypoints from a batch of heatmaps using maxpooling.
-
-        Inspired by mmdetection and CenterNet:
-        https://mmdetection.readthedocs.io/en/v2.13.0/_modules/mmdet/models/utils/gaussian_target.html
-
-        Args:
-            heatmap (torch.Tensor): NxCxHxW heatmap batch
-            max_keypoints (int, optional): max number of keypoints to extract, lowering will result in faster execution times. Defaults to 20.
-            min_keypoint_pixel_distance (int, optional): _description_. Defaults to 1.
-
-            Following thresholds can be used at inference time to select where you want to be on the AP curve. They should ofc. not be used for training
-            abs_max_threshold (Optional[float], optional): _description_. Defaults to None.
-            rel_max_threshold (Optional[float], optional): _description_. Defaults to None.
-
-        Returns:
-            The extracted keypoints for each batch, channel and heatmap; and their scores
-        """
-        batch_size, n_channels, _, width = heatmap.shape
-        kernel = min_keypoint_pixel_distance * 2 + 1
-        pad = int((kernel-1)/2)
-
-        max_pooled_heatmap = torch.nn.functional.max_pool2d(heatmap, kernel, stride=1, padding=pad)
-        # if the value equals the original value, it is the local maximum
-        local_maxima = max_pooled_heatmap == heatmap
-
-        # all values to zero that are not local maxima
-        heatmap = heatmap * local_maxima
-
-        # extract top-k from heatmap (may include non-local maxima if there are less peaks than max_keypoints)
-        scores, indices = torch.topk(heatmap.view(batch_size, n_channels, -1), max_keypoints, sorted=True)
-        indices = torch.stack([torch.div(indices, width, rounding_mode="floor"), indices % width], dim=-1)
-        # at this point either score > 0.0, in which case the index is a local maximum
-        # or score is 0.0, in which case topk returned non-maxima, which will be filtered out later.
-
-        #  remove top-k that are not local maxima and threshold (if required)
-        # thresholding shouldn't be done during training
-
-        #  moving them to CPU now to avoid multiple GPU-mem accesses!
-        indices = indices.detach().cpu().numpy()
-        scores = scores.detach().cpu().numpy()
-        filtered_indices = [[[] for _ in range(n_channels)] for _ in range(batch_size)]
-        filtered_scores = [[[] for _ in range(n_channels)] for _ in range(batch_size)]
-
-        # have to do this manually as the number of maxima for each channel can be different
-        for batch_idx in range(batch_size):
-            for channel_idx in range(n_channels):
-                candidates = indices[batch_idx, channel_idx]
-                locs = []
-                for candidate_idx in range(candidates.shape[0]):
-                    # convert to (u,v)
-                    loc = candidates[candidate_idx][::-1] * scale
-                    loc = loc.tolist()
-                    if return_scores:
-                        loc.append(scores[batch_idx, channel_idx, candidate_idx])
-                    locs.append(loc)
-                filtered_indices[batch_idx][channel_idx] = locs
-
-        return torch.tensor(filtered_indices)
-
-    def calculate_keypoints_metrics(self, gt, pred, mask, conf_th=0.1, dist_th=5):
-        """计算keypoints的metrics"""
-        # Convert mask to geometry mask (excluding last channel if needed)
-        geometry_mask = (mask > 0).cpu()
-            
-        # Ensure gt and pred are on CPU for computation
-        gt = gt.cpu()
-        pred = pred.cpu()
-        
-        batch_size = gt.shape[0]
-        batch_metrics = []
-        
-        for batch_idx in range(batch_size):
-            if not geometry_mask[batch_idx].any():
-                # No valid keypoints in this sample
-                batch_metrics.append((0.0, 0.0, 0.0, 0.0))
-                continue
-                
-            # Get valid keypoints for this batch
-            valid_mask = geometry_mask[batch_idx]
-            
-            # Extract positions and confidence scores
-            gt_batch = gt[batch_idx][valid_mask][:, 0, :]  # [valid_kp, 3]
-            pred_batch = pred[batch_idx][valid_mask][:, 0, :]  # [valid_kp, 3]
-            
-            # Check confidence thresholds
-            gt_conf_mask = gt_batch[:, -1] > conf_th  # GT confidence > threshold
-            pred_conf_mask = pred_batch[:, -1] > conf_th  # Pred confidence > threshold
-            
-            # Calculate distances between predicted and GT positions
-            gt_pos = gt_batch[:, :2]  # [valid_kp, 2] (x, y)
-            pred_pos = pred_batch[:, :2]  # [valid_kp, 2] (x, y)
-            distances = torch.norm(pred_pos - gt_pos, dim=1)  # [valid_kp]
-            
-            # Count true positives, false positives, and false negatives
-            true_positives = ((distances < dist_th) & pred_conf_mask & gt_conf_mask).sum().item()
-            true_negatives = (~pred_conf_mask & ~gt_conf_mask).sum().item()
-            false_positives = ((pred_conf_mask & ~gt_conf_mask) | ((distances >= dist_th) & pred_conf_mask & gt_conf_mask)).sum().item()
-            false_negatives = (~pred_conf_mask & gt_conf_mask).sum().item()
-            
-            # Calculate metrics
-            total_valid = valid_mask.sum().item()
-            if total_valid > 0:
-                accuracy = (true_positives + true_negatives) / total_valid
-                precision = true_positives / (true_positives + false_positives + 1e-10)
-                recall = true_positives / (true_positives + false_negatives + 1e-10)
-                f1 = 2 * (precision * recall) / (precision + recall + 1e-10)
-            else:
-                accuracy = precision = recall = f1 = 0.0
-                
-            batch_metrics.append((accuracy, precision, recall, f1))
-        
-        return batch_metrics
-
-    def compute_keypoints_metrics(self, pred_keypoints_heatmap, targets):
-        """
-        计算keypoints的metrics
-        
-        Args:
-            pred_keypoints_heatmap: 预测的keypoints heatmap [B, num_keypoints, H, W]
-            targets: 目标数据列表
-        """
-        # 检查是否有keypoints数据
-        if pred_keypoints_heatmap is None:
-            return
-            
-        # 获取GT keypoints heatmap和mask
-        try:
-            keypoints_gt_list = [t.get("keypoints_target", None) for t in targets]
-            keypoints_mask_list = [t.get("keypoints_mask", None) for t in targets]
-            
-            # 过滤掉None值
-            valid_indices = [i for i, (kp_gt, kp_mask) in enumerate(zip(keypoints_gt_list, keypoints_mask_list)) 
-                           if kp_gt is not None and kp_mask is not None]
-            
-            if not valid_indices:
-                return  # 没有有效的keypoints数据
-            
-            # 只处理有效的数据
-            keypoints_gt = torch.stack([keypoints_gt_list[i] for i in valid_indices])
-            keypoints_mask = torch.stack([keypoints_mask_list[i] for i in valid_indices])
-            pred_keypoints_valid = pred_keypoints_heatmap[valid_indices]
-            
-            # 从heatmap中提取keypoints
-            kp_gt = self.get_keypoints_from_heatmap_batch_maxpool(keypoints_gt[:,:-1,:,:], return_scores=True, max_keypoints=1)
-            kp_pred = self.get_keypoints_from_heatmap_batch_maxpool(pred_keypoints_valid[:,:-1,:,:], return_scores=True, max_keypoints=1)
-            
-            # 计算metrics
-            batch_metrics = self.calculate_keypoints_metrics(kp_gt, kp_pred, keypoints_mask[:, :-1])
-            
-            # 收集metrics
-            for accuracy, precision, recall, f1 in batch_metrics:
-                self.keypoints_metrics_data['accuracies'].append(accuracy)
-                self.keypoints_metrics_data['precisions'].append(precision)
-                self.keypoints_metrics_data['recalls'].append(recall)
-                self.keypoints_metrics_data['f1_scores'].append(f1)
-            
-            self.keypoints_metrics_data['valid_count'] += len(batch_metrics)
-            
-        except Exception as e:
-            # 如果keypoints计算失败，静默跳过
-            # print(f"Warning: Keypoints metrics calculation failed: {e}")
-            pass
         
     def update(self, outputs, targets, target_sizes):
         """
@@ -1714,9 +1380,7 @@ class DetectionMetrics(nn.Module):
         if 'pred_camera' in outputs:
             self.compute_camera_metrics(outputs['pred_camera'], targets)
         
-        # 计算keypoints metrics（如果有keypoints预测）
-        if 'pred_keypoints_heatmap' in outputs:
-            self.compute_keypoints_metrics(outputs['pred_keypoints_heatmap'], targets)
+
             
     def _compute_attribute_accuracy(self, pred, target, pred_idx, gt_idx):
         """
@@ -1799,16 +1463,10 @@ class DetectionMetrics(nn.Module):
             gathered_camera_metrics[key] = accelerator.gather_for_metrics(self.camera_metrics_data[key])
         gathered_camera_metrics['valid_count'] = accelerator.gather_for_metrics([self.camera_metrics_data['valid_count']])
         
-        # 聚合keypoints metrics数据
-        keypoints_key_list = ['accuracies', 'precisions', 'recalls', 'f1_scores']
-        gathered_keypoints_metrics = {}
-        for key in keypoints_key_list:
-            gathered_keypoints_metrics[key] = accelerator.gather_for_metrics(self.keypoints_metrics_data[key])
-        gathered_keypoints_metrics['valid_count'] = accelerator.gather_for_metrics([self.keypoints_metrics_data['valid_count']])
         
-        return gathered_tp_fp_scores, gathered_gt_count, gathered_attribute_matches, gathered_camera_metrics, gathered_keypoints_metrics
+        return gathered_tp_fp_scores, gathered_gt_count, gathered_attribute_matches, gathered_camera_metrics
 
-    def compute_metrics_from_gathered_tp_fp(self, gathered_tp_fp_scores, gathered_gt_count, gathered_attribute_matches=None, gathered_camera_metrics=None, gathered_keypoints_metrics=None):
+    def compute_metrics_from_gathered_tp_fp(self, gathered_tp_fp_scores, gathered_gt_count, gathered_attribute_matches=None, gathered_camera_metrics=None):
         """
         从聚合的TP/FP/scores数据计算metrics
         
@@ -1817,7 +1475,6 @@ class DetectionMetrics(nn.Module):
             gathered_gt_count: 聚合的GT总数
             gathered_attribute_matches: 聚合的attribute匹配结果
             gathered_camera_metrics: 聚合的相机metrics数据
-            gathered_keypoints_metrics: 聚合的keypoints metrics数据
             
         Returns:
             dict: 包含各种metrics的字典
@@ -1971,54 +1628,6 @@ class DetectionMetrics(nn.Module):
                     metrics[metric_name] = 0.0
                 metrics['camera_valid_samples'] = 0
         
-        # 计算keypoints metrics
-        if gathered_keypoints_metrics is not None:
-            # 展平所有进程的keypoints数据
-            all_accuracies = flatten_data(gathered_keypoints_metrics['accuracies'])
-            all_precisions = flatten_data(gathered_keypoints_metrics['precisions'])
-            all_recalls = flatten_data(gathered_keypoints_metrics['recalls'])
-            all_f1_scores = flatten_data(gathered_keypoints_metrics['f1_scores'])
-            
-            # 计算总的有效样本数
-            total_valid_count = sum(gathered_keypoints_metrics['valid_count'])
-            
-            if total_valid_count > 0 and len(all_accuracies) > 0:
-                # 计算keypoints metrics的平均值
-                accuracies = torch.tensor(all_accuracies, dtype=torch.float32)
-                precisions = torch.tensor(all_precisions, dtype=torch.float32)
-                recalls = torch.tensor(all_recalls, dtype=torch.float32)
-                f1_scores = torch.tensor(all_f1_scores, dtype=torch.float32)
-                
-                metrics['keypoints_accuracy'] = accuracies.mean().item()
-                metrics['keypoints_precision'] = precisions.mean().item()
-                metrics['keypoints_recall'] = recalls.mean().item()
-                metrics['keypoints_f1'] = f1_scores.mean().item()
-                
-                # 计算中位数
-                metrics['keypoints_accuracy_median'] = accuracies.median().item()
-                metrics['keypoints_precision_median'] = precisions.median().item()
-                metrics['keypoints_recall_median'] = recalls.median().item()
-                metrics['keypoints_f1_median'] = f1_scores.median().item()
-                
-                # 计算高精度阈值下的性能
-                # 精度 > 0.8 的比例
-                high_acc_ratio = (accuracies > 0.8).float().mean().item()
-                metrics['keypoints_high_accuracy_ratio'] = high_acc_ratio
-                
-                # F1 > 0.7 的比例
-                high_f1_ratio = (f1_scores > 0.7).float().mean().item()
-                metrics['keypoints_high_f1_ratio'] = high_f1_ratio
-                
-                # 记录样本数量
-                metrics['keypoints_valid_samples'] = total_valid_count
-            else:
-                # 没有有效的keypoints数据
-                for metric_name in ['keypoints_accuracy', 'keypoints_precision', 'keypoints_recall', 'keypoints_f1',
-                                  'keypoints_accuracy_median', 'keypoints_precision_median', 'keypoints_recall_median', 'keypoints_f1_median',
-                                  'keypoints_high_accuracy_ratio', 'keypoints_high_f1_ratio']:
-                    metrics[metric_name] = 0.0
-                metrics['keypoints_valid_samples'] = 0
-        
         return metrics
 
     @torch.no_grad()
@@ -2041,12 +1650,12 @@ class DetectionMetrics(nn.Module):
         Returns:
             dict: 包含各种metrics的字典
         """
-        # 聚合所有进程的TP/FP/scores结果、attribute匹配结果、相机metrics数据和keypoints metrics数据
-        gathered_tp_fp_scores, gathered_gt_count, gathered_attribute_matches, gathered_camera_metrics, gathered_keypoints_metrics = self.gather_tp_fp_scores(accelerator)
+        # 聚合所有进程的TP/FP/scores结果、attribute匹配结果、相机metrics数据
+        gathered_tp_fp_scores, gathered_gt_count, gathered_attribute_matches, gathered_camera_metrics = self.gather_tp_fp_scores(accelerator)
         
         # 只在主进程计算metrics
         if accelerator.is_main_process:
-            return self.compute_metrics_from_gathered_tp_fp(gathered_tp_fp_scores, gathered_gt_count, gathered_attribute_matches, gathered_camera_metrics, gathered_keypoints_metrics)
+            return self.compute_metrics_from_gathered_tp_fp(gathered_tp_fp_scores, gathered_gt_count, gathered_attribute_matches, gathered_camera_metrics)
         else:
             return {}
 
