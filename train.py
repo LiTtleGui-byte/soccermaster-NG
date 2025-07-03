@@ -349,7 +349,7 @@ def evaluate_one_epoch(
                         loss_output = loss_fn_dict[head_name](outputs[head_name], annotations)
                         
                         # Parse loss output based on task type
-                        if head_name in ["SoccerNetGSR_Detection", "LinesDetection", "KeypointsDetection"]:
+                        if head_name in ["SoccerNetGSR_Detection"]:
                             loss_task_raw, weight_dict, _ = loss_output
                             
                             # Compute weighted and unweighted losses
@@ -377,7 +377,7 @@ def evaluate_one_epoch(
                                     # Lines任务不需要target_sizes，直接使用新的update方法
                                     metrics_fn_dict[head_name].update(outputs[head_name], annotations)
                                 
-                        elif head_name in ["SoccerNetGSR_ReID", "VideoCaption"]:
+                        elif head_name in ["SoccerNetGSR_ReID", "VideoCaption", "LinesDetection", "KeypointsDetection"]:
                             loss_task_raw, weight_dict = loss_output
                             
                             # Compute weighted and unweighted losses
@@ -393,7 +393,7 @@ def evaluate_one_epoch(
                             # Compute metrics if metrics function is available
                             if metrics_fn_dict[head_name] is not None:
                                 # ReID and VideoCaption metrics can be implemented later
-                                pass
+                                metrics_fn_dict[head_name].update(outputs[head_name], annotations)
                                 
                         else:
                             raise ValueError(f"Unknown head name: {head_name}")
@@ -595,7 +595,6 @@ def train_one_epoch(
                     loss_outputs[head] = loss_fn_dict[head](outputs[head], annotations)
                     
                 # loss_output = loss_fn_dict[dataset_name](outputs[dataset_name], annotations)
-                # TODO:这里似乎应该依靠head来分，而非dataset来分
                 for head_name in datasets_to_heads[dataset_name]:
                     loss_output = loss_outputs[head_name]
                     if head_name in ["SoccerNetGSR_Detection"]:

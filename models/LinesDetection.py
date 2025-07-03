@@ -404,9 +404,7 @@ class LinesDetectionMetrics(nn.Module):
             outputs: 模型输出，包含pred_lines_heatmap
             targets: 真实标注，包含lines_target
         """
-        # 计算lines metrics
-        if 'pred_lines_heatmap' in outputs:
-            self.compute_lines_metrics(outputs['pred_lines_heatmap'], targets)
+        self.compute_lines_metrics(outputs['pred_lines_heatmap'], targets)
 
     def gather_metrics_data(self, accelerator):
         """

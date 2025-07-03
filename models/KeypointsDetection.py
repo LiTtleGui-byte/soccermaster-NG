@@ -196,51 +196,6 @@ class KeypointsDetectionMetrics(nn.Module):
             'valid_count': 0      # 有效样本数量
         }
 
-    def get_keypoints_from_heatmap_batch_maxpool(
-            self, 
-            heatmap: torch.Tensor,
-            scale: int = 2,
-            max_keypoints: int = 1,
-            min_keypoint_pixel_distance: int = 15,
-            return_scores: bool = True,
-    ):
-        """从批量热力图中快速提取关键点，使用maxpooling"""
-        batch_size, n_channels, height, width = heatmap.shape
-        device = heatmap.device
-        
-        # 获取每个通道的max_keypoints个局部最大值(使用maxpool)
-        kernel_size = min_keypoint_pixel_distance + 1
-        kernel_size = kernel_size if kernel_size % 2 == 1 else kernel_size + 1
-        padding = kernel_size // 2
-        
-        # 通过在边界填充最高可能值来排除边界关键点
-        heatmap_padded = F.pad(heatmap, [padding] * 4, mode='constant', value=1.0)
-        
-        # 应用maxpool以获得局部最大值
-        local_maxima = F.max_pool2d(heatmap_padded, kernel_size, stride=1, padding=0)
-        
-        # 创建掩码以识别局部最大值
-        maxima_mask = (heatmap == local_maxima).float()
-        
-        # 从热力图中提取top-k(可能包括非局部最大值，如果峰值数量少于max_keypoints)
-        scores, indices = torch.topk(heatmap.view(batch_size, n_channels, -1), max_keypoints, sorted=True)
-        
-        # 将展平的索引转换回2D坐标
-        y_coords = (indices // width) * scale
-        x_coords = (indices % width) * scale
-        
-        # 应用局部最大值掩码
-        flat_maxima_mask = maxima_mask.view(batch_size, n_channels, -1)
-        maxima_scores = torch.gather(flat_maxima_mask, 2, indices)
-        
-        # 将非局部最大值的分数设置为0
-        scores = scores * maxima_scores
-        
-        if return_scores:
-            return list(zip(x_coords.tolist(), y_coords.tolist(), scores.tolist()))
-        else:
-            return list(zip(x_coords.tolist(), y_coords.tolist()))
-
     # def get_keypoints_from_heatmap_batch_maxpool(
     #         self, 
     #         heatmap: torch.Tensor,
@@ -249,189 +204,273 @@ class KeypointsDetectionMetrics(nn.Module):
     #         min_keypoint_pixel_distance: int = 15,
     #         return_scores: bool = True,
     # ):
-    #     """Fast extraction of keypoints from a batch of heatmaps using maxpooling."""
+    #     """从批量热力图中快速提取关键点，使用maxpooling"""
     #     batch_size, n_channels, height, width = heatmap.shape
-
-    #     kernel = min_keypoint_pixel_distance * 2 + 1
-    #     pad = min_keypoint_pixel_distance
+    #     device = heatmap.device
         
-    #     # exclude border keypoints by padding with highest possible value
-    #     padded_heatmap = torch.nn.functional.pad(heatmap, (pad, pad, pad, pad), mode="constant", value=1.0)
-    #     max_pooled_heatmap = torch.nn.functional.max_pool2d(padded_heatmap, kernel, stride=1, padding=0)
+    #     # 获取每个通道的max_keypoints个局部最大值(使用maxpool)
+    #     kernel_size = min_keypoint_pixel_distance + 1
+    #     kernel_size = kernel_size if kernel_size % 2 == 1 else kernel_size + 1
+    #     padding = kernel_size // 2
         
-    #     # if the value equals the original value, it is the local maximum
-    #     local_maxima = max_pooled_heatmap == heatmap
-    #     heatmap = heatmap * local_maxima
-
-    #     # extract top-k from heatmap
+    #     # 通过在边界填充最高可能值来排除边界关键点
+    #     heatmap_padded = F.pad(heatmap, [padding] * 4, mode='constant', value=1.0)
+        
+    #     # 应用maxpool以获得局部最大值
+    #     local_maxima = F.max_pool2d(heatmap_padded, kernel_size, stride=1, padding=0)
+        
+    #     # 创建掩码以识别局部最大值
+    #     maxima_mask = (heatmap == local_maxima).float()
+        
+    #     # 从热力图中提取top-k(可能包括非局部最大值，如果峰值数量少于max_keypoints)
     #     scores, indices = torch.topk(heatmap.view(batch_size, n_channels, -1), max_keypoints, sorted=True)
-    #     indices = torch.stack([torch.div(indices, width, rounding_mode="floor"), indices % width], dim=-1)
-
-    #     # moving to CPU
-    #     indices = indices.detach().cpu().numpy()
-    #     scores = scores.detach().cpu().numpy()
         
-    #     filtered_indices = []
-    #     for batch_idx in range(batch_size):
-    #         batch_keypoints = []
-    #         for channel_idx in range(n_channels):
-    #             candidates = indices[batch_idx, channel_idx]
-    #             locs = []
-    #             for candidate_idx in range(candidates.shape[0]):
-    #                 # convert to (u,v)
-    #                 loc = candidates[candidate_idx][::-1] * scale
-    #                 loc = loc.tolist()
-    #                 if return_scores:
-    #                     loc.append(scores[batch_idx, channel_idx, candidate_idx])
-    #                 locs.append(loc)
-    #             batch_keypoints.append(locs)
-    #         filtered_indices.append(batch_keypoints)
+    #     # 将展平的索引转换回2D坐标
+    #     y_coords = (indices // width) * scale
+    #     x_coords = (indices % width) * scale
+        
+    #     # 应用局部最大值掩码
+    #     flat_maxima_mask = maxima_mask.view(batch_size, n_channels, -1)
+    #     maxima_scores = torch.gather(flat_maxima_mask, 2, indices)
+        
+    #     # 将非局部最大值的分数设置为0
+    #     scores = scores * maxima_scores
+        
+    #     if return_scores:
+    #         return list(zip(x_coords.tolist(), y_coords.tolist(), scores.tolist()))
+    #     else:
+    #         return list(zip(x_coords.tolist(), y_coords.tolist()))
 
-    #     return torch.tensor(filtered_indices)
+    def get_keypoints_from_heatmap_batch_maxpool(
+            self, 
+            heatmap: torch.Tensor,
+            scale: int = 2,
+            max_keypoints: int = 1,
+            min_keypoint_pixel_distance: int = 15,
+            return_scores: bool = True,
+    ):
+        """Fast extraction of keypoints from a batch of heatmaps using maxpooling."""
+        batch_size, n_channels, height, width = heatmap.shape
+
+        kernel = min_keypoint_pixel_distance * 2 + 1
+        pad = min_keypoint_pixel_distance
+        
+        # exclude border keypoints by padding with highest possible value
+        padded_heatmap = torch.nn.functional.pad(heatmap, (pad, pad, pad, pad), mode="constant", value=1.0)
+        max_pooled_heatmap = torch.nn.functional.max_pool2d(padded_heatmap, kernel, stride=1, padding=0)
+        
+        # if the value equals the original value, it is the local maximum
+        local_maxima = max_pooled_heatmap == heatmap
+        heatmap = heatmap * local_maxima
+
+        # extract top-k from heatmap
+        scores, indices = torch.topk(heatmap.view(batch_size, n_channels, -1), max_keypoints, sorted=True)
+        indices = torch.stack([torch.div(indices, width, rounding_mode="floor"), indices % width], dim=-1)
+
+        # moving to CPU
+        indices = indices.detach().cpu().numpy()
+        scores = scores.detach().cpu().numpy()
+        
+        filtered_indices = []
+        for batch_idx in range(batch_size):
+            batch_keypoints = []
+            for channel_idx in range(n_channels):
+                candidates = indices[batch_idx, channel_idx]
+                locs = []
+                for candidate_idx in range(candidates.shape[0]):
+                    # convert to (u,v)
+                    loc = candidates[candidate_idx][::-1] * scale
+                    loc = loc.tolist()
+                    if return_scores:
+                        loc.append(scores[batch_idx, channel_idx, candidate_idx])
+                    locs.append(loc)
+                batch_keypoints.append(locs)
+            filtered_indices.append(batch_keypoints)
+
+        return torch.tensor(filtered_indices)
+
+    # def calculate_keypoints_metrics(self, gt, pred, mask, conf_th=0.1, dist_th=5):
+    #     """
+    #     计算关键点检测的指标
+        
+    #     Args:
+    #         gt: ground truth关键点 (batch_size, num_keypoints, num_coords)
+    #         pred: 预测的关键点 (batch_size, num_keypoints, num_coords)
+    #         mask: 有效性掩码 (batch_size, num_keypoints)
+    #         conf_th: 置信度阈值
+    #         dist_th: 距离阈值
+            
+    #     Returns:
+    #         包含accuracy, precision, recall, f1的指标字典
+    #     """
+    #     batch_size = gt.shape[0]
+    #     all_metrics = {
+    #         'accuracy': [],
+    #         'precision': [],
+    #         'recall': [],
+    #         'f1': []
+    #     }
+        
+    #     for b in range(batch_size):
+    #         gt_batch = gt[b]  # (num_keypoints, num_coords)
+    #         pred_batch = pred[b]  # (num_keypoints, num_coords) 
+    #         mask_batch = mask[b]  # (num_keypoints,)
+            
+    #         # 只考虑有效的关键点
+    #         valid_indices = mask_batch > 0
+    #         if valid_indices.sum() == 0:
+    #             continue
+                
+    #         gt_valid = gt_batch[valid_indices]  # (valid_keypoints, num_coords)
+    #         pred_valid = pred_batch[valid_indices]  # (valid_keypoints, num_coords)
+            
+    #         # 计算预测关键点的置信度(这里假设在第3列，如果没有则使用1.0)
+    #         if gt_valid.shape[1] > 2:
+    #             pred_conf = pred_valid[:, 2]
+    #         else:
+    #             pred_conf = torch.ones(pred_valid.shape[0], device=pred_valid.device)
+            
+    #         # 应用置信度阈值
+    #         conf_mask = pred_conf > conf_th
+    #         if conf_mask.sum() == 0:
+    #             # 没有高置信度的预测
+    #             all_metrics['accuracy'].append(0.0)
+    #             all_metrics['precision'].append(0.0)
+    #             all_metrics['recall'].append(0.0)
+    #             all_metrics['f1'].append(0.0)
+    #             continue
+            
+    #         # 计算距离
+    #         gt_coords = gt_valid[:, :2]  # (valid_keypoints, 2)
+    #         pred_coords = pred_valid[:, :2]  # (valid_keypoints, 2)
+            
+    #         # 计算欧氏距离
+    #         distances = torch.norm(gt_coords - pred_coords, dim=1)  # (valid_keypoints,)
+            
+    #         # 计算正确预测(距离小于阈值且置信度高)
+    #         correct_predictions = (distances < dist_th) & conf_mask
+            
+    #         # 计算指标
+    #         num_correct = correct_predictions.sum().item()
+    #         num_predicted = conf_mask.sum().item()
+    #         num_gt = len(gt_valid)
+            
+    #         accuracy = num_correct / num_gt if num_gt > 0 else 0.0
+    #         precision = num_correct / num_predicted if num_predicted > 0 else 0.0
+    #         recall = num_correct / num_gt if num_gt > 0 else 0.0
+    #         f1 = 2 * (precision * recall) / (precision + recall) if (precision + recall) > 0 else 0.0
+            
+    #         all_metrics['accuracy'].append(accuracy)
+    #         all_metrics['precision'].append(precision)
+    #         all_metrics['recall'].append(recall)
+    #         all_metrics['f1'].append(f1)
+        
+    #     # 计算平均指标
+    #     if all_metrics['accuracy']:
+    #         avg_metrics = {k: sum(v) / len(v) for k, v in all_metrics.items()}
+    #     else:
+    #         avg_metrics = {'accuracy': 0.0, 'precision': 0.0, 'recall': 0.0, 'f1': 0.0}
+        
+    #     return avg_metrics
 
     def calculate_keypoints_metrics(self, gt, pred, mask, conf_th=0.1, dist_th=5):
-        """
-        计算关键点检测的指标
-        
-        Args:
-            gt: ground truth关键点 (batch_size, num_keypoints, num_coords)
-            pred: 预测的关键点 (batch_size, num_keypoints, num_coords)
-            mask: 有效性掩码 (batch_size, num_keypoints)
-            conf_th: 置信度阈值
-            dist_th: 距离阈值
+        """计算keypoints的metrics"""
+        # Convert mask to geometry mask (excluding last channel if needed)
+        geometry_mask = (mask > 0).cpu()
             
-        Returns:
-            包含accuracy, precision, recall, f1的指标字典
-        """
+        # Ensure gt and pred are on CPU for computation
+        gt = gt.cpu()
+        pred = pred.cpu()
+        
         batch_size = gt.shape[0]
-        all_metrics = {
-            'accuracy': [],
-            'precision': [],
-            'recall': [],
-            'f1': []
-        }
+        batch_metrics = []
         
-        for b in range(batch_size):
-            gt_batch = gt[b]  # (num_keypoints, num_coords)
-            pred_batch = pred[b]  # (num_keypoints, num_coords) 
-            mask_batch = mask[b]  # (num_keypoints,)
-            
-            # 只考虑有效的关键点
-            valid_indices = mask_batch > 0
-            if valid_indices.sum() == 0:
+        for batch_idx in range(batch_size):
+            if not geometry_mask[batch_idx].any():
+                # No valid keypoints in this sample
+                batch_metrics.append((0.0, 0.0, 0.0, 0.0))
                 continue
                 
-            gt_valid = gt_batch[valid_indices]  # (valid_keypoints, num_coords)
-            pred_valid = pred_batch[valid_indices]  # (valid_keypoints, num_coords)
+            # Get valid keypoints for this batch
+            valid_mask = geometry_mask[batch_idx]
             
-            # 计算预测关键点的置信度(这里假设在第3列，如果没有则使用1.0)
-            if gt_valid.shape[1] > 2:
-                pred_conf = pred_valid[:, 2]
+            # Extract positions and confidence scores
+            gt_batch = gt[batch_idx][valid_mask][:, 0, :]  # [valid_kp, 3]
+            pred_batch = pred[batch_idx][valid_mask][:, 0, :]  # [valid_kp, 3]
+            
+            # Check confidence thresholds
+            gt_conf_mask = gt_batch[:, -1] > conf_th  # GT confidence > threshold
+            pred_conf_mask = pred_batch[:, -1] > conf_th  # Pred confidence > threshold
+            
+            # Calculate distances between predicted and GT positions
+            gt_pos = gt_batch[:, :2]  # [valid_kp, 2] (x, y)
+            pred_pos = pred_batch[:, :2]  # [valid_kp, 2] (x, y)
+            distances = torch.norm(pred_pos - gt_pos, dim=1)  # [valid_kp]
+            
+            # Count true positives, false positives, and false negatives
+            true_positives = ((distances < dist_th) & pred_conf_mask & gt_conf_mask).sum().item()
+            true_negatives = (~pred_conf_mask & ~gt_conf_mask).sum().item()
+            false_positives = ((pred_conf_mask & ~gt_conf_mask) | ((distances >= dist_th) & pred_conf_mask & gt_conf_mask)).sum().item()
+            false_negatives = (~pred_conf_mask & gt_conf_mask).sum().item()
+            
+            # Calculate metrics
+            total_valid = valid_mask.sum().item()
+            if total_valid > 0:
+                accuracy = (true_positives + true_negatives) / total_valid
+                precision = true_positives / (true_positives + false_positives + 1e-10)
+                recall = true_positives / (true_positives + false_negatives + 1e-10)
+                f1 = 2 * (precision * recall) / (precision + recall + 1e-10)
             else:
-                pred_conf = torch.ones(pred_valid.shape[0], device=pred_valid.device)
-            
-            # 应用置信度阈值
-            conf_mask = pred_conf > conf_th
-            if conf_mask.sum() == 0:
-                # 没有高置信度的预测
-                all_metrics['accuracy'].append(0.0)
-                all_metrics['precision'].append(0.0)
-                all_metrics['recall'].append(0.0)
-                all_metrics['f1'].append(0.0)
-                continue
-            
-            # 计算距离
-            gt_coords = gt_valid[:, :2]  # (valid_keypoints, 2)
-            pred_coords = pred_valid[:, :2]  # (valid_keypoints, 2)
-            
-            # 计算欧氏距离
-            distances = torch.norm(gt_coords - pred_coords, dim=1)  # (valid_keypoints,)
-            
-            # 计算正确预测(距离小于阈值且置信度高)
-            correct_predictions = (distances < dist_th) & conf_mask
-            
-            # 计算指标
-            num_correct = correct_predictions.sum().item()
-            num_predicted = conf_mask.sum().item()
-            num_gt = len(gt_valid)
-            
-            accuracy = num_correct / num_gt if num_gt > 0 else 0.0
-            precision = num_correct / num_predicted if num_predicted > 0 else 0.0
-            recall = num_correct / num_gt if num_gt > 0 else 0.0
-            f1 = 2 * (precision * recall) / (precision + recall) if (precision + recall) > 0 else 0.0
-            
-            all_metrics['accuracy'].append(accuracy)
-            all_metrics['precision'].append(precision)
-            all_metrics['recall'].append(recall)
-            all_metrics['f1'].append(f1)
+                accuracy = precision = recall = f1 = 0.0
+                
+            batch_metrics.append((accuracy, precision, recall, f1))
         
-        # 计算平均指标
-        if all_metrics['accuracy']:
-            avg_metrics = {k: sum(v) / len(v) for k, v in all_metrics.items()}
-        else:
-            avg_metrics = {'accuracy': 0.0, 'precision': 0.0, 'recall': 0.0, 'f1': 0.0}
-        
-        return avg_metrics
+        return batch_metrics
 
     def compute_keypoints_metrics(self, pred_keypoints_heatmap, targets):
         """
-        计算关键点指标
+        计算keypoints的metrics
         
         Args:
             pred_keypoints_heatmap: 预测的keypoints heatmap [B, num_keypoints, H, W]
-            targets: 目标标签列表
-            
-        Returns:
-            关键点指标字典
+            targets: 目标数据列表
         """
+        # 检查是否有keypoints数据
         if pred_keypoints_heatmap is None:
-            return {}
+            return
             
-        # 获取有效样本的mask
-        keypoints_masks = torch.stack([t["keypoints_mask"] for t in targets], dim=0)
-        valid_indices = keypoints_masks.sum(dim=1) > 0  # 至少有一个有效keypoint的样本
+        # 获取GT keypoints heatmap和mask
+        keypoints_gt_list = [t.get("keypoints_target", None) for t in targets]
+        keypoints_mask_list = [t.get("keypoints_mask", None) for t in targets]
         
-        if valid_indices.sum() == 0:
-            return {}
+        # 过滤掉None值
+        valid_indices = [i for i, (kp_gt, kp_mask) in enumerate(zip(keypoints_gt_list, keypoints_mask_list)) 
+                        if kp_gt is not None and kp_mask is not None]
         
-        # 只处理有效样本
-        valid_targets = [targets[i] for i in range(len(targets)) if valid_indices[i]]
+        if not valid_indices:
+            return  # 没有有效的keypoints数据
+        
+        # 只处理有效的数据
+        keypoints_gt = torch.stack([keypoints_gt_list[i] for i in valid_indices])
+        keypoints_mask = torch.stack([keypoints_mask_list[i] for i in valid_indices])
         pred_keypoints_valid = pred_keypoints_heatmap[valid_indices]
-        keypoints_masks_valid = keypoints_masks[valid_indices]
         
-        # 从热力图中提取关键点
-        kp_pred = self.get_keypoints_from_heatmap_batch_maxpool(
-            pred_keypoints_valid[:,:-1,:,:], return_scores=True, max_keypoints=1
-        )
+        # 从heatmap中提取keypoints
+        kp_gt = self.get_keypoints_from_heatmap_batch_maxpool(keypoints_gt[:,:-1,:,:], return_scores=True, max_keypoints=1)
+        kp_pred = self.get_keypoints_from_heatmap_batch_maxpool(pred_keypoints_valid[:,:-1,:,:], return_scores=True, max_keypoints=1)
         
-        # 获取ground truth关键点
-        keypoints_gt_list = [t["keypoints_target"] for t in valid_targets]
-        keypoints_gt = torch.stack(keypoints_gt_list, dim=0)
+        # 计算metrics
+        batch_metrics = self.calculate_keypoints_metrics(kp_gt, kp_pred, keypoints_mask[:, :-1])
         
-        # 转换预测格式以匹配ground truth格式
-        # kp_pred 格式: list of (x_coords, y_coords, scores) for each batch
-        pred_coords_list = []
-        for batch_idx in range(len(kp_pred[0])):  # 遍历每个batch
-            batch_coords = []
-            for kp_idx in range(len(kp_pred)):  # 遍历每个关键点
-                x_coords, y_coords, scores = kp_pred[kp_idx]
-                if batch_idx < len(x_coords[0]):  # 确保索引有效
-                    x = x_coords[0][batch_idx] if len(x_coords[0]) > batch_idx else 0
-                    y = y_coords[0][batch_idx] if len(y_coords[0]) > batch_idx else 0
-                    score = scores[0][batch_idx] if len(scores[0]) > batch_idx else 0
-                    batch_coords.append([x, y, score])
-                else:
-                    batch_coords.append([0, 0, 0])
-            pred_coords_list.append(batch_coords)
+        # 收集metrics
+        for accuracy, precision, recall, f1 in batch_metrics:
+            self.keypoints_metrics_data['accuracies'].append(accuracy)
+            self.keypoints_metrics_data['precisions'].append(precision)
+            self.keypoints_metrics_data['recalls'].append(recall)
+            self.keypoints_metrics_data['f1_scores'].append(f1)
         
-        pred_coords = torch.tensor(pred_coords_list, device=pred_keypoints_heatmap.device)
+        self.keypoints_metrics_data['valid_count'] += len(batch_metrics)
         
-        # 计算指标
-        metrics = self.calculate_keypoints_metrics(
-            keypoints_gt, pred_coords, keypoints_masks_valid
-        )
-        
-        return metrics
 
     def update(self, outputs, targets):
         """
@@ -441,15 +480,7 @@ class KeypointsDetectionMetrics(nn.Module):
             outputs: 模型输出
             targets: 目标标签
         """
-        if 'pred_keypoints_heatmap' in outputs:
-            keypoints_metrics = self.compute_keypoints_metrics(outputs['pred_keypoints_heatmap'], targets)
-            
-            if keypoints_metrics:
-                self.keypoints_metrics_data['accuracies'].append(keypoints_metrics.get('accuracy', 0.0))
-                self.keypoints_metrics_data['precisions'].append(keypoints_metrics.get('precision', 0.0))
-                self.keypoints_metrics_data['recalls'].append(keypoints_metrics.get('recall', 0.0))
-                self.keypoints_metrics_data['f1_scores'].append(keypoints_metrics.get('f1', 0.0))
-                self.keypoints_metrics_data['valid_count'] += 1
+        self.compute_keypoints_metrics(outputs['pred_keypoints_heatmap'], targets)
 
     def gather_metrics_data(self, accelerator):
         """聚合多进程的指标数据"""
