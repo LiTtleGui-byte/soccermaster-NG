@@ -4,8 +4,10 @@
 # Modified from MOTIP (https://github.com/MCG-NJU/MOTIP)
 # Copyright (c) Ruopeng Gao. All Rights Reserved.
 # ------------------------------------------------------------------------
-import torch
 import os
+os.environ["NCCL_TIMEOUT"] = "7200"   # 7200秒 = 120分钟
+
+import torch
 from torch.optim import AdamW
 from torch.optim.lr_scheduler import MultiStepLR
 from torch.utils.data import DataLoader
@@ -23,9 +25,6 @@ from runtime_option import runtime_option
 from utils.misc import set_seed
 from configs.util import load_super_config, update_config, yaml_to_dict
 from models.build import build_loss_fn, build_metrics_fn
-
-# os.environ["NCCL_BLOCKING_WAIT"] = "1"      # 启用阻塞等待
-os.environ["NCCL_TIMEOUT_MS"] = "5400000"   # 5400秒 = 90分钟
 
 def train_engine(config: dict):
     # Init some settings:

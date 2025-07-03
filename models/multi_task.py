@@ -26,7 +26,7 @@ from models.siglip2 import SiglipBackbone
 from models.deformable_detr.deformable_detr import build_deformable_detr_head
 from models.lines_detection import build_lines_detection_head
 from models.keypoints_detection import build_keypoints_detection_head
-from models.soccer_net_gsr_reid import build_soccer_net_gsr_reid_head
+from models.soccernet_gsr_reid import build_soccer_net_gsr_reid_head
 from models.video_caption import build_video_caption_head
 from models.camera import build_camera_head
 
