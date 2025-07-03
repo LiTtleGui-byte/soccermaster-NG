@@ -10,6 +10,8 @@ import math
 from typing import List, Tuple
 import copy
 
+from models.utils.flatten_data import flatten_data
+
 
 class KeypointsDetection(nn.Module):
     """KeypointsDetection模块，用于关键点检测"""
@@ -496,18 +498,6 @@ class KeypointsDetectionMetrics(nn.Module):
 
     def compute_metrics_from_gathered_data(self, gathered_keypoints_metrics):
         """从聚合的数据计算最终指标"""
-        def flatten_data(data):
-            if isinstance(data, list):
-                result = []
-                for item in data:
-                    if isinstance(item, list):
-                        result.extend(item)
-                    else:
-                        result.append(item)
-                return result
-            else:
-                return data if isinstance(data, list) else [data]
-        
         # 计算keypoints指标
         keypoints_results = {}
         for metric_name in ['accuracy', 'precision', 'recall', 'f1']:

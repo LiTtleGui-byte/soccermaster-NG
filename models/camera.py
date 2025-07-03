@@ -9,7 +9,7 @@ from torch import nn
 import math
 from typing import List, Tuple, Optional
 from models.deformable_detr.vggt.head_act import activate_pose
-
+from models.utils.flatten_data import flatten_data
 
 class Camera(nn.Module):
     """Camera检测模块，用于相机姿态估计"""
@@ -365,22 +365,6 @@ class CameraMetrics(nn.Module):
 
     def compute_metrics_from_gathered_data(self, gathered_camera_metrics):
         """从收集的数据计算最终指标"""
-        def flatten_data(data):
-            if isinstance(data, list):
-                result = []
-                for item in data:
-                    if isinstance(item, dict):
-                        for key, value in item.items():
-                            if isinstance(value, list):
-                                result.extend(value)
-                            else:
-                                result.append(value)
-                    elif isinstance(item, list):
-                        result.extend(item)
-                    else:
-                        result.append(item)
-                return result
-            return data
         metrics = {}
 
         # 展平所有进程的相机数据

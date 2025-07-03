@@ -33,6 +33,7 @@ from .segmentation import (DETRsegm, PostProcessPanoptic, PostProcessSegm,
                            dice_loss, sigmoid_focal_loss)
 from .deformable_transformer import build_deforamble_transformer
 from data.soccernet_gsr_reid import role_mapping, jn_mapping, digit_head_mapping, digit_tail_mapping
+from models.utils.flatten_data import flatten_data
 
 
 def _get_clones(module, N):
@@ -1119,19 +1120,6 @@ class DetectionMetrics(nn.Module):
         Returns:
             dict: 包含各种metrics的字典
         """
-        # 处理不同的数据结构
-        def flatten_data(data):
-            if isinstance(data, list):
-                result = []
-                for item in data:
-                    if isinstance(item, list):
-                        result.extend(item)
-                    else:
-                        result.append(item)
-                return result
-            else:
-                return data if isinstance(data, list) else [data]
-        
         # 初始化metrics
         metrics = {}
         

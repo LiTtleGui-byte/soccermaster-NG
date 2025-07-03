@@ -18,9 +18,10 @@ import torch.nn.functional as F
 from torch import nn
 import math
 import os
-
 from typing import List, Tuple
 import copy
+
+from models.utils.flatten_data import flatten_data
 
 class LinesDetection(nn.Module):
     """ This is the Deformable DETR module that performs object detection """
@@ -435,19 +436,6 @@ class LinesDetectionMetrics(nn.Module):
         Returns:
             dict: 包含lines metrics的字典
         """
-        # 处理不同的数据结构
-        def flatten_data(data):
-            if isinstance(data, list):
-                result = []
-                for item in data:
-                    if isinstance(item, list):
-                        result.extend(item)
-                    else:
-                        result.append(item)
-                return result
-            else:
-                return data if isinstance(data, list) else [data]
-        
         metrics = {}
         
         # 计算lines metrics
