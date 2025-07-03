@@ -11,6 +11,7 @@ def build_loss_fn(config: dict):
     for dataset, heads in datasets_to_heads.items():
         all_heads.extend(heads)
     all_heads = list(set(all_heads))
+    all_heads.sort()
     
     for head in all_heads:
         if head == "SoccerNetGSR_Detection":
@@ -37,6 +38,7 @@ def build_metrics_fn(config: dict):
     for dataset, heads in datasets_to_heads.items():
         all_heads.extend(heads)
     all_heads = list(set(all_heads))
+    all_heads.sort()
     for head in all_heads:
         if head == "SoccerNetGSR_Detection":
             metrics_fn_dict[head] = build_detection_metrics(config=config)

@@ -315,6 +315,7 @@ def evaluate_one_epoch(
     for dataset_name, heads in datasets_to_heads.items():
         all_heads.extend(heads)
     all_heads = list(set(all_heads))
+    all_heads.sort()
     
     # Initialize metrics tracker for evaluation - 使用二级字典结构，按head分组
     eval_weighted_losses = {head: MetricsTracker() for head in all_heads}
@@ -394,21 +395,7 @@ def evaluate_one_epoch(
                                 pass
                                 
                         else:
-                            # For other tasks, assume loss_output is a dictionary of losses
-                            if isinstance(loss_output, dict):
-                                # For other tasks, weighted and unweighted are the same
-                                eval_weighted_losses[head_name].update(loss_output)
-                                eval_unweighted_losses[head_name].update(loss_output)
-                            else:
-                                # Single loss value
-                                loss_dict = {"total_loss": loss_output}
-                                eval_weighted_losses[head_name].update(loss_dict)
-                                eval_unweighted_losses[head_name].update(loss_dict)
-                            
-                            # Compute metrics if metrics function is available
-                            if metrics_fn_dict[head_name] is not None:
-                                # Generic metrics computation
-                                pass
+                            raise ValueError(f"Unknown head name: {head_name}")
                         
                         head_sample_counts[head_name] += batch_size
         
@@ -529,6 +516,7 @@ def train_one_epoch(
     for dataset_name, heads in datasets_to_heads.items():
         all_heads.extend(heads)
     all_heads = list(set(all_heads))
+    all_heads.sort()
     
     max_iterations = max(len(dataloader) for dataloader in dataloader_dict.values())
     
