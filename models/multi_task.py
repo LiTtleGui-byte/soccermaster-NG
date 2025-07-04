@@ -1,26 +1,6 @@
-import collections
-import collections.abc
-from dataclasses import dataclass
-import types
-from typing import Dict, List, Optional, Tuple, Union
-import random
-import math
-import copy
+import os
 import torch
-import torch.nn.functional
-import torch.utils.checkpoint
-from einops import rearrange
 from torch import nn
-from torch.nn import BCEWithLogitsLoss, CrossEntropyLoss, MSELoss
-from transformers.activations import ACT2FN
-from transformers.modeling_outputs import BaseModelOutput, ImageClassifierOutput, BaseModelOutputWithPooling, ModelOutput
-from transformers.modeling_utils import PreTrainedModel
-from transformers.utils import (
-    add_start_docstrings,
-    add_start_docstrings_to_model_forward,
-    logging,
-    replace_return_docstrings,
-)
 
 from models.siglip2 import SiglipBackbone
 from models.deformable_detr.deformable_detr import build_deformable_detr_head
@@ -42,11 +22,11 @@ from models.camera import build_camera_head
 #     return backbone
 
 class MultiTaskingSigLIP(nn.Module):
-    def __init__(self, config):
+    def __init__(self, config, logger):
         super().__init__()
         self.config = config
         
-        self.backbone = SiglipBackbone(config['BACKBONE_TYPE'], config['NUM_FRAMES'], config['CKPT_PATH'], config['TEXT_ENCODER_CKPT_PATH'], config['TRAIN_BACKBONE'], False)
+        self.backbone = SiglipBackbone(config['BACKBONE_TYPE'], config['NUM_FRAMES'], config['CKPT_PATH'], config['STAGE_1_CKPT_DIR'], config['TEXT_ENCODER_CKPT_PATH'], config['TRAIN_BACKBONE'], False)
         
         # multi-task heads
         self.multi_task_head = nn.ModuleDict()
@@ -74,6 +54,17 @@ class MultiTaskingSigLIP(nn.Module):
                 self.multi_task_head[head] = build_camera_head(config)
             else:
                 raise ValueError(f"Head {head} is not supported.")
+            
+        if config['BACKBONE_TYPE'] == 'video':
+            stage_1_ckpt_dir = config['STAGE_1_CKPT_DIR']
+            for head in all_heads:
+                head_path = os.path.join(stage_1_ckpt_dir, f'{head}.pt')
+                if os.path.exists(head_path):
+                    logger.info(f"Loading {head} head from: {head_path}")
+                    head_state_dict = torch.load(head_path)
+                    self.multi_task_head[head].load_state_dict(head_state_dict)
+                else:
+                    logger.warning(f"Warning: {head} head checkpoint not found at {head_path}")
 
     def forward(self, images, dataset_name, metas, text=None):
         backbone_outputs = self.backbone(images, text=text)

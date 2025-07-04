@@ -78,7 +78,7 @@ def train_engine(config: dict):
     # Build metrics functions:
     metrics_fn_dict = build_metrics_fn(config=config)
     
-    model = MultiTaskingSigLIP(config=config)
+    model = MultiTaskingSigLIP(config=config, logger=logger)
     
     # Create parameter groups with different learning rates
     def create_param_groups(model, config):

@@ -10,7 +10,7 @@
 """
 Backbone modules.
 """
-
+import os
 import torch
 import torch.nn.functional as F
 from torch import nn
@@ -25,6 +25,7 @@ class SiglipBackbone(nn.Module):
     def __init__(self, backbone_type: str, 
                  num_frames: int,
                  ckpt_path: str,
+                 stage_1_ckpt_dir: str,
                  text_encoder_ckpt_path: str,
                  train_backbone: bool,
                  use_lora: bool):
@@ -34,9 +35,10 @@ class SiglipBackbone(nn.Module):
             self.vision_model = SiglipVisionModel.from_pretrained(ckpt_path, device_map="cpu")
         elif backbone_type == 'video':
             self.num_frames = num_frames
-            config = SiglipVisionConfig.from_pretrained(ckpt_path)
+            backbone_ckpt_path = os.path.join(stage_1_ckpt_dir, "backbone")
+            config = SiglipVisionConfig.from_pretrained(backbone_ckpt_path)
             config.num_frames = num_frames
-            self.vision_model = TimesformerSiglipVisionModel.from_pretrained(ckpt_path, config=config, device_map="cpu")
+            self.vision_model = TimesformerSiglipVisionModel.from_pretrained(backbone_ckpt_path, config=config, device_map="cpu")
         self.backbone_type = backbone_type
         
         if train_backbone:

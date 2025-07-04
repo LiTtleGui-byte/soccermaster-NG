@@ -544,6 +544,9 @@ class SiglipEncoderLayer(nn.Module):
                 outputs += (attn_weights,)
         elif self.attention_type == "divided_space_time":
             residual = hidden_states
+            
+            # Skip temporal attention for single frame (image) input
+            # if num_frames > 1:
             temporal_embedding = hidden_states.transpose(1, 2).reshape(batch_size * num_patches, num_frames, embed_dim)  # (B*N, T, D)
             temporal_embedding = self.temporal_layernorm(temporal_embedding)
             temporal_embedding, temporal_attn_weights = self.temporal_attention(
@@ -553,6 +556,9 @@ class SiglipEncoderLayer(nn.Module):
             )
             temporal_embedding = temporal_embedding.transpose(1, 2).reshape(batch_size, num_frames, num_patches, embed_dim)
             hidden_states = residual + temporal_embedding
+            # else:
+            #     # For single frame, skip temporal attention entirely
+            #     temporal_attn_weights = None
             
             residual = hidden_states
             spatial_embedding = hidden_states.reshape(batch_size * num_frames, num_patches, embed_dim) # (B*T, N, D)
