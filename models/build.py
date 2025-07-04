@@ -2,7 +2,7 @@ from models.deformable_detr.deformable_detr import build_deformable_detr_criteri
 from models.lines_detection import build_lines_detection_loss, build_lines_detection_metrics
 from models.keypoints_detection import build_keypoints_detection_loss, build_keypoints_detection_metrics
 from models.soccernet_gsr_reid import build_soccer_net_gsr_reid_loss
-from models.video_caption import build_video_caption_loss
+from models.video_caption import build_video_caption_loss, build_video_caption_metrics
 from models.camera import build_camera_loss, build_camera_metrics
 from models.caption_classification import build_caption_classification_loss, build_caption_classification_metrics
 
@@ -59,7 +59,7 @@ def build_metrics_fn(config: dict):
             # 这里可以添加ReID任务的metrics计算，暂时为None
             metrics_fn_dict[head] = None
         elif head == "VideoCaption":
-            metrics_fn_dict[head] = None
+            metrics_fn_dict[head] = build_video_caption_metrics(config=config)
         elif head == "CaptionClassification":
             metrics_fn_dict[head] = build_caption_classification_metrics(config=config)
         elif head == "CameraRegression":

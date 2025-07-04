@@ -365,18 +365,11 @@ def evaluate_one_epoch(
                             
                             # Compute metrics if metrics function is available
                             if metrics_fn_dict[head_name] is not None:
-                                if head_name == "SoccerNetGSR_Detection":
-                                    # 获取target_sizes - 从metas中提取或使用默认值
-                                    if 'target_sizes' in metas:
-                                        target_sizes = metas['target_sizes']
-                                    else:
-                                        target_sizes = torch.tensor([[512, 512]] * batch_size, device=device)
-                                    
-                                    # 使用新的update方法收集数据
-                                    metrics_fn_dict[head_name].update(outputs[head_name], annotations, target_sizes)
-                                elif head_name in ["LinesDetection", "KeypointsDetection"]:
-                                    # Lines任务不需要target_sizes，直接使用新的update方法
-                                    metrics_fn_dict[head_name].update(outputs[head_name], annotations)
+                                if 'target_sizes' in metas:
+                                    target_sizes = metas['target_sizes']
+                                else:
+                                    target_sizes = torch.tensor([[512, 512]] * batch_size, device=device)
+                                metrics_fn_dict[head_name].update(outputs[head_name], annotations, target_sizes)
                                 
                         elif head_name in ["SoccerNetGSR_ReID", "VideoCaption", "CaptionClassification", "LinesDetection", "KeypointsDetection", "CameraRegression"]:
                             loss_task_raw, weight_dict = loss_output
@@ -393,8 +386,12 @@ def evaluate_one_epoch(
                             
                             # Compute metrics if metrics function is available
                             if metrics_fn_dict[head_name] is not None:
-                                # ReID, VideoCaption, CaptionClassification, Camera metrics can be implemented later
-                                metrics_fn_dict[head_name].update(outputs[head_name], annotations)
+                                # For VideoCaption, pass loss_task_raw to extract accuracy values
+                                if head_name == "VideoCaption":
+                                    metrics_fn_dict[head_name].update(outputs[head_name], annotations, loss_task_raw)
+                                else:
+                                    # ReID, CaptionClassification, Camera metrics can be implemented later
+                                    metrics_fn_dict[head_name].update(outputs[head_name], annotations)
                                 
                         else:
                             raise ValueError(f"Unknown head name: {head_name}")

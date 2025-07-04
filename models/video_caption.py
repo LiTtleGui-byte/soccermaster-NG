@@ -5,6 +5,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 import torch.distributed as dist
 from typing import Optional
+from models.utils.flatten_data import flatten_data
 
 class VideoCaptionHead(nn.Module):
     def __init__(self, loss_type='siglip_loss', backbone_type='image'):
@@ -37,8 +38,8 @@ class VideoCaptionHead(nn.Module):
         vision_features = F.normalize(vision_features, dim=-1)
         text_features = F.normalize(text_features, dim=-1)
         
-        # DDP模式下收集全局特征（仅在训练时启用）
-        if dist.is_initialized() and self.training and gather_distributed:
+        # DDP模式下收集全局特征
+        if dist.is_initialized() and gather_distributed:
             vision_features, text_features = self._gather_features_distributed(
                 vision_features, 
                 text_features
@@ -182,7 +183,6 @@ class VideoCaptionLoss(nn.Module):
 
     def calculate_top_k_accuracy(self, sim_matrix, labels):
         batch_size = sim_matrix.size(0)
-        print(sim_matrix.shape)
         topk_indices = torch.topk(sim_matrix, k=5, dim=1)[1]
         
         # 创建正样本标签 (1表示匹配)
@@ -239,3 +239,130 @@ def build_video_caption_head(config):
         loss_type=config["VIDEO_CAPTION_LOSS_TYPE"],
         backbone_type=config["BACKBONE_TYPE"]
     )
+
+
+class VideoCaptionMetrics(nn.Module):
+    """VideoCaption的指标计算类"""
+    
+    def __init__(self):
+        super().__init__()
+        self.reset()
+        
+    def reset(self):
+        """重置收集的数据"""
+        self.video_caption_metrics_data = {
+            'top_1_accuracy': [],
+            'top_3_accuracy': [],
+            'top_5_accuracy': [],
+            'sample_count': 0
+        }
+
+    def update(self, outputs, targets, loss_task_raw=None):
+        """
+        更新指标数据
+        
+        Args:
+            outputs: 模型输出
+            targets: 目标数据
+            loss_task_raw: 损失字典，包含top_k_accuracy值
+        """
+        top_1_acc = loss_task_raw['top_1_accuracy']
+        top_3_acc = loss_task_raw['top_3_accuracy'] 
+        top_5_acc = loss_task_raw['top_5_accuracy']
+        
+        # 转移到CPU并添加到收集器
+        self.video_caption_metrics_data['top_1_accuracy'].append(top_1_acc.cpu().item())
+        self.video_caption_metrics_data['top_3_accuracy'].append(top_3_acc.cpu().item())
+        self.video_caption_metrics_data['top_5_accuracy'].append(top_5_acc.cpu().item())
+        
+        # 更新样本计数（基于batch size）
+        batch_size = len(targets)
+        self.video_caption_metrics_data['sample_count'] += batch_size
+
+    def gather_metrics_data(self, accelerator):
+        """收集所有进程的指标数据"""
+        video_caption_key_list = ['top_1_accuracy', 'top_3_accuracy', 'top_5_accuracy']
+        gathered_video_caption_metrics = {}
+        
+        for key in video_caption_key_list:
+            gathered_video_caption_metrics[key] = accelerator.gather_for_metrics(self.video_caption_metrics_data[key])
+        
+        gathered_video_caption_metrics['sample_count'] = accelerator.gather_for_metrics([self.video_caption_metrics_data['sample_count']])
+        return gathered_video_caption_metrics
+
+    def compute_metrics_from_gathered_data(self, gathered_video_caption_metrics):
+        """从收集的数据计算最终指标"""
+        metrics = {}
+
+        # 展平所有进程的video caption数据
+        all_top_1_accuracy = flatten_data(gathered_video_caption_metrics['top_1_accuracy'])
+        all_top_3_accuracy = flatten_data(gathered_video_caption_metrics['top_3_accuracy'])
+        all_top_5_accuracy = flatten_data(gathered_video_caption_metrics['top_5_accuracy'])
+        
+        # 计算总的样本数
+        total_sample_count = sum(gathered_video_caption_metrics['sample_count'])
+        
+        if total_sample_count > 0:
+            # 计算平均accuracy
+            top_1_accuracy_tensor = torch.tensor(all_top_1_accuracy, dtype=torch.float32)
+            top_3_accuracy_tensor = torch.tensor(all_top_3_accuracy, dtype=torch.float32)
+            top_5_accuracy_tensor = torch.tensor(all_top_5_accuracy, dtype=torch.float32)
+            
+            metrics['video_caption_top_1_accuracy'] = top_1_accuracy_tensor.mean().item()
+            metrics['video_caption_top_3_accuracy'] = top_3_accuracy_tensor.mean().item()
+            metrics['video_caption_top_5_accuracy'] = top_5_accuracy_tensor.mean().item()
+            
+            # 记录样本数量
+            metrics['video_caption_total_samples'] = total_sample_count
+            
+            # 计算标准差
+            metrics['video_caption_top_1_accuracy_std'] = top_1_accuracy_tensor.std().item()
+            metrics['video_caption_top_3_accuracy_std'] = top_3_accuracy_tensor.std().item()
+            metrics['video_caption_top_5_accuracy_std'] = top_5_accuracy_tensor.std().item()
+            
+        else:
+            # 没有有效的video caption数据
+            for metric_name in ['video_caption_top_1_accuracy', 'video_caption_top_3_accuracy', 'video_caption_top_5_accuracy',
+                                'video_caption_top_1_accuracy_std', 'video_caption_top_3_accuracy_std', 'video_caption_top_5_accuracy_std']:
+                metrics[metric_name] = 0.0
+            metrics['video_caption_total_samples'] = 0
+        
+        return metrics
+
+    @torch.no_grad()
+    def forward(self, outputs, targets, loss_task_raw=None):
+        """
+        前向传播计算指标（评估时使用）
+        
+        Args:
+            outputs: 模型输出
+            targets: 目标数据
+            loss_task_raw: 损失字典，包含accuracy值
+            
+        Returns:
+            空字典（实际指标在compute_final_metrics中计算）
+        """
+        self.update(outputs, targets, loss_task_raw)
+        return {}
+
+    def compute_final_metrics(self, accelerator):
+        """
+        计算最终指标（在所有数据收集完成后调用）
+        
+        Args:
+            accelerator: Accelerator实例
+            
+        Returns:
+            最终指标字典
+        """
+        gathered_data = self.gather_metrics_data(accelerator)
+        if accelerator.is_main_process:
+            final_metrics = self.compute_metrics_from_gathered_data(gathered_data)
+            return final_metrics
+        else:
+            return {}
+
+
+def build_video_caption_metrics(config):
+    """构建VideoCaption指标计算器"""
+    return VideoCaptionMetrics()
