@@ -20,7 +20,7 @@ class CaptionClassificationHead(nn.Module):
         """
         super().__init__()
         self.backbone_type = backbone_type
-        self.num_classes = len(keywords_list)
+        num_classes = len(keywords_list)
         
         # 分类头网络
         self.classifier = nn.Sequential(

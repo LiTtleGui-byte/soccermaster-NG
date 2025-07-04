@@ -12,9 +12,10 @@ from torch.optim import AdamW
 from torch.optim.lr_scheduler import MultiStepLR
 from torch.utils.data import DataLoader
 import torch.nn as nn
+from datetime import timedelta
 from accelerate import Accelerator
 from accelerate.state import PartialState
-from accelerate.utils import DistributedDataParallelKwargs
+from accelerate.utils import DistributedDataParallelKwargs, InitProcessGroupKwargs
 from collections import defaultdict
 from itertools import cycle
 
@@ -35,7 +36,10 @@ def train_engine(config: dict):
     # Init Accelerator at beginning:
     # accelerator = Accelerator()
     accelerator = Accelerator(
-        kwargs_handlers=[DistributedDataParallelKwargs(find_unused_parameters=True, broadcast_buffers=False)]
+        kwargs_handlers=[
+            DistributedDataParallelKwargs(find_unused_parameters=True, broadcast_buffers=False),
+            InitProcessGroupKwargs(timeout=timedelta(minutes=120))
+        ]
     )
     # accelerator = Accelerator(
     #     kwargs_handlers=[DistributedDataParallelKwargs(broadcast_buffers=False)]
