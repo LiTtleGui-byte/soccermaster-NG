@@ -193,7 +193,8 @@ class SoccerNetGSR_Detection(Dataset):
                         annotations[sequence_name][frame_idx]["digit_head"].append(digit_head_mapping[None])
                         annotations[sequence_name][frame_idx]["digit_tail"].append(digit_tail_mapping[None])
                 elif anno['supercategory']== 'pitch':
-                    annotations[sequence_name][frame_idx]['lines'] = self.correct_lines_labels(anno['lines'])
+                    # annotations[sequence_name][frame_idx]['lines'] = self.correct_lines_labels(anno['lines'])
+                    annotations[sequence_name][frame_idx]['lines'] = anno['lines']
                 else:
                     raise ValueError(f"Unknown annotation: {anno}")
                 
@@ -315,14 +316,15 @@ class SoccerNetGSR_Detection(Dataset):
         annotation['fov_hw'] = torch.stack([fov_h, fov_w])
         # use for keypoints detection:
         # print(annotation['lines'])
-        keypoints = KeypointsDB(annotation['lines'], image)
-        line_db = LineKeypointsDB(annotation['lines'], image)
         try:
-            keypoints_target, keypoints_mask = keypoints.get_tensor_w_mask()
+            line_db = LineKeypointsDB(annotation['lines'], image)
             lines_target = line_db.get_tensor()
+            annotation['lines_target'] = torch.tensor(lines_target, dtype=torch.float32)
+
+            keypoints = KeypointsDB(self.correct_lines_labels(annotation['lines']), image)
+            keypoints_target, keypoints_mask = keypoints.get_tensor_w_mask()
             annotation['keypoints_target'] = torch.tensor(keypoints_target, dtype=torch.float32)
             annotation['keypoints_mask'] = torch.tensor(keypoints_mask, dtype=torch.float32)
-            annotation['lines_target'] = torch.tensor(lines_target, dtype=torch.float32)
         except Exception as e:
             if isinstance(e, OverflowError):
                 # If overflow error occurs, try getting a different sample

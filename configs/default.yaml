@@ -4,7 +4,7 @@ SUPER_CONFIG_PATH:          # super (father) config path
 SEED: 42
 
 # System Settings:
-NUM_WORKERS: 32
+NUM_WORKERS: 16
 DEVICE: cuda
 
 # Outputs settings:
@@ -29,11 +29,11 @@ PREFETCH_FACTOR: 6
 LR: 1.0e-4
 # Different learning rates for different components:
 LR_BACKBONE: 1.0e-4
-LR_SOCCERNET_GSR_REID: 1.0e-4
-LR_SOCCERNET_GSR_DETECTION: 1.0e-4
-LR_LINES_DETECTION: 5.0e-3
-LR_KEYPOINTS_DETECTION: 1.0e-4
-LR_CAMERA_REGRESSION: 1.0e-4
+LR_SOCCERNET_GSR_REID: 1.0e-3
+LR_SOCCERNET_GSR_DETECTION: 1.0e-3
+LR_LINES_DETECTION: 1.0e-2
+LR_KEYPOINTS_DETECTION: 1.0e-3
+LR_CAMERA_REGRESSION: 1.0e-3
 # LR_BACKBONE_NAMES: [backbone.0]
 # LR_BACKBONE_SCALE: 0.1
 # LR_LINEAR_PROJ_NAMES: [reference_points, sampling_offsets]
@@ -43,11 +43,11 @@ LR_CAMERA_REGRESSION: 1.0e-4
 LR_WARMUP_EPOCHS: 1
 WEIGHT_DECAY: 0.0005
 MAX_CLIP_NORM: 0.1
-EPOCHS: 20
+EPOCHS: 30
 ACCUMULATE_STEPS: 1
 USE_ACCELERATE_CLIP_NORM: True
 LOGGING_INTERVAL: 20
-SCHEDULER_MILESTONES: [7, 9]  # learning rate decay milestones
+SCHEDULER_MILESTONES: [9, 15]  # learning rate decay milestones
 SCHEDULER_GAMMA: 0.1          # learning rate decay factor
 
 # Dataset settings:
