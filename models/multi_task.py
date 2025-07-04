@@ -28,6 +28,7 @@ from models.lines_detection import build_lines_detection_head
 from models.keypoints_detection import build_keypoints_detection_head
 from models.soccernet_gsr_reid import build_soccer_net_gsr_reid_head
 from models.video_caption import build_video_caption_head
+from models.caption_classification import build_caption_classification_head
 from models.camera import build_camera_head
 
 # def build_backbone(config: dict):
@@ -67,6 +68,8 @@ class MultiTaskingSigLIP(nn.Module):
                 self.multi_task_head[head] = build_soccer_net_gsr_reid_head(config)
             elif head == "VideoCaption":
                 self.multi_task_head[head] = build_video_caption_head(config)
+            elif head == "CaptionClassification":
+                self.multi_task_head[head] = build_caption_classification_head(config)
             elif head == "CameraRegression":
                 self.multi_task_head[head] = build_camera_head(config)
             else:

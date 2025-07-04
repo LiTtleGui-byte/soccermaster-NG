@@ -24,7 +24,6 @@ class VideoCaptionHead(nn.Module):
                 backbone_outputs,
                 metas,
                 gather_distributed: bool = True):
-        # 提取特征
         global_features = backbone_outputs['global_features']
         text_features = backbone_outputs['text_features']
         

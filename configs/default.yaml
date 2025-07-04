@@ -170,3 +170,7 @@ VIDEO_CAPTION_TRIMMED30: False
 VIDEO_CAPTION_KEYWORDS: ['corner', 'goal', 'injury', 'own goal', 'penalty', 'penalty missed', 'red card', 'second yellow card', 'substitution', 'start of game(half)', 'end of game(half)', 'yellow card', 'throw in', 'free kick', 'saved by goal-keeper', 'shot off target', 'clearance', "lead to corner", 'off-side', 'var', 'foul with no card', 'statistics and summary', 'ball possession', 'ball out of play']
 VIDEO_CAPTION_TEXT_KEY: 'comments_text_anonymized'
 DISTRIBUTED_GATHER: True
+
+CAPTION_CLASSIFICATION_LOSS_WEIGHT: 1.0
+CAPTION_CLASSIFICATION_LABEL_SMOOTHING: 0.0
+CAPTION_CLASSIFICATION_DROPOUT_RATE: 0.1

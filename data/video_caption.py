@@ -13,6 +13,8 @@ from typing import List
 
 from data.utils import Compose, ToTensor, RandomResize, Normalize
 
+keywords_list = ['corner', 'goal', 'injury', 'own goal', 'penalty', 'penalty missed', 'red card', 'second yellow card', 'substitution', 'start of game(half)', 'end of game(half)', 'yellow card', 'throw in', 'free kick', 'saved by goal-keeper', 'shot off target', 'clearance', "lead to corner", 'off-side', 'var', 'foul with no card', 'statistics and summary', 'ball possession', 'ball out of play']
+
 class VideoCaptionDataset(Dataset):
     def __init__(
             self,
@@ -24,7 +26,7 @@ class VideoCaptionDataset(Dataset):
             fix_start=None, 
             max_num_frames=-1, 
             trimmed30=False,
-            keywords = ['corner', 'goal', 'injury', 'own goal', 'penalty', 'penalty missed', 'red card', 'second yellow card', 'substitution', 'start of game(half)', 'end of game(half)', 'yellow card', 'throw in', 'free kick', 'saved by goal-keeper', 'shot off target', 'clearance', "lead to corner", 'off-side', 'var', 'foul with no card', 'statistics and summary', 'ball possession', 'ball out of play'],
+            keywords = keywords_list,
             # require_text = False,
             text_key = "comments_text_anonymized",
             transforms=None,
@@ -38,6 +40,9 @@ class VideoCaptionDataset(Dataset):
         self.transforms = transforms
         # self.require_text = require_text
         self.text_key = text_key
+
+        # 创建关键词到索引的映射字典，提高查找效率
+        self.keyword_to_index = {keyword: i for i, keyword in enumerate(self.keywords)}
 
         self.data = []
 
@@ -73,7 +78,7 @@ class VideoCaptionDataset(Dataset):
             # "size_divisibility": 1,
             }
         
-        annotation = {'caption': video_info['caption'], 'text': video_info[self.text_key]}
+        annotation = {'caption': video_info['caption'], 'caption_index': self.caption_to_tensor(video_info['caption']), 'text': video_info[self.text_key]}
         
         processed_frames = []
         frames = frames.asnumpy().astype(np.uint8)
@@ -96,14 +101,7 @@ class VideoCaptionDataset(Dataset):
         The tensor will contain the index of the keyword found in the caption.
         If the caption does not match any keyword, the tensor will contain -1.
         """
-        # Initialize the tensor with a default value of -1 (indicating no match)
-        caption_index = -1
-        for i, keyword in enumerate(self.keywords):
-            if keyword == caption:
-                caption_index = i
-                break
-        
-        # Convert the index to a tensor
+        caption_index = self.keyword_to_index[caption]
         caption_tensor = torch.tensor(caption_index, dtype=torch.long)
                 
         return caption_tensor

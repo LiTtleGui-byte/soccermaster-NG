@@ -378,7 +378,7 @@ def evaluate_one_epoch(
                                     # Lines任务不需要target_sizes，直接使用新的update方法
                                     metrics_fn_dict[head_name].update(outputs[head_name], annotations)
                                 
-                        elif head_name in ["SoccerNetGSR_ReID", "VideoCaption", "LinesDetection", "KeypointsDetection", "CameraRegression"]:
+                        elif head_name in ["SoccerNetGSR_ReID", "VideoCaption", "CaptionClassification", "LinesDetection", "KeypointsDetection", "CameraRegression"]:
                             loss_task_raw, weight_dict = loss_output
                             
                             # Compute weighted and unweighted losses
@@ -393,7 +393,7 @@ def evaluate_one_epoch(
                             
                             # Compute metrics if metrics function is available
                             if metrics_fn_dict[head_name] is not None:
-                                # ReID, VideoCaption, Camera metrics can be implemented later
+                                # ReID, VideoCaption, CaptionClassification, Camera metrics can be implemented later
                                 metrics_fn_dict[head_name].update(outputs[head_name], annotations)
                                 
                         else:
@@ -595,7 +595,7 @@ def train_one_epoch(
                     loss_output = loss_outputs[head_name]
                     if head_name in ["SoccerNetGSR_Detection"]:
                         loss_task_raw, weight_dict, _ = loss_output
-                    elif head_name in ["SoccerNetGSR_ReID", "VideoCaption", "KeypointsDetection", "LinesDetection", "CameraRegression"]:
+                    elif head_name in ["SoccerNetGSR_ReID", "VideoCaption", "CaptionClassification", "KeypointsDetection", "LinesDetection", "CameraRegression"]:
                         loss_task_raw, weight_dict = loss_output
                     else:
                         raise ValueError(f"Head {head_name} not supported.")
