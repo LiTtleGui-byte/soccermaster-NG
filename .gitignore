@@ -28,3 +28,4 @@ memory_demo.py
 models/bak
 .cursorignore
 pyrightconfig.json
+soccerbackbone.egg-info

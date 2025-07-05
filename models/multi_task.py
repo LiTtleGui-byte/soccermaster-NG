@@ -23,7 +23,7 @@ from transformers import SiglipVisionConfig
 #     return backbone
 
 class MultiTaskingSigLIP(nn.Module):
-    def __init__(self, config, logger):
+    def __init__(self, config, logger=None):
         super().__init__()
         self.config = config
         
@@ -67,7 +67,7 @@ class MultiTaskingSigLIP(nn.Module):
         #         else:
         #             logger.warning(f"Warning: {head} head checkpoint not found at {head_path}")
 
-    def forward(self, images, dataset_name, metas, text=None):
+    def forward(self, images, dataset_name, metas=None, text=None):
         backbone_outputs = self.backbone(images, text=text)
         
         outputs = {}
@@ -76,7 +76,7 @@ class MultiTaskingSigLIP(nn.Module):
         
         return outputs
     
-    def load_checkpoint(self, checkpoint_dir: str, logger):
+    def load_checkpoint(self, checkpoint_dir: str, logger=None):
         backbone_ckpt_path = os.path.join(checkpoint_dir, "backbone")
         siglip_vision_config = SiglipVisionConfig.from_pretrained(backbone_ckpt_path)
         siglip_vision_config.num_frames = self.config['NUM_FRAMES']
@@ -84,8 +84,14 @@ class MultiTaskingSigLIP(nn.Module):
         for head in self.multi_task_head:
             head_ckpt_path = os.path.join(checkpoint_dir, f"{head}.pt")
             if os.path.exists(head_ckpt_path):
-                logger.info(f"Loading {head} head from: {head_ckpt_path}")
+                if logger is not None:
+                    logger.info(f"Loading {head} head from: {head_ckpt_path}")
+                else:
+                    print(f"Loading {head} head from: {head_ckpt_path}")
                 head_state_dict = torch.load(head_ckpt_path, map_location='cpu')
                 self.multi_task_head[head].load_state_dict(head_state_dict)
             else:
-                logger.warning(f"Warning: {head} head checkpoint not found at {head_ckpt_path}")
+                if logger is not None:
+                    logger.warning(f"Warning: {head} head checkpoint not found at {head_ckpt_path}")
+                else:
+                    print(f"Warning: {head} head checkpoint not found at {head_ckpt_path}")
