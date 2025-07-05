@@ -107,54 +107,38 @@ class CaptionClassificationLoss(nn.Module):
         # 计算交叉熵损失
         classification_loss = self.criterion(logits, labels)
         
-        # 计算top-k准确率（用于监控）
+        # 计算准确率（用于监控）
         with torch.no_grad():
-            top1_acc, top3_acc, top5_acc = self.calculate_top_k_accuracy(logits, labels)
+            accuracy = self.calculate_accuracy(logits, labels)
         
         losses = {
             'classification_loss': classification_loss,
-            'top_1_accuracy': top1_acc,
-            'top_3_accuracy': top3_acc,
-            'top_5_accuracy': top5_acc
+            'accuracy': accuracy
         }
         
         return losses, self.weight_dict
     
-    def calculate_top_k_accuracy(self, logits, labels):
+    def calculate_accuracy(self, logits, labels):
         """
-        计算Top-K准确率
+        计算准确率
         
         Args:
             logits: 预测logits [N, num_classes]
             labels: 真实标签 [N]
             
         Returns:
-            top1_acc, top3_acc, top5_acc: Top-1, Top-3, Top-5准确率
+            accuracy: 准确率
         """
         batch_size = logits.size(0)
         
-        # 获取top-5预测
-        _, top5_pred = torch.topk(logits, k=min(5, self.num_classes), dim=1)
+        # 获取预测结果
+        predictions = torch.argmax(logits, dim=1)
         
-        # 扩展标签以匹配top-k形状
-        labels_expanded = labels.unsqueeze(1).expand_as(top5_pred)
+        # 计算准确率
+        correct = (predictions == labels).float()
+        accuracy = correct.sum() / batch_size
         
-        # 计算匹配
-        correct = (top5_pred == labels_expanded).float()
-        
-        # Top-1准确率
-        top1_acc = correct[:, 0].sum() / batch_size
-        
-        # Top-3准确率
-        if top5_pred.size(1) >= 3:
-            top3_acc = correct[:, :3].sum(dim=1).clamp(max=1).sum() / batch_size
-        else:
-            top3_acc = correct.sum(dim=1).clamp(max=1).sum() / batch_size
-        
-        # Top-5准确率
-        top5_acc = correct.sum(dim=1).clamp(max=1).sum() / batch_size
-        
-        return top1_acc, top3_acc, top5_acc
+        return accuracy
 
 
 class CaptionClassificationMetrics(nn.Module):
