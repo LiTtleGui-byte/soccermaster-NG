@@ -34,6 +34,8 @@ LR_SOCCERNET_GSR_DETECTION: 1.0e-3
 LR_LINES_DETECTION: 1.0e-2
 LR_KEYPOINTS_DETECTION: 1.0e-3
 LR_CAMERA_REGRESSION: 1.0e-3
+LR_VIDEO_CAPTION: 1.0e-3
+LR_CAPTION_CLASSIFICATION: 1.0e-3
 # LR_BACKBONE_NAMES: [backbone.0]
 # LR_BACKBONE_SCALE: 0.1
 # LR_LINEAR_PROJ_NAMES: [reference_points, sampling_offsets]
@@ -168,7 +170,7 @@ VIDEO_CAPTION_SAMPLE: 'middle'
 VIDEO_CAPTION_FIX_START: null
 VIDEO_CAPTION_MAX_NUM_FRAMES: -1
 VIDEO_CAPTION_TRIMMED30: False
-VIDEO_CAPTION_KEYWORDS: ['corner', 'goal', 'injury', 'own goal', 'penalty', 'penalty missed', 'red card', 'second yellow card', 'substitution', 'start of game(half)', 'end of game(half)', 'yellow card', 'throw in', 'free kick', 'saved by goal-keeper', 'shot off target', 'clearance', "lead to corner", 'off-side', 'var', 'foul with no card', 'statistics and summary', 'ball possession', 'ball out of play']
+# VIDEO_CAPTION_KEYWORDS: ['corner', 'goal', 'injury', 'own goal', 'penalty', 'penalty missed', 'red card', 'second yellow card', 'substitution', 'start of game(half)', 'end of game(half)', 'yellow card', 'throw in', 'free kick', 'saved by goal-keeper', 'shot off target', 'clearance', "lead to corner", 'off-side', 'var', 'foul with no card', 'statistics and summary', 'ball possession', 'ball out of play']
 VIDEO_CAPTION_TEXT_KEY: 'comments_text_anonymized'
 DISTRIBUTED_GATHER: True
 

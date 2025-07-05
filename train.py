@@ -111,7 +111,9 @@ def train_engine(config: dict):
             'SoccerNetGSR_Detection': config["LR_SOCCERNET_GSR_DETECTION"],
             'LinesDetection': config["LR_LINES_DETECTION"],
             'KeypointsDetection': config["LR_KEYPOINTS_DETECTION"],
-            'CameraRegression': config["LR_CAMERA_REGRESSION"]
+            'CameraRegression': config["LR_CAMERA_REGRESSION"],
+            'VideoCaption': config["LR_VIDEO_CAPTION"],
+            'CaptionClassification': config["LR_CAPTION_CLASSIFICATION"]
         }
         
         for head_name, head in original_model.multi_task_head.items():
@@ -139,6 +141,10 @@ def train_engine(config: dict):
         milestones=config["SCHEDULER_MILESTONES"],
         gamma=config["SCHEDULER_GAMMA"],
     )
+    
+    torch.cuda.init()  # 显式初始化CUDA
+    device = torch.device("cuda")
+    torch.tensor([1.0]).to(device)  # 创建虚拟张量强制初始化上下文
     
     model, optimizer = accelerator.prepare(model, optimizer)
     dataloader_train_dict = {dataset: accelerator.prepare(dataloader) for dataset, dataloader in dataloader_train_dict.items()}

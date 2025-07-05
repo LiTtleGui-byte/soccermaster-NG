@@ -4,7 +4,7 @@ BACKBONE_TYPE: video
 
 BATCH_SIZE: 2
 NUM_WORKERS: 4
-STAGE_1_CKPT_DIR: ./outputs/image_512/epoch_19
+STAGE_1_CKPT_DIR: ./outputs/image_512_new/epoch_14
 DATASETS_TO_HEADS:
   SoccerNetGSR_Detection: [SoccerNetGSR_Detection, LinesDetection, KeypointsDetection, CameraRegression]
   VideoCaption: [VideoCaption, CaptionClassification]
