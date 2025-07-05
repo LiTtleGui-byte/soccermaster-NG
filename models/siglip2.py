@@ -60,8 +60,9 @@ class SiglipBackbone(nn.Module):
             if temporal_attention_mask is None:
                 if len(images.shape) == 4: # image input
                     # temporal_attention_mask = torch.zeros(images.shape[0], self.num_frames, dtype=torch.bool, device=images.device)
-                    temporal_attention_mask = torch.zeros(1, self.num_frames, dtype=torch.bool, device=images.device) # 依靠广播机制
-                    temporal_attention_mask[:, 0] = 1.0
+                    # temporal_attention_mask = torch.zeros(1, self.num_frames, dtype=torch.bool, device=images.device) # 依靠广播机制
+                    # temporal_attention_mask[:, 0] = 1.0
+                    temporal_attention_mask = None
             
             vision_outputs = self.vision_model(images, temporal_attention_mask=temporal_attention_mask, output_hidden_states=True)
         else:

@@ -142,9 +142,9 @@ def train_engine(config: dict):
         gamma=config["SCHEDULER_GAMMA"],
     )
     
-    torch.cuda.init()  # 显式初始化CUDA
-    device = torch.device("cuda")
-    torch.tensor([1.0]).to(device)  # 创建虚拟张量强制初始化上下文
+    # torch.cuda.init()  # 显式初始化CUDA
+    # device = torch.device("cuda")
+    # torch.tensor([1.0]).to(device)  # 创建虚拟张量强制初始化上下文
     
     model, optimizer = accelerator.prepare(model, optimizer)
     dataloader_train_dict = {dataset: accelerator.prepare(dataloader) for dataset, dataloader in dataloader_train_dict.items()}

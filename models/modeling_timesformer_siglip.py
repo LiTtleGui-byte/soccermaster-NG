@@ -281,7 +281,7 @@ class SiglipVisionEmbeddings(nn.Module):
         
         if len(input_shape) == 5:  # Video input [B, T, C, H, W]
             batch_size, num_frames_input, num_channels, height, width = input_shape
-            assert num_frames_input == self.num_frames, "Number of frames in the input must match the number of frames in the model, but got {} and {}".format(num_frames_input, self.num_frames)
+            # assert num_frames_input == self.num_frames, "Number of frames in the input must match the number of frames in the model, but got {} and {}".format(num_frames_input, self.num_frames)
             # Reshape to [B*T, C, H, W] for patch embedding
             pixel_values = pixel_values.reshape(-1, num_channels, height, width)
         else:  # Single image input [B, C, H, W]
@@ -295,10 +295,11 @@ class SiglipVisionEmbeddings(nn.Module):
         num_patches = embeddings.shape[1]
         if len(input_shape) == 5:  # Video input
             # Reshape back to [B, T, N, D]
-            embeddings = embeddings.reshape(batch_size, self.num_frames, num_patches, -1) # [B, T, N, D]
+            embeddings = embeddings.reshape(batch_size, num_frames_input, num_patches, -1) # [B, T, N, D]
         else:
             # For single image, pad to [B, T, N, D] format
-            embeddings = embeddings.unsqueeze(1).expand(-1, self.num_frames, -1, -1)  # [B, T, N, D]
+            # embeddings = embeddings.unsqueeze(1).expand(-1, self.num_frames, -1, -1)  # [B, T, N, D]
+            embeddings = embeddings.unsqueeze(1)  # [B, 1, N, D]
         
         # Add position embeddings
         assert interpolate_pos_encoding == False, "Interpolation of position embeddings is not supported for TimeSformer for now"

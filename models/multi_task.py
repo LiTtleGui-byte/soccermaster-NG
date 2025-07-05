@@ -61,7 +61,7 @@ class MultiTaskingSigLIP(nn.Module):
                 head_path = os.path.join(stage_1_ckpt_dir, f'{head}.pt')
                 if os.path.exists(head_path):
                     logger.info(f"Loading {head} head from: {head_path}")
-                    head_state_dict = torch.load(head_path)
+                    head_state_dict = torch.load(head_path, map_location='cpu')
                     self.multi_task_head[head].load_state_dict(head_state_dict)
                 else:
                     logger.warning(f"Warning: {head} head checkpoint not found at {head_path}")
