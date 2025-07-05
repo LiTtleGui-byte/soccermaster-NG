@@ -227,25 +227,25 @@ def train_engine(config: dict):
     
     for epoch in range(train_states["start_epoch"], config["EPOCHS"]):
         # Train one epoch:
-        train_one_epoch(
-            config=config,
-            accelerator=accelerator,
-            states=train_states,
-            epoch=epoch,
-            dataloader_dict=dataloader_train_dict,
-            loss_fn_dict=loss_fn_dict,
-            model=model,
-            optimizer=optimizer,
-            logger=logger,
-            lr_warmup_epochs=config["LR_WARMUP_EPOCHS"],
-            # lr_warmup_tgt_lr=config["LR"],
-            accumulate_steps=config["ACCUMULATE_STEPS"],
-            max_clip_norm=config["MAX_CLIP_NORM"],
-            use_accelerate_clip_norm=config["USE_ACCELERATE_CLIP_NORM"],
-            logging_interval=config["LOGGING_INTERVAL"],
-        )
-        scheduler.step()
-        torch.distributed.barrier()
+        # train_one_epoch(
+        #     config=config,
+        #     accelerator=accelerator,
+        #     states=train_states,
+        #     epoch=epoch,
+        #     dataloader_dict=dataloader_train_dict,
+        #     loss_fn_dict=loss_fn_dict,
+        #     model=model,
+        #     optimizer=optimizer,
+        #     logger=logger,
+        #     lr_warmup_epochs=config["LR_WARMUP_EPOCHS"],
+        #     # lr_warmup_tgt_lr=config["LR"],
+        #     accumulate_steps=config["ACCUMULATE_STEPS"],
+        #     max_clip_norm=config["MAX_CLIP_NORM"],
+        #     use_accelerate_clip_norm=config["USE_ACCELERATE_CLIP_NORM"],
+        #     logging_interval=config["LOGGING_INTERVAL"],
+        # )
+        # scheduler.step()
+        # torch.distributed.barrier()
         
         # Evaluate after each epoch if test datasets are available
         if dataloader_test_dict and (epoch + 1) % config["EVAL_PER_EPOCH"] == 0:

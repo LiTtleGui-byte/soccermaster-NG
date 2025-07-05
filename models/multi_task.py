@@ -10,6 +10,7 @@ from models.soccernet_gsr_reid import build_soccer_net_gsr_reid_head
 from models.video_caption import build_video_caption_head
 from models.caption_classification import build_caption_classification_head
 from models.camera import build_camera_head
+from transformers import SiglipVisionConfig
 
 # def build_backbone(config: dict):
 #     # position_embedding = build_position_encoding(args)
@@ -55,16 +56,16 @@ class MultiTaskingSigLIP(nn.Module):
             else:
                 raise ValueError(f"Head {head} is not supported.")
             
-        if config['BACKBONE_TYPE'] == 'video':
-            stage_1_ckpt_dir = config['STAGE_1_CKPT_DIR']
-            for head in all_heads:
-                head_path = os.path.join(stage_1_ckpt_dir, f'{head}.pt')
-                if os.path.exists(head_path):
-                    logger.info(f"Loading {head} head from: {head_path}")
-                    head_state_dict = torch.load(head_path, map_location='cpu')
-                    self.multi_task_head[head].load_state_dict(head_state_dict)
-                else:
-                    logger.warning(f"Warning: {head} head checkpoint not found at {head_path}")
+        # if config['BACKBONE_TYPE'] == 'video':
+        #     stage_1_ckpt_dir = config['STAGE_1_CKPT_DIR']
+        #     for head in all_heads:
+        #         head_path = os.path.join(stage_1_ckpt_dir, f'{head}.pt')
+        #         if os.path.exists(head_path):
+        #             logger.info(f"Loading {head} head from: {head_path}")
+        #             head_state_dict = torch.load(head_path, map_location='cpu')
+        #             self.multi_task_head[head].load_state_dict(head_state_dict)
+        #         else:
+        #             logger.warning(f"Warning: {head} head checkpoint not found at {head_path}")
 
     def forward(self, images, dataset_name, metas, text=None):
         backbone_outputs = self.backbone(images, text=text)
@@ -74,3 +75,17 @@ class MultiTaskingSigLIP(nn.Module):
             outputs[head] = self.multi_task_head[head](backbone_outputs, metas)
         
         return outputs
+    
+    def load_checkpoint(self, checkpoint_dir: str, logger):
+        backbone_ckpt_path = os.path.join(checkpoint_dir, "backbone")
+        siglip_vision_config = SiglipVisionConfig.from_pretrained(backbone_ckpt_path)
+        siglip_vision_config.num_frames = self.config['NUM_FRAMES']
+        self.backbone.vision_model.from_pretrained(backbone_ckpt_path, config=siglip_vision_config, device_map="cpu")
+        for head in self.multi_task_head:
+            head_ckpt_path = os.path.join(checkpoint_dir, f"{head}.pt")
+            if os.path.exists(head_ckpt_path):
+                logger.info(f"Loading {head} head from: {head_ckpt_path}")
+                head_state_dict = torch.load(head_ckpt_path, map_location='cpu')
+                self.multi_task_head[head].load_state_dict(head_state_dict)
+            else:
+                logger.warning(f"Warning: {head} head checkpoint not found at {head_ckpt_path}")

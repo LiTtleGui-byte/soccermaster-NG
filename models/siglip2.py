@@ -35,10 +35,10 @@ class SiglipBackbone(nn.Module):
             self.vision_model = SiglipVisionModel.from_pretrained(ckpt_path, device_map="cpu")
         elif backbone_type == 'video':
             self.num_frames = num_frames
-            backbone_ckpt_path = os.path.join(stage_1_ckpt_dir, "backbone")
-            config = SiglipVisionConfig.from_pretrained(backbone_ckpt_path)
+            # backbone_ckpt_path = os.path.join(stage_1_ckpt_dir, "backbone")
+            config = SiglipVisionConfig.from_pretrained(ckpt_path)
             config.num_frames = num_frames
-            self.vision_model = TimesformerSiglipVisionModel.from_pretrained(backbone_ckpt_path, config=config, device_map="cpu")
+            self.vision_model = TimesformerSiglipVisionModel.from_pretrained(ckpt_path, config=config, device_map="cpu")
         self.backbone_type = backbone_type
         
         if train_backbone:
@@ -78,7 +78,7 @@ class SiglipBackbone(nn.Module):
         pooled_output = vision_outputs.pooler_output # [N, D] or [N, T, D]
         output = {'global_features': pooled_output, 'local_features': last_hidden_state, 'hidden_states': hidden_states, 'text_features': text_pooled_output}
         return output
-
+    
 class TextEncoder(nn.Module):
     def __init__(self, model_name: str):
         super().__init__()
