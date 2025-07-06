@@ -10,7 +10,7 @@ from models.soccernet_gsr_reid import build_soccer_net_gsr_reid_head
 from models.video_caption import build_video_caption_head
 from models.caption_classification import build_caption_classification_head
 from models.camera import build_camera_head
-from transformers import SiglipVisionConfig
+from transformers import SiglipVisionConfig, SiglipVisionModel
 
 # def build_backbone(config: dict):
 #     # position_embedding = build_position_encoding(args)
@@ -80,7 +80,8 @@ class MultiTaskingSigLIP(nn.Module):
         backbone_ckpt_path = os.path.join(checkpoint_dir, "backbone")
         siglip_vision_config = SiglipVisionConfig.from_pretrained(backbone_ckpt_path)
         siglip_vision_config.num_frames = self.config['NUM_FRAMES']
-        self.backbone.vision_model.from_pretrained(backbone_ckpt_path, config=siglip_vision_config, device_map="cpu")
+        del self.backbone.vision_model
+        self.backbone.vision_model = SiglipVisionModel.from_pretrained(backbone_ckpt_path, config=siglip_vision_config, device_map="cpu")
         for head in self.multi_task_head:
             head_ckpt_path = os.path.join(checkpoint_dir, f"{head}.pt")
             if os.path.exists(head_ckpt_path):
@@ -88,7 +89,7 @@ class MultiTaskingSigLIP(nn.Module):
                     logger.info(f"Loading {head} head from: {head_ckpt_path}")
                 else:
                     print(f"Loading {head} head from: {head_ckpt_path}")
-                head_state_dict = torch.load(head_ckpt_path, map_location='cpu')
+                head_state_dict = torch.load(head_ckpt_path, map_location="cpu")
                 self.multi_task_head[head].load_state_dict(head_state_dict)
             else:
                 if logger is not None:

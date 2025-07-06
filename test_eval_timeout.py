@@ -420,10 +420,9 @@ def evaluate_one_epoch(
             final_metrics = metrics_fn_dict[head_name].compute_final_metrics(accelerator)
             if accelerator.is_main_process:
                 final_metrics_results[head_name] = final_metrics
-                # 重置metrics收集器为下次evaluation准备
-                metrics_fn_dict[head_name].reset()
             else:
                 final_metrics_results[head_name] = {}
+            metrics_fn_dict[head_name].reset()
     
     # Log evaluation results to tensorboard
     if logger:
