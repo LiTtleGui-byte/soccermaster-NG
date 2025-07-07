@@ -34,7 +34,7 @@ from .segmentation import (DETRsegm, PostProcessPanoptic, PostProcessSegm,
 from .deformable_transformer import build_deforamble_transformer
 from data.soccernet_gsr_reid import role_mapping, jn_mapping, digit_head_mapping, digit_tail_mapping
 from models.utils.flatten_data import flatten_data
-
+from accelerate.utils.operations import gather_object
 
 def _get_clones(module, N):
     return nn.ModuleList([copy.deepcopy(module) for i in range(N)])
@@ -1092,10 +1092,10 @@ class DetectionMetrics(nn.Module):
         for thresh in self.iou_thresholds:
             gathered_tp_fp_scores[thresh] = {}
             for key in key_list:
-                gathered_tp_fp_scores[thresh][key] = accelerator.gather_for_metrics(self.tp_fp_scores_per_thresh[thresh][key])
+                gathered_tp_fp_scores[thresh][key] = gather_object(self.tp_fp_scores_per_thresh[thresh][key])
         
         # 聚合GT总数（需要包装成列表）
-        gathered_gt_count = accelerator.gather_for_metrics([self.total_gt_count])
+        gathered_gt_count = gather_object([self.total_gt_count])
         
         # 聚合attribute匹配结果
         attr_name_list = ['role', 'jersey', 'digit_head', 'digit_tail']
@@ -1104,7 +1104,7 @@ class DetectionMetrics(nn.Module):
         for attr_name in attr_name_list:
             gathered_attribute_matches[attr_name] = {}
             for key in key_list_attr:
-                gathered_attribute_matches[attr_name][key] = accelerator.gather_for_metrics(self.attribute_matches[attr_name][key])
+                gathered_attribute_matches[attr_name][key] = gather_object(self.attribute_matches[attr_name][key])
         
         return gathered_tp_fp_scores, gathered_gt_count, gathered_attribute_matches
 

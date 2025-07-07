@@ -245,7 +245,6 @@ def train_engine(config: dict):
             logging_interval=config["LOGGING_INTERVAL"],
         )
         scheduler.step()
-        torch.distributed.barrier()
         
         # Evaluate after each epoch if test datasets are available
         if dataloader_test_dict and (epoch + 1) % config["EVAL_PER_EPOCH"] == 0:
@@ -550,7 +549,7 @@ def train_one_epoch(
 
     # Track which dataloaders have been exhausted and reset
     dataloader_lengths = {task: len(dataloader) for task, dataloader in dataloader_dict.items()}
-    dataloader_counters = {task: 0 for task in dataloader_dict.keys()}
+    # dataloader_counters = {task: 0 for task in dataloader_dict.keys()}
     logger.info(f"Dataloader lengths: {dataloader_lengths}")
 
     for cur_iter in range(max_iterations):
@@ -565,12 +564,12 @@ def train_one_epoch(
                 # batch = next(dataloader)
                 try:
                     batch = next(dataloader_iter)
-                    dataloader_counters[dataset_name] += 1
+                    # dataloader_counters[dataset_name] += 1
                 except StopIteration:
                     # Reset the dataloader iterator and counter when exhausted
                     logger.info(f"Dataset {dataset_name} dataloader exhausted at iteration {cur_iter}, resetting...")
                     dataloader_iters[dataset_name] = iter(dataloader_dict[dataset_name])
-                    dataloader_counters[dataset_name] = 1  # Reset counter to 1 (current batch)
+                    # dataloader_counters[dataset_name] = 1  # Reset counter to 1 (current batch)
                     batch = next(dataloader_iters[dataset_name])
                     
                 images, annotations, metas = batch.values()
@@ -739,8 +738,8 @@ def train_one_epoch(
         # 清理当前iteration的变量，防止显存累积
         # del weighted_loss_dict, unweighted_loss_dict, log_only_loss_dict
         # 定期清理CUDA缓存
-        if (cur_iter + 1) % (logging_interval * 2) == 0:
-            torch.cuda.empty_cache()
+        # if (cur_iter + 1) % (logging_interval * 2) == 0:
+        #     torch.cuda.empty_cache()
         
     states["start_epoch"] += 1
     time_per_epoch = TPS.format(TPS.timestamp() - epoch_start_timestamp)

@@ -72,6 +72,12 @@ class SoccerNetGSR_Detection(Dataset):
     def _get_sequence_names(self):
         sequence_names = os.listdir(os.path.join(self.data_dir, 'SoccerNetGS', self.split))
         return [name for name in sequence_names if os.path.isdir(os.path.join(self.data_dir, 'SoccerNetGS', self.split, name))]
+        # if self.split == 'train':
+        #     return [name for name in sequence_names if os.path.isdir(os.path.join(self.data_dir, 'SoccerNetGS', self.split, name))]
+        # elif self.split == 'test':
+        #     sequence_names = [name for name in sequence_names if os.path.isdir(os.path.join(self.data_dir, 'SoccerNetGS', self.split, name))]
+        #     sequence_names.sort()
+        #     return sequence_names[:10]
 
     def _get_sequence_infos(self):
         sequence_names = self._get_sequence_names()

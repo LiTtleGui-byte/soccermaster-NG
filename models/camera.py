@@ -10,6 +10,7 @@ import math
 from typing import List, Tuple, Optional
 from models.deformable_detr.vggt.head_act import activate_pose
 from models.utils.flatten_data import flatten_data
+from accelerate.utils.operations import gather_object
 
 class Camera(nn.Module):
     """Camera检测模块，用于相机姿态估计"""
@@ -359,8 +360,8 @@ class CameraMetrics(nn.Module):
         camera_key_list = ['translation_errors', 'rotation_errors', 'fov_errors']
         gathered_camera_metrics = {}
         for key in camera_key_list:
-            gathered_camera_metrics[key] = accelerator.gather_for_metrics(self.camera_metrics_data[key])
-        gathered_camera_metrics['valid_count'] = accelerator.gather_for_metrics([self.camera_metrics_data['valid_count']])
+            gathered_camera_metrics[key] = gather_object(self.camera_metrics_data[key])
+        gathered_camera_metrics['valid_count'] = gather_object([self.camera_metrics_data['valid_count']])
         return gathered_camera_metrics
 
     def compute_metrics_from_gathered_data(self, gathered_camera_metrics):

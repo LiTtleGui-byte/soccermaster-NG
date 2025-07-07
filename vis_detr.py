@@ -27,45 +27,6 @@ from utils.misc import set_seed
 from configs.util import load_super_config, update_config, yaml_to_dict
 from data.soccernet_gsr_reid import role_mapping, jn_mapping
 
-
-def load_checkpoint(model, checkpoint_path, device):
-    """
-    加载checkpoint到模型
-    """
-    if not os.path.exists(checkpoint_path):
-        raise FileNotFoundError(f"Checkpoint not found: {checkpoint_path}")
-    
-    print(f"正在加载checkpoint: {checkpoint_path}")
-    
-    # 检查是否是目录结构的checkpoint（包含backbone和各个head）
-    if os.path.isdir(checkpoint_path):
-        # 加载backbone
-        backbone_path = os.path.join(checkpoint_path, 'backbone')
-        if os.path.exists(backbone_path):
-            print(f"加载backbone: {backbone_path}")
-            model.backbone.model = model.backbone.model.from_pretrained(backbone_path)
-        
-        # 加载各个task head
-        for task_name in model.multi_task_head.keys():
-            head_path = os.path.join(checkpoint_path, f'{task_name}.pt')
-            if os.path.exists(head_path):
-                print(f"加载{task_name}头: {head_path}")
-                head_state_dict = torch.load(head_path, map_location=device)
-                model.multi_task_head[task_name].load_state_dict(head_state_dict)
-            else:
-                print(f"警告: 未找到{task_name}头的checkpoint: {head_path}")
-    else:
-        # 加载单个checkpoint文件
-        checkpoint = torch.load(checkpoint_path, map_location=device)
-        if 'model_state_dict' in checkpoint:
-            model.load_state_dict(checkpoint['model_state_dict'])
-        else:
-            model.load_state_dict(checkpoint)
-    
-    print("Checkpoint加载成功!")
-    return model
-
-
 # def denormalize_image(image_tensor, mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]):
 def denormalize_image(image_tensor, mean=[0.5, 0.5, 0.5], std=[0.5, 0.5, 0.5]):
     """
@@ -200,7 +161,8 @@ def visualize_predictions_and_gt(image, pred_results, gt_annotations, class_name
     return fig
 
 
-def visualize_engine(config: dict, checkpoint_path: str, output_dir: str, num_samples: int = 10, score_threshold: float = 0.5):
+# def visualize_engine(config: dict, checkpoint_path: str, output_dir: str, num_samples: int = 10, score_threshold: float = 0.5):
+def visualize_engine(config: dict, output_dir: str, num_samples: int = 10, score_threshold: float = 0.5):
     """
     主要的可视化引擎
     """
@@ -234,9 +196,8 @@ def visualize_engine(config: dict, checkpoint_path: str, output_dir: str, num_sa
     
     # Build model
     model = MultiTaskingSigLIP(config=config)
-    
-    # Load checkpoint
-    model = load_checkpoint(model, checkpoint_path, accelerator.device)
+    if config["LOAD_CHECKPOINTS"]:
+        model.load_checkpoint(config["STAGE_1_CKPT_DIR"])
     
     # Prepare model
     model = accelerator.prepare(model)
@@ -367,8 +328,8 @@ def parse_args():
     parser = argparse.ArgumentParser(description='可视化DETR模型预测结果')
     parser.add_argument('--config', type=str, required=True, 
                        help='配置文件路径')
-    parser.add_argument('--checkpoint', type=str, required=True,
-                       help='Checkpoint文件或目录路径')
+    # parser.add_argument('--checkpoint', type=str, required=True,
+    #                    help='Checkpoint文件或目录路径')
     parser.add_argument('--output_dir', type=str, default=None,
                        help='输出目录路径 (默认: auto-generated)')
     parser.add_argument('--num_samples', type=int, default=10,
@@ -407,7 +368,7 @@ if __name__ == '__main__':
     try:
         visualize_engine(
             config=cfg,
-            checkpoint_path=args.checkpoint,
+            # checkpoint_path=args.checkpoint,
             output_dir=args.output_dir,
             num_samples=args.num_samples,
             score_threshold=args.score_threshold

@@ -285,9 +285,9 @@ class VideoCaptionMetrics(nn.Module):
         gathered_video_caption_metrics = {}
         
         for key in video_caption_key_list:
-            gathered_video_caption_metrics[key] = accelerator.gather_for_metrics(self.video_caption_metrics_data[key])
+            gathered_video_caption_metrics[key] = gather_object(self.video_caption_metrics_data[key])
         
-        gathered_video_caption_metrics['sample_count'] = accelerator.gather_for_metrics([self.video_caption_metrics_data['sample_count']])
+        gathered_video_caption_metrics['sample_count'] = gather_object([self.video_caption_metrics_data['sample_count']])
         return gathered_video_caption_metrics
 
     def compute_metrics_from_gathered_data(self, gathered_video_caption_metrics):

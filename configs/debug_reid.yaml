@@ -1,4 +1,0 @@
-SUPER_CONFIG_PATH: ./configs/default.yaml
-
-TASKS: [SoccerNetGSR_ReID, ]
-DATASETS: [SoccerNetGSR_ReID, ]

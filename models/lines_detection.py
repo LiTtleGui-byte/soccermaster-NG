@@ -22,6 +22,7 @@ from typing import List, Tuple
 import copy
 
 from models.utils.flatten_data import flatten_data
+from accelerate.utils.operations import gather_object
 
 class LinesDetection(nn.Module):
     """ This is the Deformable DETR module that performs object detection """
@@ -421,8 +422,8 @@ class LinesDetectionMetrics(nn.Module):
         lines_key_list = ['accuracies', 'precisions', 'recalls', 'f1_scores']
         gathered_lines_metrics = {}
         for key in lines_key_list:
-            gathered_lines_metrics[key] = accelerator.gather_for_metrics(self.lines_metrics_data[key])
-        gathered_lines_metrics['valid_count'] = accelerator.gather_for_metrics([self.lines_metrics_data['valid_count']])
+            gathered_lines_metrics[key] = gather_object(self.lines_metrics_data[key])
+        gathered_lines_metrics['valid_count'] = gather_object([self.lines_metrics_data['valid_count']])
         
         return gathered_lines_metrics
 

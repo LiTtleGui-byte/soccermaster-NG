@@ -8,6 +8,7 @@ from typing import Optional, List
 import math
 from models.utils.flatten_data import flatten_data
 from data.video_caption import keywords_list
+from accelerate.utils.operations import gather_object
 
 class CaptionClassificationHead(nn.Module):
     def __init__(self, input_dim=768, backbone_type='image', dropout_rate=0.1):
@@ -185,8 +186,8 @@ class CaptionClassificationMetrics(nn.Module):
         """收集所有进程的指标数据"""
         gathered_metrics = {}
         for key in ['predictions', 'targets', 'confidences']:
-            gathered_metrics[key] = accelerator.gather_for_metrics(self.metrics_data[key])
-        gathered_metrics['total_samples'] = accelerator.gather_for_metrics([self.metrics_data['total_samples']])
+            gathered_metrics[key] = gather_object(self.metrics_data[key])
+        gathered_metrics['total_samples'] = gather_object([self.metrics_data['total_samples']])
         return gathered_metrics
 
     def compute_metrics_from_gathered_data(self, gathered_metrics):

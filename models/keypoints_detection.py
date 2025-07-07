@@ -11,6 +11,7 @@ from typing import List, Tuple
 import copy
 
 from models.utils.flatten_data import flatten_data
+from accelerate.utils.operations import gather_object
 
 
 class KeypointsDetection(nn.Module):
@@ -490,9 +491,9 @@ class KeypointsDetectionMetrics(nn.Module):
         
         for key, values in self.keypoints_metrics_data.items():
             if key == 'valid_count':
-                gathered_data[key] = accelerator.gather_for_metrics([values])
+                gathered_data[key] = gather_object([values])
             else:
-                gathered_data[key] = accelerator.gather_for_metrics(values)
+                gathered_data[key] = gather_object(values)
         
         return gathered_data
 

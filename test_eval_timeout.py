@@ -245,7 +245,6 @@ def train_engine(config: dict):
         #     logging_interval=config["LOGGING_INTERVAL"],
         # )
         # scheduler.step()
-        # torch.distributed.barrier()
         
         # Evaluate after each epoch if test datasets are available
         if dataloader_test_dict and (epoch + 1) % config["EVAL_PER_EPOCH"] == 0:
@@ -261,7 +260,6 @@ def train_engine(config: dict):
                 logger=logger
             )
             logger.info(f"Evaluation completed for epoch {epoch}")
-            torch.distributed.barrier()
         
         if (epoch + 1) % config["SAVE_CHECKPOINT_PER_EPOCH"] == 0:
             # Use model.module to access original model attributes when using DDP
