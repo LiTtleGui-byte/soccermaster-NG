@@ -41,7 +41,7 @@ class HungarianMatcher(nn.Module):
         self.cost_bbox = cost_bbox
         self.cost_giou = cost_giou
         assert cost_class != 0 or cost_bbox != 0 or cost_giou != 0, "all costs cant be 0"
-
+        
     def forward(self, outputs, targets):
         """ Performs the matching
 
@@ -63,6 +63,8 @@ class HungarianMatcher(nn.Module):
                 len(index_i) = len(index_j) = min(num_queries, num_target_boxes)
         """
         with torch.no_grad():
+            # Since SetCriterion already reshapes video data to image format,
+            # we can treat all inputs as image format
             bs, num_queries = outputs["pred_logits"].shape[:2]
 
             # We flatten to compute the cost matrices in a batch

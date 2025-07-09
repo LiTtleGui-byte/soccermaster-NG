@@ -140,9 +140,10 @@ GSR_LINES_LOSS_WEIGHT: 1.0
 DETR_CRITERION_BATCH_LEN: 10
 NUM_KEYPOINTS: 58
 NUM_LINES: 24
+DETECTION_DATA_TYPE: image
 
 # Lines Head settings:
-LINES_HEAD_TYPE: dpt  # 'default' for LinesHead, 'dpt' for DPTLinesHead
+LINES_HEAD_TYPE: default  # 'default' for LinesHead, 'dpt' for DPTLinesHead
 DPT_SELECTED_LAYERS: [2, 5, 8, 11]  # 当使用DPT时，选择的SigLIP hidden_states层索引 (0-11)
 
 # SoccerNetGSR_ReID settings:

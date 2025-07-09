@@ -41,9 +41,13 @@ class Camera(nn.Module):
         """
         global_features, local_features = backbone_outputs['global_features'], backbone_outputs['local_features']
         
+        bs, num_frames = None, None
         if self.backbone_type == 'video':
-            global_features = global_features[:, 0]
-            local_features = local_features[:, 0]
+            bs, num_frames, _, _ = local_features.shape
+            # 将 [bs, num_frames, ...] reshape为 [bs*num_frames, ...]
+            local_features = local_features.reshape(bs * num_frames, *local_features.shape[2:])
+            if global_features is not None:
+                global_features = global_features.reshape(bs * num_frames, -1)
 
         # 将local_features从(N, L, D)重塑为(N, D, H, W)
         N, L, D = local_features.shape
@@ -52,6 +56,12 @@ class Camera(nn.Module):
         reshaped_local_features = reshaped_local_features.reshape(N, D, Hf, Wf)
         
         quaternion, translation, fov = self.camera_head(reshaped_local_features)
+
+        # 如果是video模式，将输出reshape回[bs, num_frames, ...]
+        if self.backbone_type == 'video':
+            quaternion = quaternion.reshape(bs, num_frames, *quaternion.shape[1:])
+            translation = translation.reshape(bs, num_frames, *translation.shape[1:])
+            fov = fov.reshape(bs, num_frames, *fov.shape[1:])
 
         out = {
             'quaternion': quaternion,
@@ -143,15 +153,17 @@ class ConvCameraHead(nn.Module):
 class CameraLoss(nn.Module):
     """Camera的损失计算类"""
     
-    def __init__(self, weight_dict):
+    def __init__(self, weight_dict, backbone_type='image'):
         """
         创建损失计算器
         
         Args:
             weight_dict: 包含损失权重的字典
+            backbone_type: 'image' or 'video'
         """
         super().__init__()
         self.weight_dict = weight_dict
+        self.backbone_type = backbone_type
 
     def forward(self, outputs, targets, **kwargs):
         """
@@ -160,21 +172,50 @@ class CameraLoss(nn.Module):
         Args:
             outputs: 模型输出，包含quaternion, translation, fov
             targets: 目标标签列表
+                    For video mode: list of lists, where each inner list contains annotations for each frame
             
         Returns:
             losses: 损失字典
             weight_dict: 权重字典
         """
         losses = {}
-        valid_camera_mask = torch.stack([t["valid_camera"] for t in targets], dim=0)
+        
+        # Handle video mode: flatten targets if needed
+        if self.backbone_type == 'video':
+            # Check if targets is list of lists (video mode)
+            if targets and isinstance(targets[0], list):
+                # Flatten targets: convert list of list of dicts to list of dicts
+                flattened_targets = []
+                for batch_targets in targets:
+                    for frame_target in batch_targets:
+                        flattened_targets.append(frame_target)
+                targets_for_loss = flattened_targets
+            else:
+                # Already flattened
+                targets_for_loss = targets
+        else:
+            targets_for_loss = targets
+        
+        valid_camera_mask = torch.stack([t["valid_camera"] for t in targets_for_loss], dim=0)
         if valid_camera_mask.any():
-            quaternion_gt = torch.stack([t["quaternion"] for t in targets], dim=0)[valid_camera_mask]
-            translation_gt = torch.stack([t["translation"] for t in targets], dim=0)[valid_camera_mask]
-            fov_hw_gt = torch.stack([t["fov_hw"] for t in targets], dim=0)[valid_camera_mask]
+            quaternion_gt = torch.stack([t["quaternion"] for t in targets_for_loss], dim=0)[valid_camera_mask]
+            translation_gt = torch.stack([t["translation"] for t in targets_for_loss], dim=0)[valid_camera_mask]
+            fov_hw_gt = torch.stack([t["fov_hw"] for t in targets_for_loss], dim=0)[valid_camera_mask]
             
-            quaternion_pred = outputs["quaternion"][valid_camera_mask]
-            translation_pred = outputs["translation"][valid_camera_mask]
-            fov_hw_pred = outputs["fov"][valid_camera_mask]
+            # 对于video模式，pred的shape可能是[bs, num_frames, ...]，需要reshape
+            quaternion_pred = outputs["quaternion"]
+            translation_pred = outputs["translation"]
+            fov_hw_pred = outputs["fov"]
+            
+            if self.backbone_type == 'video' and len(quaternion_pred.shape) >= 3:
+                bs, num_frames = quaternion_pred.shape[:2]
+                quaternion_pred = quaternion_pred.reshape(bs * num_frames, *quaternion_pred.shape[2:])
+                translation_pred = translation_pred.reshape(bs * num_frames, *translation_pred.shape[2:])
+                fov_hw_pred = fov_hw_pred.reshape(bs * num_frames, *fov_hw_pred.shape[2:])
+            
+            quaternion_pred = quaternion_pred[valid_camera_mask]
+            translation_pred = translation_pred[valid_camera_mask]
+            fov_hw_pred = fov_hw_pred[valid_camera_mask]
             
             cur_pred_pose_enc = torch.cat([translation_pred, quaternion_pred, fov_hw_pred], dim=-1)
             gt_pose_encoding = torch.cat([translation_gt, quaternion_gt, fov_hw_gt], dim=-1)
@@ -261,8 +302,9 @@ def check_and_fix_inf_nan(loss_tensor, loss_name, hard_max=100):
 class CameraMetrics(nn.Module):
     """Camera的指标计算类"""
     
-    def __init__(self):
+    def __init__(self, backbone_type='image'):
         super().__init__()
+        self.backbone_type = backbone_type
         self.reset()
         
     def reset(self):
@@ -308,27 +350,55 @@ class CameraMetrics(nn.Module):
         计算相机参数的指标
         
         Args:
-            pred_camera: 预测的相机参数字典，包含quaternion, translation, fov
-            targets: 目标列表，每个包含camera_params
+            outputs: 预测的相机参数字典，包含quaternion, translation, fov
+            targets: 目标列表，每个包含camera_params，或list of lists for video mode
             
         Returns:
             指标字典
         """
+        # Handle video mode: flatten targets if needed
+        if self.backbone_type == 'video':
+            # Check if targets is list of lists (video mode)
+            if targets and isinstance(targets[0], list):
+                # Flatten targets: convert list of list of dicts to list of dicts
+                flattened_targets = []
+                for batch_targets in targets:
+                    for frame_target in batch_targets:
+                        flattened_targets.append(frame_target)
+                targets_for_metrics = flattened_targets
+            else:
+                # Already flattened
+                targets_for_metrics = targets
+        else:
+            targets_for_metrics = targets
+        
         # 获取有效相机mask
-        valid_camera_mask = torch.stack([t.get("valid_camera", torch.tensor(False)) for t in targets], dim=0)
+        valid_camera_mask = torch.stack([t.get("valid_camera", torch.tensor(False)) for t in targets_for_metrics], dim=0)
         
         if not valid_camera_mask.any():
             return  # 没有有效的相机数据
         
         # 获取GT相机参数
-        quaternion_gt = torch.stack([t["quaternion"] for t in targets], dim=0)[valid_camera_mask]
-        translation_gt = torch.stack([t["translation"] for t in targets], dim=0)[valid_camera_mask]
-        fov_hw_gt = torch.stack([t["fov_hw"] for t in targets], dim=0)[valid_camera_mask]
+        quaternion_gt = torch.stack([t["quaternion"] for t in targets_for_metrics], dim=0)[valid_camera_mask]
+        translation_gt = torch.stack([t["translation"] for t in targets_for_metrics], dim=0)[valid_camera_mask]
+        fov_hw_gt = torch.stack([t["fov_hw"] for t in targets_for_metrics], dim=0)[valid_camera_mask]
         
-        # 获取预测相机参数
-        quaternion_pred = outputs["quaternion"][valid_camera_mask]
-        translation_pred = outputs["translation"][valid_camera_mask]
-        fov_hw_pred = outputs["fov"][valid_camera_mask]
+        # 获取预测相机参数 - 处理video模式
+        quaternion_pred = outputs["quaternion"]
+        translation_pred = outputs["translation"]
+        fov_hw_pred = outputs["fov"]
+        
+        # 如果是video模式，reshape预测结果
+        if self.backbone_type == 'video' and len(quaternion_pred.shape) >= 3:
+            bs, num_frames = quaternion_pred.shape[:2]
+            quaternion_pred = quaternion_pred.reshape(bs * num_frames, *quaternion_pred.shape[2:])
+            translation_pred = translation_pred.reshape(bs * num_frames, *translation_pred.shape[2:])
+            fov_hw_pred = fov_hw_pred.reshape(bs * num_frames, *fov_hw_pred.shape[2:])
+        
+        # 应用有效相机mask
+        quaternion_pred = quaternion_pred[valid_camera_mask]
+        translation_pred = translation_pred[valid_camera_mask]
+        fov_hw_pred = fov_hw_pred[valid_camera_mask]
         
         # 计算平移误差（欧氏距离）
         translation_errors = torch.norm(translation_pred - translation_gt, dim=-1)  # [N]
@@ -470,9 +540,9 @@ def build_camera_loss(config: dict):
         'loss_fl': config["CAMERA_FL_LOSS_WEIGHT"],
     }
     
-    return CameraLoss(weight_dict=weight_dict)
+    return CameraLoss(weight_dict=weight_dict, backbone_type=config["BACKBONE_TYPE"])
 
 
 def build_camera_metrics(config: dict):
     """构建Camera指标计算器"""
-    return CameraMetrics()
+    return CameraMetrics(backbone_type=config["BACKBONE_TYPE"])

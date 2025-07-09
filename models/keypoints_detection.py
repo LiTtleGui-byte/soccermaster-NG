@@ -44,9 +44,13 @@ class KeypointsDetection(nn.Module):
         """
         global_features, local_features = backbone_outputs['global_features'], backbone_outputs['local_features']
         
+        bs, num_frames = None, None
         if self.backbone_type == 'video':
-            global_features = global_features[:, 0]
-            local_features = local_features[:, 0]
+            bs, num_frames, _, _ = local_features.shape
+            # 将 [bs, num_frames, ...] reshape为 [bs*num_frames, ...]
+            local_features = local_features.reshape(bs * num_frames, *local_features.shape[2:])
+            if global_features is not None:
+                global_features = global_features.reshape(bs * num_frames, -1)
 
         # 将local_features从(N, L, D)重塑为(N, D, H, W)
         N, L, D = local_features.shape
@@ -55,6 +59,10 @@ class KeypointsDetection(nn.Module):
         reshaped_local_features = reshaped_local_features.reshape(N, D, Hf, Wf)
         
         keypoints_heatmap = self.keypoints_head(reshaped_local_features)
+
+        # 如果是video模式，将输出reshape回[bs, num_frames, ...]
+        if self.backbone_type == 'video':
+            keypoints_heatmap = keypoints_heatmap.reshape(bs, num_frames, *keypoints_heatmap.shape[1:])
 
         out = {'pred_keypoints_heatmap': keypoints_heatmap}
         return out
@@ -143,15 +151,17 @@ class KeypointsHead(nn.Module):
 class KeypointsDetectionLoss(nn.Module):
     """KeypointsDetection的损失计算类"""
     
-    def __init__(self, weight_dict):
+    def __init__(self, weight_dict, backbone_type='image'):
         """
         创建损失计算器
         
         Args:
             weight_dict: 包含损失权重的字典
+            backbone_type: 'image' or 'video'
         """
         super().__init__()
         self.weight_dict = weight_dict
+        self.backbone_type = backbone_type
 
     def forward(self, outputs, targets, **kwargs):
         """
@@ -160,6 +170,7 @@ class KeypointsDetectionLoss(nn.Module):
         Args:
             outputs: 模型输出，包含pred_keypoints_heatmap
             targets: 目标标签列表
+                    For video mode: list of lists, where each inner list contains annotations for each frame
             
         Returns:
             losses: 损失字典
@@ -168,15 +179,58 @@ class KeypointsDetectionLoss(nn.Module):
         """
         losses = {}
         
-        # Keypoints loss
-        keypoints_gt = torch.stack([t["keypoints_target"] for t in targets], dim=0)
-        keypoints_mask = torch.stack([t["keypoints_mask"] for t in targets], dim=0)
-        keypoints_pred = outputs["pred_keypoints_heatmap"]
+        # Handle video mode: flatten targets if needed
+        if self.backbone_type == 'video':
+            # Check if targets is list of lists (video mode)
+            if targets and isinstance(targets[0], list):
+                # Flatten targets: convert list of list of dicts to list of dicts
+                flattened_targets = []
+                for batch_targets in targets:
+                    for frame_target in batch_targets:
+                        flattened_targets.append(frame_target)
+                targets_for_loss = flattened_targets
+            else:
+                # Already flattened
+                targets_for_loss = targets
+        else:
+            targets_for_loss = targets
         
-        # 使用MSE loss计算keypoints损失
-        loss_keypoints = F.mse_loss(keypoints_pred, keypoints_gt, reduction='none')
-        # 应用mask，只在有效的keypoints上计算损失
-        loss_keypoints = (loss_keypoints * keypoints_mask.unsqueeze(-1).unsqueeze(-1)).sum() / (keypoints_mask.sum() + 1e-6)
+        # 检查哪些样本的valid_keypoints为True
+        valid_keypoints_mask = torch.stack([t["valid_keypoints"] for t in targets_for_loss], dim=0)  # [batch_size]
+        
+        if valid_keypoints_mask.any():
+            # 只对valid_keypoints为True的样本计算loss
+            keypoints_gt = torch.stack([t["keypoints_target"] for t in targets_for_loss], dim=0)  # [batch_size, num_keypoints, H, W]
+            keypoints_mask = torch.stack([t["keypoints_mask"] for t in targets_for_loss], dim=0)  # [batch_size, num_keypoints]
+            keypoints_pred = outputs["pred_keypoints_heatmap"]  # [batch_size, num_keypoints, H, W]
+            
+            # 对于video模式，pred的shape是[bs, num_frames, num_keypoints, H, W]，需要reshape
+            if self.backbone_type == 'video' and len(keypoints_pred.shape) == 5:
+                bs, num_frames = keypoints_pred.shape[:2]
+                keypoints_pred = keypoints_pred.reshape(bs * num_frames, *keypoints_pred.shape[2:])
+            
+            # 使用MSE loss计算keypoints损失
+            loss_keypoints = F.mse_loss(keypoints_pred, keypoints_gt, reduction='none')  # [batch_size, num_keypoints, H, W]
+            
+            # 应用keypoints_mask，只在有效的keypoints上计算损失
+            keypoints_mask_expanded = keypoints_mask.unsqueeze(-1).unsqueeze(-1)  # [batch_size, num_keypoints, 1, 1]
+            loss_keypoints = loss_keypoints * keypoints_mask_expanded  # [batch_size, num_keypoints, H, W]
+            
+            # 再应用valid_keypoints_mask，只对有效的样本计算损失
+            valid_sample_mask = valid_keypoints_mask.unsqueeze(1).unsqueeze(2).unsqueeze(3)  # [batch_size, 1, 1, 1]
+            valid_sample_mask = valid_sample_mask.expand_as(loss_keypoints)  # [batch_size, num_keypoints, H, W]
+            loss_keypoints = loss_keypoints * valid_sample_mask
+            
+            # 归一化：只考虑有效样本的有效keypoints
+            valid_keypoints_in_valid_samples = (keypoints_mask * valid_keypoints_mask.unsqueeze(1)).sum()
+            if valid_keypoints_in_valid_samples > 0:
+                loss_keypoints = loss_keypoints.sum() / valid_keypoints_in_valid_samples
+            else:
+                loss_keypoints = torch.tensor(0.0, device=keypoints_pred.device, requires_grad=True)
+        else:
+            # 如果没有有效样本，loss为0
+            loss_keypoints = torch.tensor(0.0, device=outputs["pred_keypoints_heatmap"].device, requires_grad=True)
+            
         losses["loss_keypoints"] = loss_keypoints
         
         return losses, self.weight_dict
@@ -185,8 +239,9 @@ class KeypointsDetectionLoss(nn.Module):
 class KeypointsDetectionMetrics(nn.Module):
     """KeypointsDetection的指标计算类"""
     
-    def __init__(self):
+    def __init__(self, backbone_type='image'):
         super().__init__()
+        self.backbone_type = backbone_type
         self.reset()
         
     def reset(self):
@@ -435,28 +490,57 @@ class KeypointsDetectionMetrics(nn.Module):
         计算keypoints的metrics
         
         Args:
-            pred_keypoints_heatmap: 预测的keypoints heatmap [B, num_keypoints, H, W]
-            targets: 目标数据列表
+            pred_keypoints_heatmap: 预测的keypoints heatmap [B, num_keypoints, H, W] or [B, num_frames, num_keypoints, H, W]
+            targets: 目标数据列表 or list of lists for video mode
         """
         # 检查是否有keypoints数据
         if pred_keypoints_heatmap is None:
             return
+        
+        # Handle video mode: flatten targets if needed
+        if self.backbone_type == 'video':
+            # Check if targets is list of lists (video mode)
+            if targets and isinstance(targets[0], list):
+                # Flatten targets: convert list of list of dicts to list of dicts
+                flattened_targets = []
+                for batch_targets in targets:
+                    for frame_target in batch_targets:
+                        flattened_targets.append(frame_target)
+                targets_for_metrics = flattened_targets
+            else:
+                # Already flattened
+                targets_for_metrics = targets
+                
+            # Reshape pred_keypoints_heatmap from [bs, num_frames, ...] to [bs*num_frames, ...]
+            if len(pred_keypoints_heatmap.shape) == 5:  # [bs, num_frames, num_keypoints, H, W]
+                bs, num_frames = pred_keypoints_heatmap.shape[:2]
+                pred_keypoints_heatmap = pred_keypoints_heatmap.reshape(bs * num_frames, *pred_keypoints_heatmap.shape[2:])
+        else:
+            targets_for_metrics = targets
+        
+        # 只处理valid_keypoints为True的样本
+        valid_keypoints_mask = torch.stack([t["valid_keypoints"] for t in targets_for_metrics], dim=0)  # [batch_size]
+        if not valid_keypoints_mask.any():
+            return  # 没有有效的keypoints数据
             
-        # 获取GT keypoints heatmap和mask
-        keypoints_gt_list = [t.get("keypoints_target", None) for t in targets]
-        keypoints_mask_list = [t.get("keypoints_mask", None) for t in targets]
+        # 获取GT keypoints heatmap和mask，只处理有效样本
+        keypoints_gt_list = [t.get("keypoints_target", None) for i, t in enumerate(targets_for_metrics) if valid_keypoints_mask[i]]
+        keypoints_mask_list = [t.get("keypoints_mask", None) for i, t in enumerate(targets_for_metrics) if valid_keypoints_mask[i]]
         
         # 过滤掉None值
-        valid_indices = [i for i, (kp_gt, kp_mask) in enumerate(zip(keypoints_gt_list, keypoints_mask_list)) 
+        valid_data_indices = [i for i, (kp_gt, kp_mask) in enumerate(zip(keypoints_gt_list, keypoints_mask_list)) 
                         if kp_gt is not None and kp_mask is not None]
         
-        if not valid_indices:
+        if not valid_data_indices:
             return  # 没有有效的keypoints数据
         
         # 只处理有效的数据
-        keypoints_gt = torch.stack([keypoints_gt_list[i] for i in valid_indices])
-        keypoints_mask = torch.stack([keypoints_mask_list[i] for i in valid_indices])
-        pred_keypoints_valid = pred_keypoints_heatmap[valid_indices]
+        keypoints_gt = torch.stack([keypoints_gt_list[i] for i in valid_data_indices])
+        keypoints_mask = torch.stack([keypoints_mask_list[i] for i in valid_data_indices])
+        
+        # 获取对应的有效预测
+        valid_pred_indices = torch.where(valid_keypoints_mask)[0][valid_data_indices]
+        pred_keypoints_valid = pred_keypoints_heatmap[valid_pred_indices]
         
         # 从heatmap中提取keypoints
         kp_gt = self.get_keypoints_from_heatmap_batch_maxpool(keypoints_gt[:,:-1,:,:], return_scores=True, max_keypoints=1)
@@ -568,9 +652,9 @@ def build_keypoints_detection_loss(config: dict):
         "loss_keypoints": config["GSR_KEYPOINTS_LOSS_WEIGHT"]
     }
     
-    return KeypointsDetectionLoss(weight_dict=weight_dict)
+    return KeypointsDetectionLoss(weight_dict=weight_dict, backbone_type=config["BACKBONE_TYPE"])
 
 
 def build_keypoints_detection_metrics(config: dict):
     """构建KeypointsDetection指标计算器"""
-    return KeypointsDetectionMetrics() 
+    return KeypointsDetectionMetrics(backbone_type=config["BACKBONE_TYPE"]) 

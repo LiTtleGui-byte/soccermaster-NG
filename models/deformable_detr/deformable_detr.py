@@ -43,7 +43,7 @@ def _get_clones(module, N):
 class DeformableDetrHead(nn.Module):
     """ This is the Deformable DETR module that performs object detection """
     def __init__(self, position_encoding, transformer, num_classes, num_queries, num_feature_levels, backbone_strides, backbone_num_channels,
-                 aux_loss=True, with_box_refine=False, two_stage=False, backbone_type='image'):
+                 aux_loss=True, with_box_refine=False, two_stage=False, detection_data_type = "image", backbone_type='image'):
         """ Initializes the model.
         Parameters:
             backbone: torch module of the backbone to be used. See backbone.py
@@ -99,6 +99,7 @@ class DeformableDetrHead(nn.Module):
         self.aux_loss = aux_loss
         self.with_box_refine = with_box_refine
         self.two_stage = two_stage
+        self.detection_data_type = detection_data_type
         self.backbone_type = backbone_type
 
         prior_prob = 0.01
@@ -157,10 +158,11 @@ class DeformableDetrHead(nn.Module):
                                 dictionnaries containing the two above keys for each decoder layer.
         """
         global_features, local_features = backbone_outputs['global_features'], backbone_outputs['local_features']
+        # if self.backbone_type == 'video' and self.detection_data_type == 'image':
         if self.backbone_type == 'video':
-            global_features = global_features[:, 0]
-            local_features = local_features[:, 0]
-
+            bs, num_frames, _, _ = local_features.shape
+            local_features = local_features.reshape(bs * num_frames, *local_features.shape[2:])
+        
         N, L, D = local_features.shape
         reshaped_local_features = local_features.permute(0, 2, 1).contiguous()
         Hf = Wf = int(math.sqrt(L))
@@ -225,6 +227,15 @@ class DeformableDetrHead(nn.Module):
                 assert reference.shape[-1] == 2
                 tmp[..., :2] += reference
             outputs_coord = tmp.sigmoid()
+            
+            if self.backbone_type == 'video':
+                outputs_class = outputs_class.reshape(bs, num_frames, *outputs_class.shape[1:])
+                outputs_coord = outputs_coord.reshape(bs, num_frames, *outputs_coord.shape[1:])
+                outputs_role = outputs_role.reshape(bs, num_frames, *outputs_role.shape[1:])
+                outputs_jn = outputs_jn.reshape(bs, num_frames, *outputs_jn.shape[1:])
+                outputs_digit_h = outputs_digit_h.reshape(bs, num_frames, *outputs_digit_h.shape[1:])
+                outputs_digit_t = outputs_digit_t.reshape(bs, num_frames, *outputs_digit_t.shape[1:])
+            
             outputs_classes.append(outputs_class)
             outputs_coords.append(outputs_coord)
             outputs_roles.append(outputs_role)
@@ -248,7 +259,7 @@ class DeformableDetrHead(nn.Module):
 
         # Output the outputs of last decoder layer.
         # We need these outputs to generate the embeddings for objects.
-        out["outputs"] = hs[-1]
+        out["outputs"] = hs[-1].reshape(bs, num_frames, *hs[-1].shape[1:])
         return out
 
     @torch.jit.unused
@@ -266,7 +277,7 @@ class SetCriterion(nn.Module):
         1) we compute hungarian assignment between ground truth boxes and the outputs of the model
         2) we supervise each pair of matched ground-truth / prediction (supervise class and box)
     """
-    def __init__(self, num_classes, matcher, weight_dict, losses, focal_alpha=0.25, detr_loss_batch_len=10):
+    def __init__(self, num_classes, matcher, weight_dict, losses, focal_alpha=0.25, detr_loss_batch_len=10, detection_data_type='image', backbone_type='image'):
         """ Create the criterion.
         Parameters:
             num_classes: number of object categories, omitting the special no-object category
@@ -286,7 +297,8 @@ class SetCriterion(nn.Module):
         self.losses = losses
         self.focal_alpha = focal_alpha
         self.detr_loss_batch_len = detr_loss_batch_len
-        
+        self.detection_data_type = detection_data_type
+        self.backbone_type = backbone_type
         
     def loss_labels(self, outputs, targets, indices, num_boxes, log=True):
         """Classification loss (NLL)
@@ -509,7 +521,6 @@ class SetCriterion(nn.Module):
         if loss == "labels" or loss == "boxes" or loss == "masks" or loss == "roles" or loss == "jn_holistic" or loss == "digit_head" or loss == "digit_tail":
             for k in loss_dict.keys():
                 loss_dict[k] /= num_boxes
-        pass
         return loss_dict
         # return loss_map[loss](outputs, targets, indices, num_boxes, **kwargs)
 
@@ -519,19 +530,54 @@ class SetCriterion(nn.Module):
              outputs: dict of tensors, see the output specification of the model for the format
              targets: list of dicts, such that len(targets) == batch_size.
                       The expected keys in each dict depends on the losses applied, see each loss' doc
+                      For video mode: list of lists, where each inner list contains annotations for each frame
         """
-        outputs_without_aux = {k: v for k, v in outputs.items() if k != 'aux_outputs' and k != 'enc_outputs'}
+        # Handle video mode: reshape outputs and flatten targets
+        if self.backbone_type == 'video':
+            bs, num_frames, _, _ = outputs['pred_logits'].shape
+            
+            # Reshape outputs from [bs, num_frames, ...] to [bs*num_frames, ...]
+            reshaped_outputs = {}
+            for key, value in outputs.items():
+                if key in ['aux_outputs', 'enc_outputs']:
+                    continue
+                if isinstance(value, torch.Tensor) and len(value.shape) >= 3:
+                    # Reshape [bs, num_frames, ...] to [bs*num_frames, ...]
+                    reshaped_outputs[key] = value.reshape(bs * num_frames, *value.shape[2:])
+                else:
+                    reshaped_outputs[key] = value
+            
+            # Flatten targets: convert list of list of dicts to list of dicts
+            flattened_targets = []
+            for batch_targets in targets:
+                if isinstance(batch_targets, list):
+                    # This is a list of annotations for each frame
+                    for frame_target in batch_targets:
+                        flattened_targets.append(frame_target)
+                else:
+                    # Single frame target
+                    flattened_targets.append(batch_targets)
+            
+            # Use the reshaped data for loss computation
+            outputs_for_loss = reshaped_outputs
+            targets_for_loss = flattened_targets
+        else:
+            # Image mode: use original format
+            outputs_for_loss = outputs
+            targets_for_loss = targets
+
+        outputs_without_aux = {k: v for k, v in outputs_for_loss.items() if k != 'aux_outputs' and k != 'enc_outputs'}
 
         # Retrieve the matching between the outputs of the last layer and the targets
         if self.detr_loss_batch_len is None:
-            indices = self.matcher(outputs_without_aux, targets)
+            indices = self.matcher(outputs_without_aux, targets_for_loss)
         else:
             indices = []
             iter_idxs = torch.tensor(
-                list(range(0, len(targets))), dtype=torch.int64, device=outputs_without_aux['pred_logits'].device
+                list(range(0, len(targets_for_loss))), dtype=torch.int64, device=outputs_without_aux['pred_logits'].device
             )
             for batch_iter_idxs, batch_targets in batch_iterator(
-                    self.detr_loss_batch_len, iter_idxs, targets
+                    self.detr_loss_batch_len, iter_idxs, targets_for_loss
             ):
                 batch_outputs_without_aux = tensor_dict_index_select(outputs_without_aux, batch_iter_idxs, dim=0)
                 _ = self.matcher(batch_outputs_without_aux, batch_targets)
@@ -541,8 +587,8 @@ class SetCriterion(nn.Module):
         # batch_len = kwargs["batch_len"]         # HELLORPG Added
         batch_len = self.detr_loss_batch_len
         # Compute the average number of target boxes accross all nodes, for normalization purposes
-        num_boxes = sum(len(t["labels"]) for t in targets)
-        num_boxes = torch.as_tensor([num_boxes], dtype=torch.float, device=next(iter(outputs.values())).device)
+        num_boxes = sum(len(t["labels"]) for t in targets_for_loss)
+        num_boxes = torch.as_tensor([num_boxes], dtype=torch.float, device=next(iter(outputs_for_loss.values())).device)
         if is_distributed():
             torch.distributed.all_reduce(num_boxes)
         num_boxes = torch.clamp(num_boxes / distributed_world_size(), min=1).item()
@@ -551,12 +597,25 @@ class SetCriterion(nn.Module):
         losses = {}
         for loss in self.losses:
             kwargs = {"batch_len": batch_len}         # HELLORPG Added
-            losses.update(self.get_loss(loss, outputs, targets, indices, num_boxes, **kwargs))
+            losses.update(self.get_loss(loss, outputs_for_loss, targets_for_loss, indices, num_boxes, **kwargs))
 
         # In case of auxiliary losses, we repeat this process with the output of each intermediate layer.
         if 'aux_outputs' in outputs:
             for i, aux_outputs in enumerate(outputs['aux_outputs']):
-                indices = self.matcher(aux_outputs, targets)
+                # Handle video mode for auxiliary outputs
+                if self.detection_data_type == "video" and self.backbone_type == "video":
+                    if len(aux_outputs['pred_logits'].shape) == 4:  # [bs, num_frames, num_queries, num_classes]
+                        bs, num_frames = aux_outputs['pred_logits'].shape[:2]
+                        # Reshape auxiliary outputs
+                        reshaped_aux_outputs = {}
+                        for key, value in aux_outputs.items():
+                            if isinstance(value, torch.Tensor) and len(value.shape) >= 3:
+                                reshaped_aux_outputs[key] = value.reshape(bs * num_frames, *value.shape[2:])
+                            else:
+                                reshaped_aux_outputs[key] = value
+                        aux_outputs = reshaped_aux_outputs
+                
+                indices = self.matcher(aux_outputs, targets_for_loss)
                 for loss in self.losses:
                     if loss == 'masks':
                         # Intermediate masks losses are too costly to compute, we ignore them.
@@ -566,13 +625,26 @@ class SetCriterion(nn.Module):
                         # Logging is enabled only for the last layer
                         kwargs['log'] = False
                     kwargs["batch_len"] = batch_len     # HELLORPG Added
-                    l_dict = self.get_loss(loss, aux_outputs, targets, indices, num_boxes, **kwargs)
+                    l_dict = self.get_loss(loss, aux_outputs, targets_for_loss, indices, num_boxes, **kwargs)
                     l_dict = {k + f'_{i}': v for k, v in l_dict.items()}
                     losses.update(l_dict)
 
         if 'enc_outputs' in outputs:
             enc_outputs = outputs['enc_outputs']
-            bin_targets = copy.deepcopy(targets)
+            # Handle video mode for encoder outputs
+            if self.detection_data_type == "video" and self.backbone_type == "video":
+                if len(enc_outputs['pred_logits'].shape) == 4:  # [bs, num_frames, num_queries, num_classes]
+                    bs, num_frames = enc_outputs['pred_logits'].shape[:2]
+                    # Reshape encoder outputs
+                    reshaped_enc_outputs = {}
+                    for key, value in enc_outputs.items():
+                        if isinstance(value, torch.Tensor) and len(value.shape) >= 3:
+                            reshaped_enc_outputs[key] = value.reshape(bs * num_frames, *value.shape[2:])
+                        else:
+                            reshaped_enc_outputs[key] = value
+                    enc_outputs = reshaped_enc_outputs
+            
+            bin_targets = copy.deepcopy(targets_for_loss)
             for bt in bin_targets:
                 bt['labels'] = torch.zeros_like(bt['labels'])
             indices = self.matcher(enc_outputs, bin_targets)
@@ -588,10 +660,6 @@ class SetCriterion(nn.Module):
                 l_dict = {k + f'_enc': v for k, v in l_dict.items()}
                 losses.update(l_dict)
 
-
-        
-
-        
         # losses = {k: (v * self.weight_dict[k] if k in self.weight_dict else v) for k, v in losses.items()}
 
         return losses, self.weight_dict, indices
@@ -810,6 +878,7 @@ def build_deformable_detr_head(config: dict):
         aux_loss=args.aux_loss,
         with_box_refine=args.with_box_refine,
         two_stage=args.two_stage,
+        detection_data_type=config["DETECTION_DATA_TYPE"],
         backbone_type=config["BACKBONE_TYPE"],
     )
     return head
@@ -840,6 +909,10 @@ def build_deformable_detr_criterion(config: dict):
         matcher=build_matcher(args),
         weight_dict=weight_dict,
         losses = ['labels', 'boxes', 'cardinality', 'roles', 'jn_holistic', 'digit_head', 'digit_tail'],
+        focal_alpha=args.focal_alpha,
+        detr_loss_batch_len=config.get("DETR_CRITERION_BATCH_LEN", 10),
+        detection_data_type=config["DETECTION_DATA_TYPE"],
+        backbone_type=config["BACKBONE_TYPE"],
     )
     return detr_criterion
 
@@ -872,11 +945,12 @@ class DetectionMetrics(nn.Module):
     计算detection常见的metrics，包括mAP、IoU、precision、recall等指标
     支持多进程聚合和整个数据集上的AP计算
     """
-    def __init__(self, num_classes, iou_thresholds=None, score_threshold=0.5):
+    def __init__(self, num_classes, iou_thresholds=None, score_threshold=0.5, backbone_type='image'):
         super().__init__()
         self.num_classes = num_classes
         self.iou_thresholds = iou_thresholds if iou_thresholds is not None else [0.5, 0.55, 0.6, 0.65, 0.7, 0.75, 0.8, 0.85, 0.9, 0.95]
         self.score_threshold = score_threshold
+        self.backbone_type = backbone_type
         self.postprocess = PostProcess()
         
         self.reset()
@@ -934,14 +1008,53 @@ class DetectionMetrics(nn.Module):
         在当前batch上计算TP/FP并收集结果
         
         Args:
-            outputs: 模型输出 
-            targets: 真实标注
+            outputs: 模型输出，可能包含video模式的数据 
+            targets: 真实标注，可能是list of lists for video mode
             target_sizes: 图像尺寸
         """
         device = outputs['pred_logits'].device
         
+        # Handle video mode: reshape outputs and flatten targets
+        if self.backbone_type == 'video':
+            # Check if outputs contain video-shaped data
+            if len(outputs['pred_logits'].shape) == 4:  # [bs, num_frames, num_queries, num_classes]
+                bs, num_frames = outputs['pred_logits'].shape[:2]
+                
+                # Reshape outputs from [bs, num_frames, ...] to [bs*num_frames, ...]
+                reshaped_outputs = {}
+                for key, value in outputs.items():
+                    if isinstance(value, torch.Tensor) and len(value.shape) >= 3:
+                        reshaped_outputs[key] = value.reshape(bs * num_frames, *value.shape[2:])
+                    else:
+                        reshaped_outputs[key] = value
+                outputs_for_metrics = reshaped_outputs
+                
+                # Flatten target_sizes if needed
+                if target_sizes.ndim == 3:  # [bs, num_frames, 2]
+                    target_sizes = target_sizes.reshape(bs * num_frames, target_sizes.shape[-1])
+                elif target_sizes.ndim == 2 and target_sizes.shape[0] == bs:  # [bs, 2] - repeat for all frames
+                    target_sizes = target_sizes.unsqueeze(1).repeat(1, num_frames, 1).reshape(bs * num_frames, target_sizes.shape[-1])
+            else:
+                outputs_for_metrics = outputs
+            
+            # Check if targets is list of lists (video mode)
+            if targets and isinstance(targets[0], list):
+                # Flatten targets: convert list of list of dicts to list of dicts
+                flattened_targets = []
+                for batch_targets in targets:
+                    for frame_target in batch_targets:
+                        flattened_targets.append(frame_target)
+                targets_for_metrics = flattened_targets
+            else:
+                # Already flattened
+                targets_for_metrics = targets
+        else:
+            # Image mode: use original format
+            outputs_for_metrics = outputs
+            targets_for_metrics = targets
+        
         # 使用PostProcess获取预测结果（已包含attributes）
-        predictions = self.postprocess(outputs, target_sizes)
+        predictions = self.postprocess(outputs_for_metrics, target_sizes)
         
         # 为每个IoU阈值计算TP/FP
         for iou_thresh in self.iou_thresholds:
@@ -950,7 +1063,7 @@ class DetectionMetrics(nn.Module):
             scores_list = []
             
             # 处理当前batch中的每个sample
-            for sample_idx, (pred, target, target_size) in enumerate(zip(predictions, targets, target_sizes)):
+            for sample_idx, (pred, target, target_size) in enumerate(zip(predictions, targets_for_metrics, target_sizes)):
                 pred_boxes = pred['boxes']  # [N, 4]
                 pred_scores = pred['scores']  # [N]
                 pred_labels = pred['labels']  # [N]
@@ -1029,7 +1142,7 @@ class DetectionMetrics(nn.Module):
             self.tp_fp_scores_per_thresh[iou_thresh]['scores'].extend(scores_list)
         
         # 统计GT数量
-        batch_gt_count = sum(len(target['labels']) for target in targets)
+        batch_gt_count = sum(len(target['labels']) for target in targets_for_metrics)
         self.total_gt_count += batch_gt_count
             
     def _compute_attribute_accuracy(self, pred, target, pred_idx, gt_idx):
@@ -1241,7 +1354,8 @@ def build_detection_metrics(config: dict):
     metrics = DetectionMetrics(
         num_classes=num_classes,
         iou_thresholds=[0.5, 0.55, 0.6, 0.65, 0.7, 0.75, 0.8, 0.85, 0.9, 0.95],
-        score_threshold=config.get("EVAL_SCORE_THRESHOLD", 0.5)
+        score_threshold=config.get("EVAL_SCORE_THRESHOLD", 0.5),
+        backbone_type=config["BACKBONE_TYPE"]
     )
     
     return metrics

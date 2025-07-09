@@ -69,11 +69,15 @@ class LinesDetection(nn.Module):
         global_features, local_features = backbone_outputs['global_features'], backbone_outputs['local_features']
         hidden_states = backbone_outputs['hidden_states']
         
+        bs, num_frames = None, None
         if self.backbone_type == 'video':
-            global_features = global_features[:, 0]
-            local_features = local_features[:, 0]
+            bs, num_frames, _, _ = local_features.shape
+            # 将 [bs, num_frames, ...] reshape为 [bs*num_frames, ...]
+            local_features = local_features.reshape(bs * num_frames, *local_features.shape[2:])
+            if global_features is not None:
+                global_features = global_features.reshape(bs * num_frames, -1)
             if hidden_states is not None:
-                hidden_states = [hs[:, 0] for hs in hidden_states]
+                hidden_states = [hs.reshape(bs * num_frames, *hs.shape[2:]) for hs in hidden_states]
 
         if self.head_type == 'dpt':
             # DPT使用多层hidden_states
@@ -100,6 +104,10 @@ class LinesDetection(nn.Module):
             
             lines_heatmap = self.lines_head(reshaped_local_features)
 
+        # 如果是video模式，将输出reshape回[bs, num_frames, ...]
+        if self.backbone_type == 'video':
+            lines_heatmap = lines_heatmap.reshape(bs, num_frames, *lines_heatmap.shape[1:])
+
         out = {'pred_lines_heatmap': lines_heatmap}
         return out
 
@@ -109,7 +117,7 @@ class LinesDetectionLoss(nn.Module):
         1) we compute hungarian assignment between ground truth boxes and the outputs of the model
         2) we supervise each pair of matched ground-truth / prediction (supervise class and box)
     """
-    def __init__(self, weight_dict):
+    def __init__(self, weight_dict, backbone_type='image'):
         """ Create the criterion.
         Parameters:
             num_classes: number of object categories, omitting the special no-object category
@@ -117,9 +125,11 @@ class LinesDetectionLoss(nn.Module):
             weight_dict: dict containing as key the names of the losses and as values their relative weight.
             losses: list of all the losses to be applied. See get_loss for list of available losses.
             focal_alpha: alpha in Focal Loss
+            backbone_type: 'image' or 'video'
         """
         super().__init__()
         self.weight_dict = weight_dict
+        self.backbone_type = backbone_type
 
     def forward(self, outputs, targets, **kwargs):
         """ This performs the loss computation.
@@ -127,12 +137,56 @@ class LinesDetectionLoss(nn.Module):
              outputs: dict of tensors, see the output specification of the model for the format
              targets: list of dicts, such that len(targets) == batch_size.
                       The expected keys in each dict depends on the losses applied, see each loss' doc
+                      For video mode: list of lists, where each inner list contains annotations for each frame
         """
         losses = {}
-        # Lines loss:
-        lines_gt = torch.stack([t["lines_target"] for t in targets], dim=0)
-        lines_pred = outputs["pred_lines_heatmap"]
-        loss_lines = F.mse_loss(lines_pred, lines_gt)
+        
+        # Handle video mode: flatten targets if needed
+        if self.backbone_type == 'video':
+            # Check if targets is list of lists (video mode)
+            if targets and isinstance(targets[0], list):
+                # Flatten targets: convert list of list of dicts to list of dicts
+                flattened_targets = []
+                for batch_targets in targets:
+                    for frame_target in batch_targets:
+                        flattened_targets.append(frame_target)
+                targets_for_loss = flattened_targets
+            else:
+                # Already flattened
+                targets_for_loss = targets
+        else:
+            targets_for_loss = targets
+        
+        # 检查哪些样本的valid_lines为True
+        valid_lines_mask = torch.stack([t["valid_lines"] for t in targets_for_loss], dim=0)  # [batch_size]
+        
+        if valid_lines_mask.any():
+            # 只对valid_lines为True的样本计算loss
+            lines_gt = torch.stack([t["lines_target"] for t in targets_for_loss], dim=0)  # [batch_size, num_lines, H, W]
+            lines_pred = outputs["pred_lines_heatmap"]  # [batch_size, num_lines, H, W]
+            
+            # 对于video模式，pred的shape是[bs, num_frames, num_lines, H, W]，需要reshape
+            if self.backbone_type == 'video' and len(lines_pred.shape) == 5:
+                bs, num_frames = lines_pred.shape[:2]
+                lines_pred = lines_pred.reshape(bs * num_frames, *lines_pred.shape[2:])
+            
+            # 使用mask来过滤有效的样本
+            # 扩展mask的维度以匹配lines_gt和lines_pred的维度
+            expanded_mask = valid_lines_mask.unsqueeze(1).unsqueeze(2).unsqueeze(3)  # [batch_size, 1, 1, 1]
+            expanded_mask = expanded_mask.expand_as(lines_gt)  # [batch_size, num_lines, H, W]
+            
+            # 只计算有效样本的loss
+            loss_lines = F.mse_loss(lines_pred * expanded_mask, lines_gt * expanded_mask, reduction='sum')
+            # 归一化：除以有效样本数量和每个样本的元素数量
+            valid_elements = expanded_mask.sum()
+            if valid_elements > 0:
+                loss_lines = loss_lines / valid_elements
+            else:
+                loss_lines = torch.tensor(0.0, device=lines_pred.device, requires_grad=True)
+        else:
+            # 如果没有有效样本，loss为0
+            loss_lines = torch.tensor(0.0, device=outputs["pred_lines_heatmap"].device, requires_grad=True)
+        
         losses["loss_lines"] = loss_lines
         
         # losses = {k: (v * self.weight_dict[k] if k in self.weight_dict else v) for k, v in losses.items()}
@@ -225,8 +279,9 @@ class LinesDetectionMetrics(nn.Module):
     计算lines相关的metrics，包括accuracy、precision、recall、F1等指标
     支持多进程聚合和整个数据集上的lines性能计算
     """
-    def __init__(self):
+    def __init__(self, backbone_type='image'):
         super().__init__()
+        self.backbone_type = backbone_type
         
         # 为lines收集数据
         self.lines_metrics_data = {
@@ -369,22 +424,51 @@ class LinesDetectionMetrics(nn.Module):
         计算lines的metrics
         
         Args:
-            pred_lines_heatmap: 预测的lines heatmap [B, num_lines, H, W]
-            targets: 目标数据列表
+            pred_lines_heatmap: 预测的lines heatmap [B, num_lines, H, W] or [B, num_frames, num_lines, H, W]
+            targets: 目标数据列表 or list of lists for video mode
         """
         # 检查是否有lines数据
         if pred_lines_heatmap is None:
             return
-            
-        # 获取GT lines heatmap
-        lines_gt_list = [t["lines_target"] for t in targets]
         
+        # Handle video mode: flatten targets if needed
+        if self.backbone_type == 'video':
+            # Check if targets is list of lists (video mode)
+            if targets and isinstance(targets[0], list):
+                # Flatten targets: convert list of list of dicts to list of dicts
+                flattened_targets = []
+                for batch_targets in targets:
+                    for frame_target in batch_targets:
+                        flattened_targets.append(frame_target)
+                targets_for_metrics = flattened_targets
+            else:
+                # Already flattened
+                targets_for_metrics = targets
+                
+            # Reshape pred_lines_heatmap from [bs, num_frames, ...] to [bs*num_frames, ...]
+            if len(pred_lines_heatmap.shape) == 5:  # [bs, num_frames, num_lines, H, W]
+                bs, num_frames = pred_lines_heatmap.shape[:2]
+                pred_lines_heatmap = pred_lines_heatmap.reshape(bs * num_frames, *pred_lines_heatmap.shape[2:])
+        else:
+            targets_for_metrics = targets
+        
+        # 只处理valid_lines为True的样本
+        valid_lines_mask = torch.stack([t["valid_lines"] for t in targets_for_metrics], dim=0)  # [batch_size]
+        if not valid_lines_mask.any():
+            return  # 没有有效的lines数据
+            
+        # 获取GT lines heatmap，只处理有效样本
+        lines_gt_list = [t["lines_target"] for i, t in enumerate(targets_for_metrics) if valid_lines_mask[i]]
+        if not lines_gt_list:
+            return
+            
         # 只处理有效的数据
         lines_gt = torch.stack(lines_gt_list, dim=0)
+        pred_lines_heatmap_valid = pred_lines_heatmap[valid_lines_mask]
         
         # 从heatmap中提取lines
         l_gt = self.get_keypoints_from_heatmap_batch_maxpool_l(lines_gt[:,:-1,:,:], return_scores=True, max_keypoints=2)
-        lines_pred = self.get_keypoints_from_heatmap_batch_maxpool_l(pred_lines_heatmap[:,:-1,:,:], return_scores=True, max_keypoints=2)
+        lines_pred = self.get_keypoints_from_heatmap_batch_maxpool_l(pred_lines_heatmap_valid[:,:-1,:,:], return_scores=True, max_keypoints=2)
         
         # 计算metrics
         batch_metrics = self.calculate_lines_metrics(l_gt, lines_pred)
@@ -540,14 +624,14 @@ def build_lines_detection_loss(config: dict):
         "loss_lines": config["GSR_LINES_LOSS_WEIGHT"]
     }
     
-    criterion = LinesDetectionLoss(weight_dict=weight_dict)
+    criterion = LinesDetectionLoss(weight_dict=weight_dict, backbone_type=config["BACKBONE_TYPE"])
     return criterion
 
 def build_lines_detection_metrics(config: dict):
     """
     构建lines metrics计算器
     """
-    metrics = LinesDetectionMetrics()
+    metrics = LinesDetectionMetrics(backbone_type=config["BACKBONE_TYPE"])
     return metrics
 
 BatchNorm2d = nn.BatchNorm2d

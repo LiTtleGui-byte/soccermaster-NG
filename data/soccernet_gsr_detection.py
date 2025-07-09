@@ -36,6 +36,11 @@ class SoccerNetGSR_Detection(Dataset):
             split: str = "train",
             load_annotation: bool = True,
             transforms=None,
+            num_keypoints: int = 58,
+            num_lines: int = 24,
+            detection_data_type: str = "image",
+            backbone_type: str = "image",
+            num_frames: int = 30,
     ):
         super(SoccerNetGSR_Detection, self).__init__()
         assert split in ['train', 'valid', 'test']
@@ -44,6 +49,11 @@ class SoccerNetGSR_Detection(Dataset):
         self.split = split
         self.load_annotation = load_annotation
         self.transforms = transforms
+        self.num_keypoints = num_keypoints
+        self.num_lines = num_lines
+        self.detection_data_type = detection_data_type
+        self.backbone_type = backbone_type
+        self.num_frames = num_frames
 
         self.sequence_infos = self._get_sequence_infos()
         self.image_paths = self._get_image_paths()
@@ -73,11 +83,11 @@ class SoccerNetGSR_Detection(Dataset):
         sequence_names = os.listdir(os.path.join(self.data_dir, 'SoccerNetGS', self.split))
         return [name for name in sequence_names if os.path.isdir(os.path.join(self.data_dir, 'SoccerNetGS', self.split, name))]
         # if self.split == 'train':
-        #     return [name for name in sequence_names if os.path.isdir(os.path.join(self.data_dir, 'SoccerNetGS', self.split, name))]
+        #     return [name for name in sequence_names if os.path.isdir(os.path.join(self.data_dir, 'SoccerNetGS', self.split, name))][:1]
         # elif self.split == 'test':
         #     sequence_names = [name for name in sequence_names if os.path.isdir(os.path.join(self.data_dir, 'SoccerNetGS', self.split, name))]
         #     sequence_names.sort()
-        #     return sequence_names[:10]
+        #     return sequence_names
 
     def _get_sequence_infos(self):
         sequence_names = self._get_sequence_names()
@@ -285,30 +295,30 @@ class SoccerNetGSR_Detection(Dataset):
     def set_sample_position(self):
         """
         Set the position of each legal sample.
+        For test split in video mode, only frames where frame_idx % num_frames == 0 can be starting points.
         """
         self.sample_position = list()
         for sequence_name in self.annotations:
             for frame_idx in range(len(self.annotations[sequence_name])):
                 if self.annotations[sequence_name][frame_idx]["is_legal"]:
-                    self.sample_position.append((sequence_name, frame_idx))
+                    # 在test阶段的video模式下，只有frame_idx能被num_frames整除的才能作为起点
+                    if (self.detection_data_type == "video" and 
+                        self.backbone_type == "video" and 
+                        self.split == "test"):
+                        # 只有当frame_idx能被num_frames整除时，才能作为起点
+                        if frame_idx % self.num_frames == 0:
+                            self.sample_position.append((sequence_name, frame_idx))
+                    else:
+                        # 非test的video模式或image模式，保持原有逻辑
+                        self.sample_position.append((sequence_name, frame_idx))
         return
     
     def __len__(self):
         return len(self.sample_position)
     
-    def __getitem__(self, index):
-        sequence_name, frame_idx = self.sample_position[index]
-        image_path = self.image_paths[sequence_name][frame_idx]
-        image = Image.open(image_path).convert("RGB")
-        annotation = copy.deepcopy(self.annotations[sequence_name][frame_idx])
-        metas = {"task": 'SoccerNetGSR_Detection',
-                "split": self.split,
-                "sequence": sequence_name,
-                "frame_idx": frame_idx,
-                "is_static": self.sequence_infos[sequence_name]["is_static"],
-                "size_divisibility": 1,}
+    def format_data(self, image, annotation, metas):
         if self.transforms is not None:
-            image, annotation, metas = self.transforms(image, annotation, metas)
+                image, annotation, metas = self.transforms(image, annotation, metas)
             
         # used for DETR loss:
         annotation['boxes'] = annotation['bbox']
@@ -326,25 +336,88 @@ class SoccerNetGSR_Detection(Dataset):
             line_db = LineKeypointsDB(annotation['lines'], image)
             lines_target = line_db.get_tensor()
             annotation['lines_target'] = torch.tensor(lines_target, dtype=torch.float32)
-
+            annotation['valid_lines'] = torch.tensor(True, dtype=torch.bool)
+        except Exception as e:
+            annotation['lines_target'] = torch.zeros((self.num_lines, 256, 256), dtype=torch.float32)
+            annotation['valid_lines'] = torch.tensor(False, dtype=torch.bool)
+        try:
             keypoints = KeypointsDB(self.correct_lines_labels(annotation['lines']), image)
             keypoints_target, keypoints_mask = keypoints.get_tensor_w_mask()
             annotation['keypoints_target'] = torch.tensor(keypoints_target, dtype=torch.float32)
             annotation['keypoints_mask'] = torch.tensor(keypoints_mask, dtype=torch.float32)
+            annotation['valid_keypoints'] = torch.tensor(True, dtype=torch.bool)
         except Exception as e:
-            if isinstance(e, OverflowError):
-                # If overflow error occurs, try getting a different sample
-                new_index = (index + 1) % len(self)
-                # del image_db
-                return self.__getitem__(new_index)
-            else:
-                # For other exceptions, print error and raise
-                print(e)
-                print(annotation['lines'])
-                raise e
-        # del image_db, target, mask
+            annotation['keypoints_target'] = torch.zeros((self.num_keypoints, 256, 256), dtype=torch.float32)
+            annotation['keypoints_mask'] = torch.zeros((self.num_keypoints), dtype=torch.float32)
+            annotation['valid_keypoints'] = torch.tensor(False, dtype=torch.bool)
         
         return image, annotation, metas
+        
+    
+    def __getitem__(self, index):
+        sequence_name, frame_idx = self.sample_position[index]
+        
+        # Check if we need to collect multiple frames for video mode
+        if self.detection_data_type == "video" and self.backbone_type == "video":
+            # Collect consecutive frames starting from frame_idx
+            sequence_length = self.sequence_infos[sequence_name]["length"]
+            
+            # Calculate the range of frames to collect
+            start_frame = frame_idx
+            end_frame = min(start_frame + self.num_frames, sequence_length)
+            actual_num_frames = end_frame - start_frame
+            
+            # Collect images for all frames
+            images = []
+            for i in range(start_frame, end_frame):
+                image_path = self.image_paths[sequence_name][i]
+                image = Image.open(image_path).convert("RGB")
+                images.append(image)
+            
+            # If we don't have enough frames, repeat the last frame to reach num_frames
+            # while len(images) < self.num_frames:
+            #     images.append(images[-1])  # Repeat the last frame
+            
+            annotations = []
+            for i in range(start_frame, end_frame):
+                annotations.append(copy.deepcopy(self.annotations[sequence_name][i]))
+            
+            metas = {"task": 'SoccerNetGSR_Detection',
+                    "split": self.split,
+                    "sequence": sequence_name,
+                    "start_frame": start_frame,
+                    "end_frame": end_frame,
+                    "actual_num_frames": actual_num_frames,
+                    "total_frames": self.num_frames,
+                    "is_static": self.sequence_infos[sequence_name]["is_static"],
+                    "size_divisibility": 1,}
+            
+            for i in range(len(images)):
+                images[i], annotations[i], _ = self.format_data(images[i], annotations[i], {})
+                
+            # 需要做padding和collate吗？暂时先不做
+            # if len(images) < self.num_frames:
+            #     last_image = images[-1]
+            #     images.append(last_image)
+            #     annotations.append(copy.deepcopy(annotations[-1]))
+            images = torch.stack(images, dim=0)
+            # for k, v in annotations.items():
+            #     annotations[k] = torch.stack(v, dim=0)
+            
+            return images, annotations, metas
+        else:
+            # Original single-frame mode
+            image_path = self.image_paths[sequence_name][frame_idx]
+            image = Image.open(image_path).convert("RGB")
+            annotation = copy.deepcopy(self.annotations[sequence_name][frame_idx])
+            metas = {"task": 'SoccerNetGSR_Detection',
+                    "split": self.split,
+                    "sequence": sequence_name,
+                    "frame_idx": frame_idx,
+                    "is_static": self.sequence_infos[sequence_name]["is_static"],
+                    "size_divisibility": 1,}
+            image, annotation, metas = self.format_data(image, annotation, metas)
+            return image, annotation, metas
 
 def build_gsr_detection_dataset(config: dict, split: str):
     dataset = SoccerNetGSR_Detection(
@@ -353,6 +426,11 @@ def build_gsr_detection_dataset(config: dict, split: str):
         split=split,
         load_annotation=True,
         transforms=build_transforms(config),
+        num_keypoints=config["NUM_KEYPOINTS"],
+        num_lines=config["NUM_LINES"],
+        detection_data_type=config["DETECTION_DATA_TYPE"],
+        backbone_type=config["BACKBONE_TYPE"],
+        num_frames=config["NUM_FRAMES"],
     )
     return dataset
 

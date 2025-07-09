@@ -85,6 +85,8 @@ def train_engine(config: dict):
     model = MultiTaskingSigLIP(config=config, logger=logger)
     if config["LOAD_CHECKPOINTS"]:
         model.load_checkpoint(config["STAGE_1_CKPT_DIR"], logger)
+    if config['USE_GRADIENT_CHECKPOINTING']:
+        model.backbone.vision_model.gradient_checkpointing_enable()
     
     # Create parameter groups with different learning rates
     def create_param_groups(model, config):
