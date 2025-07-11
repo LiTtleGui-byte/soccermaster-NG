@@ -90,7 +90,7 @@ class MultiTaskingSigLIP(nn.Module):
         backbone_ckpt_path = os.path.join(checkpoint_dir, "backbone", "model.safetensors")
         with safe_open(backbone_ckpt_path, framework="pt") as f:
             state_dict = {k: f.get_tensor(k) for k in f.keys()}
-            self.backbone.vision_model.load_state_dict(state_dict)
+            self.backbone.vision_model.load_state_dict(state_dict, strict=False)
             if logger is not None:
                 logger.info(f"Loaded backbone weights from: {backbone_ckpt_path}")
             else:

@@ -467,7 +467,6 @@ def train_engine(config: dict):
                 logger=logger
             )
             logger.info(f"Evaluation completed for epoch {epoch}")
-            torch.distributed.barrier()
         
         if (epoch + 1) % config["SAVE_CHECKPOINT_PER_EPOCH"] == 0:
             # Save complete training state including model, optimizer, scheduler
