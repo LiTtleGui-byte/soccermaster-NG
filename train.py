@@ -18,6 +18,8 @@ from accelerate.state import PartialState
 from accelerate.utils import DistributedDataParallelKwargs, InitProcessGroupKwargs
 from collections import defaultdict
 from itertools import cycle
+import json
+import glob
 
 from data.build import build_dataloader
 from utils.logger import Logger, MetricsTracker, TPS, Metrics
@@ -26,6 +28,220 @@ from runtime_option import runtime_option
 from utils.misc import set_seed
 from configs.util import load_super_config, update_config, yaml_to_dict
 from models.build import build_loss_fn, build_metrics_fn
+
+def find_latest_checkpoint(outputs_dir):
+    """
+    Find the latest checkpoint directory in outputs_dir
+    
+    Args:
+        outputs_dir: Output directory path
+        
+    Returns:
+        tuple: (latest_epoch_dir, epoch_number) or (None, None) if no checkpoint found
+    """
+    if not os.path.exists(outputs_dir):
+        return None, None
+    
+    # Find all epoch directories
+    epoch_dirs = glob.glob(os.path.join(outputs_dir, "epoch_*"))
+    if not epoch_dirs:
+        return None, None
+    
+    # Extract epoch numbers and find the latest one
+    valid_epochs = []
+    for epoch_dir in epoch_dirs:
+        try:
+            epoch_num = int(os.path.basename(epoch_dir).split("_")[1])
+            # Check if this epoch has a complete checkpoint (training_state.json should exist)
+            training_state_file = os.path.join(epoch_dir, "training_state.json")
+            if os.path.exists(training_state_file):
+                valid_epochs.append((epoch_num, epoch_dir))
+        except (ValueError, IndexError):
+            continue
+    
+    if not valid_epochs:
+        return None, None
+    
+    # Sort by epoch number and return the latest
+    valid_epochs.sort(key=lambda x: x[0])
+    latest_epoch, latest_dir = valid_epochs[-1]
+    
+    return latest_dir, latest_epoch
+
+def save_training_state(outputs_dir, epoch, model, optimizer, scheduler, train_states, accelerator, logger):
+    """
+    Save complete training state including model, optimizer, scheduler and training progress
+    
+    Args:
+        outputs_dir: Output directory
+        epoch: Current epoch number
+        model: Model to save
+        optimizer: Optimizer to save
+        scheduler: Learning rate scheduler to save
+        train_states: Training states dictionary
+        accelerator: Accelerator instance
+        logger: Logger instance
+    """
+    # Use model.module to access original model attributes when using DDP
+    original_model = model.module if hasattr(model, 'module') else model
+    
+    # Create epoch directory
+    epoch_dir = os.path.join(outputs_dir, f"epoch_{epoch}")
+    os.makedirs(epoch_dir, exist_ok=True)
+    
+    # Save backbone weights in backbone subdirectory
+    backbone_dir = os.path.join(epoch_dir, 'backbone')
+    original_model.backbone.vision_model.save_pretrained(backbone_dir)
+    
+    # Save each head separately
+    for head_name, head in original_model.multi_task_head.items():
+        torch.save(head.state_dict(), os.path.join(epoch_dir, f'{head_name}.pt'))
+    
+    # Save optimizer state
+    optimizer_state_file = os.path.join(epoch_dir, "optimizer_state.pt")
+    torch.save(optimizer.state_dict(), optimizer_state_file)
+    
+    # Save scheduler state
+    scheduler_state_file = os.path.join(epoch_dir, "scheduler_state.pt")
+    torch.save(scheduler.state_dict(), scheduler_state_file)
+    
+    # Save training states and other metadata
+    training_state = {
+        "epoch": epoch,
+        "global_step": train_states["global_step"],
+        "start_epoch": train_states["start_epoch"],
+        "random_states": {
+            "python": torch.get_rng_state().tolist(),
+            "numpy": torch.random.get_rng_state().tolist() if hasattr(torch.random, 'get_rng_state') else None,
+            "cuda": torch.cuda.get_rng_state().tolist() if torch.cuda.is_available() else None,
+        }
+    }
+    
+    training_state_file = os.path.join(epoch_dir, "training_state.json")
+    with open(training_state_file, 'w') as f:
+        json.dump(training_state, f, indent=2)
+    
+    logger.info(f"Saved complete training state for epoch {epoch} to {epoch_dir}")
+
+def load_training_state(checkpoint_dir, model, optimizer, scheduler, train_states, accelerator, logger):
+    """
+    Load complete training state from checkpoint
+    
+    Args:
+        checkpoint_dir: Checkpoint directory path
+        model: Model to load state into
+        optimizer: Optimizer to load state into  
+        scheduler: Learning rate scheduler to load state into
+        train_states: Training states dictionary to update
+        accelerator: Accelerator instance
+        logger: Logger instance
+        
+    Returns:
+        int: Loaded epoch number
+    """
+    # Use model.module to access original model attributes when using DDP
+    original_model = model.module if hasattr(model, 'module') else model
+    
+    logger.info(f"Loading training state from {checkpoint_dir}")
+    
+    original_model.load_checkpoint(checkpoint_dir, logger)
+    # # Load backbone weights
+    # backbone_dir = os.path.join(checkpoint_dir, 'backbone')
+    # if os.path.exists(backbone_dir):
+    #     # Load backbone weights using the from_pretrained method
+    #     backbone_model = original_model.backbone.vision_model.__class__.from_pretrained(backbone_dir)
+    #     original_model.backbone.vision_model.load_state_dict(backbone_model.state_dict())
+    #     logger.info(f"Loaded backbone weights from {backbone_dir}")
+    
+    # # Load each head
+    # for head_name, head in original_model.multi_task_head.items():
+    #     head_file = os.path.join(checkpoint_dir, f'{head_name}.pt')
+    #     if os.path.exists(head_file):
+    #         head.load_state_dict(torch.load(head_file, map_location='cpu'))
+    #         logger.info(f"Loaded {head_name} head weights from {head_file}")
+    
+    # Load optimizer state
+    optimizer_state_file = os.path.join(checkpoint_dir, "optimizer_state.pt")
+    optimizer.load_state_dict(torch.load(optimizer_state_file, map_location='cpu'))
+    logger.info(f"Loaded optimizer state from {optimizer_state_file}")
+    
+    # Load scheduler state
+    scheduler_state_file = os.path.join(checkpoint_dir, "scheduler_state.pt")
+    scheduler.load_state_dict(torch.load(scheduler_state_file, map_location='cpu'))
+    logger.info(f"Loaded scheduler state from {scheduler_state_file}")
+    
+    # Load training states
+    training_state_file = os.path.join(checkpoint_dir, "training_state.json")
+    resumed_epoch = 0
+    with open(training_state_file, 'r') as f:
+        training_state = json.load(f)
+    
+    resumed_epoch = training_state["epoch"]
+    train_states["global_step"] = training_state["global_step"]
+    train_states["start_epoch"] = training_state["start_epoch"]
+    
+    # Restore random states for reproducibility
+    if "random_states" in training_state:
+        random_states = training_state["random_states"]
+        if random_states["python"]:
+            torch.set_rng_state(torch.tensor(random_states["python"], dtype=torch.uint8))
+        if random_states["numpy"] and hasattr(torch.random, 'set_rng_state'):
+            torch.random.set_rng_state(torch.tensor(random_states["numpy"], dtype=torch.uint8))
+        if random_states["cuda"] and torch.cuda.is_available():
+            torch.cuda.set_rng_state(torch.tensor(random_states["cuda"], dtype=torch.uint8))
+    
+    logger.info(f"Loaded training state: epoch={resumed_epoch}, global_step={train_states['global_step']}")
+    
+    return resumed_epoch
+
+# Create parameter groups with different learning rates
+def create_param_groups(model, config):
+    # Get the original model (handle DDP wrapper)
+    original_model = model.module if hasattr(model, 'module') else model
+    
+    param_groups = []
+    
+    # Backbone parameters
+    backbone_params = []
+    for param in original_model.backbone.parameters():
+        if param.requires_grad:
+            backbone_params.append(param)
+    
+    if backbone_params:
+        param_groups.append({
+            'params': backbone_params,
+            'lr': config["LR_BACKBONE"],
+            'weight_decay': config["WEIGHT_DECAY"],
+            'name': 'backbone'
+        })
+    
+    # Head parameters with different learning rates
+    head_lr_mapping = {
+        'SoccerNetGSR_ReID': config["LR_SOCCERNET_GSR_REID"],
+        'SoccerNetGSR_Detection': config["LR_SOCCERNET_GSR_DETECTION"],
+        'LinesDetection': config["LR_LINES_DETECTION"],
+        'KeypointsDetection': config["LR_KEYPOINTS_DETECTION"],
+        'CameraRegression': config["LR_CAMERA_REGRESSION"],
+        'VideoCaption': config["LR_VIDEO_CAPTION"],
+        'CaptionClassification': config["LR_CAPTION_CLASSIFICATION"]
+    }
+    
+    for head_name, head in original_model.multi_task_head.items():
+        head_params = []
+        for param in head.parameters():
+            if param.requires_grad:
+                head_params.append(param)
+        
+        if head_params:
+            lr = head_lr_mapping[head_name]  # Default to base LR if not specified
+            param_groups.append({
+                'params': head_params,
+                'lr': lr,
+                'weight_decay': config["WEIGHT_DECAY"],
+                'name': head_name
+            })
+    
+    return param_groups
 
 def train_engine(config: dict):
     # Init some settings:
@@ -88,55 +304,6 @@ def train_engine(config: dict):
     if config['USE_GRADIENT_CHECKPOINTING']:
         model.backbone.vision_model.gradient_checkpointing_enable()
     
-    # Create parameter groups with different learning rates
-    def create_param_groups(model, config):
-        # Get the original model (handle DDP wrapper)
-        original_model = model.module if hasattr(model, 'module') else model
-        
-        param_groups = []
-        
-        # Backbone parameters
-        backbone_params = []
-        for param in original_model.backbone.parameters():
-            if param.requires_grad:
-                backbone_params.append(param)
-        
-        if backbone_params:
-            param_groups.append({
-                'params': backbone_params,
-                'lr': config["LR_BACKBONE"],
-                'weight_decay': config["WEIGHT_DECAY"],
-                'name': 'backbone'
-            })
-        
-        # Head parameters with different learning rates
-        head_lr_mapping = {
-            'SoccerNetGSR_ReID': config["LR_SOCCERNET_GSR_REID"],
-            'SoccerNetGSR_Detection': config["LR_SOCCERNET_GSR_DETECTION"],
-            'LinesDetection': config["LR_LINES_DETECTION"],
-            'KeypointsDetection': config["LR_KEYPOINTS_DETECTION"],
-            'CameraRegression': config["LR_CAMERA_REGRESSION"],
-            'VideoCaption': config["LR_VIDEO_CAPTION"],
-            'CaptionClassification': config["LR_CAPTION_CLASSIFICATION"]
-        }
-        
-        for head_name, head in original_model.multi_task_head.items():
-            head_params = []
-            for param in head.parameters():
-                if param.requires_grad:
-                    head_params.append(param)
-            
-            if head_params:
-                lr = head_lr_mapping[head_name]  # Default to base LR if not specified
-                param_groups.append({
-                    'params': head_params,
-                    'lr': lr,
-                    'weight_decay': config["WEIGHT_DECAY"],
-                    'name': head_name
-                })
-        
-        return param_groups
-    
     # Create optimizer with parameter groups
     param_groups = create_param_groups(model, config)
     optimizer = AdamW(param_groups)
@@ -149,11 +316,6 @@ def train_engine(config: dict):
     # torch.cuda.init()  # 显式初始化CUDA
     # device = torch.device("cuda")
     # torch.tensor([1.0]).to(device)  # 创建虚拟张量强制初始化上下文
-    
-    model, optimizer = accelerator.prepare(model, optimizer)
-    dataloader_train_dict = {dataset: accelerator.prepare(dataloader) for dataset, dataloader in dataloader_train_dict.items()}
-    if dataloader_test_dict:
-        dataloader_test_dict = {dataset: accelerator.prepare(dataloader) for dataset, dataloader in dataloader_test_dict.items()}
     
     # if config["USE_GRADIENT_CHECKPOINTING"]:
     #     accelerator.gradient_checkpointing_enable()
@@ -170,6 +332,49 @@ def train_engine(config: dict):
         "global_step": 0
     }
     
+    # Check for resume training from checkpoint
+    resume_from_checkpoint = False
+    resume_epoch = 0
+    if config["RESUME_TRAINING"]:
+        checkpoint_dir, latest_epoch = find_latest_checkpoint(outputs_dir)
+        if checkpoint_dir is not None:
+            logger.info(f"Found checkpoint at epoch {latest_epoch}, will resume training from {checkpoint_dir}")
+            resume_from_checkpoint = True
+            # We'll load the state after preparing model, optimizer, scheduler
+        else:
+            logger.info("RESUME_TRAINING is True but no valid checkpoint found, starting from scratch")
+    
+    # Alternative: resume from specific checkpoint directory
+    if config["RESUME_FROM_CHECKPOINT_DIR"] is not None:
+        resume_checkpoint_dir = config["RESUME_FROM_CHECKPOINT_DIR"]
+        if os.path.exists(resume_checkpoint_dir):
+            training_state_file = os.path.join(resume_checkpoint_dir, "training_state.json")
+            if os.path.exists(training_state_file):
+                logger.info(f"Will resume training from specified checkpoint: {resume_checkpoint_dir}")
+                resume_from_checkpoint = True
+                checkpoint_dir = resume_checkpoint_dir
+            else:
+                logger.warning(f"Specified checkpoint directory {resume_checkpoint_dir} does not contain valid training state")
+        else:
+            logger.warning(f"Specified checkpoint directory {resume_checkpoint_dir} does not exist")
+
+    # Load checkpoint state if resuming training
+    if resume_from_checkpoint:
+        resume_epoch = load_training_state(
+            checkpoint_dir, model, optimizer, scheduler, train_states, accelerator, logger
+        )
+        # Update start_epoch to resume from the next epoch
+        train_states["start_epoch"] = resume_epoch + 1
+        logger.info(f"Resuming training from epoch {resume_epoch + 1}, global_step {train_states['global_step']}")
+        
+        # Mark resume point in tensorboard
+        logger.mark_resume(resume_epoch, train_states['global_step'])
+            
+    model, optimizer = accelerator.prepare(model, optimizer)
+    dataloader_train_dict = {dataset: accelerator.prepare(dataloader) for dataset, dataloader in dataloader_train_dict.items()}
+    if dataloader_test_dict:
+        dataloader_test_dict = {dataset: accelerator.prepare(dataloader) for dataset, dataloader in dataloader_test_dict.items()}
+
     total_params = sum(p.numel() for p in model.parameters())
     trainable_params = sum(p.numel() for p in model.parameters() if p.requires_grad)
     trainable_percentage = (trainable_params / total_params) * 100
@@ -265,29 +470,10 @@ def train_engine(config: dict):
             torch.distributed.barrier()
         
         if (epoch + 1) % config["SAVE_CHECKPOINT_PER_EPOCH"] == 0:
-            # Use model.module to access original model attributes when using DDP
-            original_model = model.module if hasattr(model, 'module') else model
-            
-            # Create epoch directory
-            epoch_dir = os.path.join(outputs_dir, f"epoch_{epoch}")
-            os.makedirs(epoch_dir, exist_ok=True)
-            
-            # Save backbone weights in backbone subdirectory
-            backbone_dir = os.path.join(epoch_dir, 'backbone')
-            original_model.backbone.vision_model.save_pretrained(backbone_dir)
-            
-            # Save each head separately
-            for head_name, head in original_model.multi_task_head.items():
-                # head_dir = os.path.join(epoch_dir, f'head_{head_name}')
-                # os.makedirs(head_dir, exist_ok=True)
-                # torch.save(head.state_dict(), os.path.join(head_dir, 'model.pt'))
-                torch.save(head.state_dict(), os.path.join(epoch_dir, f'{head_name}.pt'))
-                
-                # # Optionally save head config if available
-                # if hasattr(head, 'config'):
-                #     torch.save(head.config, os.path.join(head_dir, 'config.json'))
-            
-            logger.info(f"Saved model checkpoint for epoch {epoch} to {epoch_dir}")
+            # Save complete training state including model, optimizer, scheduler
+            save_training_state(
+                outputs_dir, epoch, model, optimizer, scheduler, train_states, accelerator, logger
+            )
     
     # Close logger at the end of training
     if logger:

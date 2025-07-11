@@ -41,6 +41,10 @@ def runtime_option():
     parser.add_argument("--resume-scheduler", type=str)
     parser.add_argument("--detr-pretrain", type=str)
     parser.add_argument("--only-detr", type=str)
+    
+    # Resume training settings:
+    parser.add_argument("--resume-training", type=str, help="Whether to automatically resume from the latest checkpoint. (True/False)")
+    parser.add_argument("--resume-from-checkpoint-dir", type=str, help="Specific checkpoint directory to resume from.")
 
     # About sampling:
     parser.add_argument("--sample-steps", type=int, nargs="+")

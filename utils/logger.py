@@ -164,6 +164,7 @@ class Logger:
         self.accelerator = accelerator
         self.log_dir = log_dir
         self.use_tensorboard = use_tensorboard
+        self.tensorboard_flush_secs = tensorboard_flush_secs
         
         # Only create writer on main process
         if accelerator.is_main_process:
@@ -309,6 +310,34 @@ class Logger:
         """Close the writer"""
         if self.tb_writer is not None:
             self.tb_writer.close()
+            
+    def mark_resume(self, resumed_epoch: int, global_step: int):
+        """
+        Mark resume point in tensorboard logs
+        
+        Args:
+            resumed_epoch: The epoch from which training is resumed
+            global_step: Current global step when resuming
+        """
+        if self.tb_writer is not None:
+            # Add text log to indicate resume point
+            resume_text = f"Training resumed from epoch {resumed_epoch + 1}, global_step {global_step}"
+            self.tb_writer.add_text("training/resume_info", resume_text, global_step)
+            
+            # Add a marker scalar to indicate resume point
+            self.tb_writer.add_scalar("training/resume_marker", 1.0, global_step)
+            
+            # Add current timestamp as additional information
+            import time
+            timestamp = time.strftime("%Y-%m-%d %H:%M:%S", time.localtime())
+            self.tb_writer.add_text("training/resume_timestamp", 
+                                   f"Resumed at: {timestamp}", global_step)
+            
+            # Flush immediately to ensure the resume marker is recorded
+            self.tb_writer.flush()
+            
+            # Also log to console and file
+            self.info(f"TensorBoard: Marked resume point at epoch {resumed_epoch + 1}, global_step {global_step}")
     
     def __del__(self):
         """Destructor to ensure writer is closed"""

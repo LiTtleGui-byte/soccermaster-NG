@@ -22,6 +22,11 @@ EVAL_PER_EPOCH: 1
 SAVE_CHECKPOINT_PER_EPOCH: 5
 MULTI_LAST_CHECKPOINTS: 0
 
+# Resume training settings:
+RESUME_TRAINING: False              # whether to automatically resume from the latest checkpoint in OUTPUTS_DIR
+RESUME_FROM_CHECKPOINT_DIR:         # specific checkpoint directory to resume from (takes precedence over RESUME_TRAINING)
+RESUME_TENSORBOARD_CONTINUOUS: True # whether to continue tensorboard logging when resuming (recommended: True)
+
 # Training strategies:
 USE_GRADIENT_CHECKPOINTING: False
 BATCH_SIZE: 12

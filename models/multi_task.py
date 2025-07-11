@@ -12,6 +12,7 @@ from models.caption_classification import build_caption_classification_head
 from models.camera import build_camera_head
 from transformers import SiglipVisionConfig, SiglipVisionModel
 from models.modeling_timesformer_siglip import SiglipVisionModel as TimesformerSiglipVisionModel
+from safetensors import safe_open
 
 # def build_backbone(config: dict):
 #     # position_embedding = build_position_encoding(args)
@@ -78,14 +79,23 @@ class MultiTaskingSigLIP(nn.Module):
         return outputs
     
     def load_checkpoint(self, checkpoint_dir: str, logger=None):
-        backbone_ckpt_path = os.path.join(checkpoint_dir, "backbone")
-        siglip_vision_config = SiglipVisionConfig.from_pretrained(backbone_ckpt_path)
-        siglip_vision_config.num_frames = self.config['NUM_FRAMES']
-        del self.backbone.vision_model
-        if self.config['BACKBONE_TYPE'] == 'video':
-            self.backbone.vision_model = TimesformerSiglipVisionModel.from_pretrained(backbone_ckpt_path, config=siglip_vision_config, device_map="cpu")
-        else:
-            self.backbone.vision_model = SiglipVisionModel.from_pretrained(backbone_ckpt_path, config=siglip_vision_config, device_map="cpu")
+        # backbone_ckpt_path = os.path.join(checkpoint_dir, "backbone")
+        # siglip_vision_config = SiglipVisionConfig.from_pretrained(backbone_ckpt_path)
+        # siglip_vision_config.num_frames = self.config['NUM_FRAMES']
+        # del self.backbone.vision_model
+        # if self.config['BACKBONE_TYPE'] == 'video':
+        #     self.backbone.vision_model = TimesformerSiglipVisionModel.from_pretrained(backbone_ckpt_path, config=siglip_vision_config, device_map="cpu")
+        # else:
+        #     self.backbone.vision_model = SiglipVisionModel.from_pretrained(backbone_ckpt_path, config=siglip_vision_config, device_map="cpu")
+        backbone_ckpt_path = os.path.join(checkpoint_dir, "backbone", "model.safetensors")
+        with safe_open(backbone_ckpt_path, framework="pt") as f:
+            state_dict = {k: f.get_tensor(k) for k in f.keys()}
+            self.backbone.vision_model.load_state_dict(state_dict)
+            if logger is not None:
+                logger.info(f"Loaded backbone weights from: {backbone_ckpt_path}")
+            else:
+                print(f"Loaded backbone weights from: {backbone_ckpt_path}")
+        
         for head in self.multi_task_head:
             head_ckpt_path = os.path.join(checkpoint_dir, f"{head}.pt")
             if os.path.exists(head_ckpt_path):

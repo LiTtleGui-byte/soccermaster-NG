@@ -6,6 +6,7 @@ import torch.nn.functional as F
 import torch.distributed as dist
 from typing import Optional
 from models.utils.flatten_data import flatten_data
+from accelerate.utils.operations import gather_object
 
 class VideoCaptionHead(nn.Module):
     def __init__(self, loss_type='siglip_loss', backbone_type='image'):
