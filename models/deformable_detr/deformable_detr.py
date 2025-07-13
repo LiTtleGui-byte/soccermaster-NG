@@ -162,6 +162,8 @@ class DeformableDetrHead(nn.Module):
         if self.backbone_type == 'video':
             bs, num_frames, _, _ = local_features.shape
             local_features = local_features.reshape(bs * num_frames, *local_features.shape[2:])
+        else:
+            bs, _, _ = local_features.shape
         
         N, L, D = local_features.shape
         reshaped_local_features = local_features.permute(0, 2, 1).contiguous()
@@ -259,7 +261,8 @@ class DeformableDetrHead(nn.Module):
 
         # Output the outputs of last decoder layer.
         # We need these outputs to generate the embeddings for objects.
-        out["outputs"] = hs[-1].reshape(bs, num_frames, *hs[-1].shape[1:])
+        if self.backbone_type == 'video':
+            out["outputs"] = hs[-1].reshape(bs, num_frames, *hs[-1].shape[1:])
         return out
 
     @torch.jit.unused
@@ -270,6 +273,40 @@ class DeformableDetrHead(nn.Module):
         return [{'pred_logits': a, 'pred_boxes': b, 'pred_roles': c, 'pred_jn_holistic': d, 'pred_digit_head': e, 'pred_digit_tail': f}
                 for a, b, c, d, e, f in zip(outputs_class[:-1], outputs_coord[:-1], outputs_role[:-1], outputs_jn_holistic[:-1], outputs_digit_head[:-1], outputs_digit_tail[:-1])]
 
+def softmax_focal_loss(inputs, targets, num_boxes, alpha: float = 0.25, gamma: float = 2.0):
+    """
+    Softmax focal loss for multi-class classification.
+    
+    Args:
+        inputs: A float tensor of shape [N, C] where N is the number of samples and C is the number of classes
+        targets: A long tensor of shape [N] containing class indices
+        num_boxes: Number of boxes for normalization
+        alpha: Weighting factor for rare class (default: 0.25)
+        gamma: Focusing parameter (default: 2.0)
+    
+    Returns:
+        Loss tensor
+    """
+    
+    # Apply log softmax to get log probabilities
+    log_probs = F.log_softmax(inputs, dim=-1)
+    
+    # Get the log probabilities for the correct classes
+    log_p = log_probs.gather(1, targets.unsqueeze(1)).squeeze(1)
+    
+    # Get the probabilities for the correct classes
+    p = torch.exp(log_p)
+    
+    # Compute focal weight: (1 - p)^gamma
+    focal_weight = (1 - p) ** gamma
+    
+    # For softmax focal loss, alpha weight is simply alpha for all correct predictions
+    alpha_weight = alpha
+    
+    # Compute focal loss
+    focal_loss = -alpha_weight * focal_weight * log_p
+    
+    return focal_loss.sum() / num_boxes
 
 class SetCriterion(nn.Module):
     """ This class computes the loss for DETR.
@@ -277,7 +314,7 @@ class SetCriterion(nn.Module):
         1) we compute hungarian assignment between ground truth boxes and the outputs of the model
         2) we supervise each pair of matched ground-truth / prediction (supervise class and box)
     """
-    def __init__(self, num_classes, matcher, weight_dict, losses, focal_alpha=0.25, detr_loss_batch_len=10, detection_data_type='image', backbone_type='image'):
+    def __init__(self, num_classes, matcher, weight_dict, losses, focal_alpha=0.25, detr_loss_batch_len=10, detection_data_type='image', backbone_type='image', enable_softmax_focal_loss=False):
         """ Create the criterion.
         Parameters:
             num_classes: number of object categories, omitting the special no-object category
@@ -285,6 +322,7 @@ class SetCriterion(nn.Module):
             weight_dict: dict containing as key the names of the losses and as values their relative weight.
             losses: list of all the losses to be applied. See get_loss for list of available losses.
             focal_alpha: alpha in Focal Loss
+            enable_softmax_focal_loss: whether to use softmax focal loss instead of sigmoid focal loss for attributes
         """
         super().__init__()
         self.num_classes = num_classes
@@ -299,6 +337,7 @@ class SetCriterion(nn.Module):
         self.detr_loss_batch_len = detr_loss_batch_len
         self.detection_data_type = detection_data_type
         self.backbone_type = backbone_type
+        self.enable_softmax_focal_loss = enable_softmax_focal_loss
         
     def loss_labels(self, outputs, targets, indices, num_boxes, log=True):
         """Classification loss (NLL)
@@ -336,11 +375,18 @@ class SetCriterion(nn.Module):
         idx = self._get_src_permutation_idx(indices)
         target_roles_o = torch.cat([t["roles"][J] for t, (_, J) in zip(targets, indices)])
         
-        target_roles_onehot = torch.zeros_like(src_logits, dtype=src_logits.dtype, layout=src_logits.layout, device=src_logits.device)
+        if self.enable_softmax_focal_loss:
+            # Use softmax focal loss
+            if len(target_roles_o) > 0:
+                loss_role = softmax_focal_loss(src_logits[idx], target_roles_o, num_boxes, alpha=self.focal_alpha, gamma=2) * src_logits.shape[1]
+            else:
+                loss_role = torch.tensor(0.0, device=src_logits.device, requires_grad=True)
+        else:
+            # Use sigmoid focal loss (original implementation)
+            target_roles_onehot = torch.zeros_like(src_logits, dtype=src_logits.dtype, layout=src_logits.layout, device=src_logits.device)
+            target_roles_onehot[idx[0], idx[1], target_roles_o] = 1
+            loss_role = sigmoid_focal_loss(src_logits, target_roles_onehot, num_boxes, alpha=self.focal_alpha, gamma=2) * src_logits.shape[1]
         
-        target_roles_onehot[idx[0], idx[1], target_roles_o] = 1
-        
-        loss_role = sigmoid_focal_loss(src_logits, target_roles_onehot, num_boxes, alpha=self.focal_alpha, gamma=2) * src_logits.shape[1]
         losses = {'loss_role': loss_role}
 
         if log:
@@ -357,11 +403,18 @@ class SetCriterion(nn.Module):
         idx = self._get_src_permutation_idx(indices)
         target_jn_holistic_o = torch.cat([t["jersey"][J] for t, (_, J) in zip(targets, indices)])
         
-        target_jn_holistic_onehot = torch.zeros_like(src_logits, dtype=src_logits.dtype, layout=src_logits.layout, device=src_logits.device)
+        if self.enable_softmax_focal_loss:
+            # Use softmax focal loss
+            if len(target_jn_holistic_o) > 0:
+                loss_jn_holistic = softmax_focal_loss(src_logits[idx], target_jn_holistic_o, num_boxes, alpha=self.focal_alpha, gamma=2) * src_logits.shape[1]
+            else:
+                loss_jn_holistic = torch.tensor(0.0, device=src_logits.device, requires_grad=True)
+        else:
+            # Use sigmoid focal loss (original implementation)
+            target_jn_holistic_onehot = torch.zeros_like(src_logits, dtype=src_logits.dtype, layout=src_logits.layout, device=src_logits.device)
+            target_jn_holistic_onehot[idx[0], idx[1], target_jn_holistic_o] = 1
+            loss_jn_holistic = sigmoid_focal_loss(src_logits, target_jn_holistic_onehot, num_boxes, alpha=self.focal_alpha, gamma=2) * src_logits.shape[1]
         
-        target_jn_holistic_onehot[idx[0], idx[1], target_jn_holistic_o] = 1
-        
-        loss_jn_holistic = sigmoid_focal_loss(src_logits, target_jn_holistic_onehot, num_boxes, alpha=self.focal_alpha, gamma=2) * src_logits.shape[1]
         losses = {'loss_jn_holistic': loss_jn_holistic}
 
         if log:
@@ -378,11 +431,18 @@ class SetCriterion(nn.Module):
         idx = self._get_src_permutation_idx(indices)
         target_digit_head_o = torch.cat([t["digit_head"][J] for t, (_, J) in zip(targets, indices)])
         
-        target_digit_head_onehot = torch.zeros_like(src_logits, dtype=src_logits.dtype, layout=src_logits.layout, device=src_logits.device)
+        if self.enable_softmax_focal_loss:
+            # Use softmax focal loss
+            if len(target_digit_head_o) > 0:
+                loss_digit_head = softmax_focal_loss(src_logits[idx], target_digit_head_o, num_boxes, alpha=self.focal_alpha, gamma=2) * src_logits.shape[1]
+            else:
+                loss_digit_head = torch.tensor(0.0, device=src_logits.device, requires_grad=True)
+        else:
+            # Use sigmoid focal loss (original implementation)
+            target_digit_head_onehot = torch.zeros_like(src_logits, dtype=src_logits.dtype, layout=src_logits.layout, device=src_logits.device)
+            target_digit_head_onehot[idx[0], idx[1], target_digit_head_o] = 1
+            loss_digit_head = sigmoid_focal_loss(src_logits, target_digit_head_onehot, num_boxes, alpha=self.focal_alpha, gamma=2) * src_logits.shape[1]
         
-        target_digit_head_onehot[idx[0], idx[1], target_digit_head_o] = 1
-        
-        loss_digit_head = sigmoid_focal_loss(src_logits, target_digit_head_onehot, num_boxes, alpha=self.focal_alpha, gamma=2) * src_logits.shape[1]
         losses = {'loss_digit_head': loss_digit_head}
 
         if log:
@@ -399,11 +459,18 @@ class SetCriterion(nn.Module):
         idx = self._get_src_permutation_idx(indices)
         target_digit_tail_o = torch.cat([t["digit_tail"][J] for t, (_, J) in zip(targets, indices)])
         
-        target_digit_tail_onehot = torch.zeros_like(src_logits, dtype=src_logits.dtype, layout=src_logits.layout, device=src_logits.device)
+        if self.enable_softmax_focal_loss:
+            # Use softmax focal loss
+            if len(target_digit_tail_o) > 0:
+                loss_digit_tail = softmax_focal_loss(src_logits[idx], target_digit_tail_o, num_boxes, alpha=self.focal_alpha, gamma=2) * src_logits.shape[1]
+            else:
+                loss_digit_tail = torch.tensor(0.0, device=src_logits.device, requires_grad=True)
+        else:
+            # Use sigmoid focal loss (original implementation)
+            target_digit_tail_onehot = torch.zeros_like(src_logits, dtype=src_logits.dtype, layout=src_logits.layout, device=src_logits.device)
+            target_digit_tail_onehot[idx[0], idx[1], target_digit_tail_o] = 1
+            loss_digit_tail = sigmoid_focal_loss(src_logits, target_digit_tail_onehot, num_boxes, alpha=self.focal_alpha, gamma=2) * src_logits.shape[1]
         
-        target_digit_tail_onehot[idx[0], idx[1], target_digit_tail_o] = 1
-        
-        loss_digit_tail = sigmoid_focal_loss(src_logits, target_digit_tail_onehot, num_boxes, alpha=self.focal_alpha, gamma=2) * src_logits.shape[1]
         losses = {'loss_digit_tail': loss_digit_tail}
 
         if log:
@@ -859,6 +926,7 @@ def cvt_config_to_args(config: dict):
     detr_args.set_cost_giou = config["DETR_SET_COST_GIOU"]
     detr_args.backbone_strides = [16]
     detr_args.backbone_num_channels = [768]
+    detr_args.enable_softmax_focal_loss = config.get("ENABLE_SOFTMAX_FOCAL_LOSS", False)
     
     return detr_args
     
@@ -913,6 +981,7 @@ def build_deformable_detr_criterion(config: dict):
         detr_loss_batch_len=config.get("DETR_CRITERION_BATCH_LEN", 10),
         detection_data_type=config["DETECTION_DATA_TYPE"],
         backbone_type=config["BACKBONE_TYPE"],
+        enable_softmax_focal_loss=config.get("ENABLE_SOFTMAX_FOCAL_LOSS", False),
     )
     return detr_criterion
 
