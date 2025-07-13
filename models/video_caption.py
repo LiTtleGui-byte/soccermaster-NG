@@ -184,16 +184,31 @@ class VideoCaptionLoss(nn.Module):
 
     def calculate_top_k_accuracy(self, sim_matrix, labels):
         batch_size = sim_matrix.size(0)
-        topk_indices = torch.topk(sim_matrix, k=5, dim=1)[1]
+        
+        # 根据batch_size动态调整k值
+        max_k = min(5, batch_size)
+        topk_indices = torch.topk(sim_matrix, k=max_k, dim=1)[1]
         
         # 创建正样本标签 (1表示匹配)
         pos_mask = (labels > 0).float()
         
         # 计算Top-K准确率
         correct = torch.gather(pos_mask, 1, topk_indices)
+        
+        # Top-1准确率
         top1_acc = correct[:, 0].sum() / batch_size
-        top3_acc = correct[:, :3].sum(dim=1).clamp(max=1).sum() / batch_size
-        top5_acc = correct.sum(dim=1).clamp(max=1).sum() / batch_size
+        
+        # Top-3准确率：如果batch_size < 3，设置为1.0
+        if batch_size < 3:
+            top3_acc = torch.tensor(1.0, device=sim_matrix.device)
+        else:
+            top3_acc = correct[:, :3].sum(dim=1).clamp(max=1).sum() / batch_size
+        
+        # Top-5准确率：如果batch_size < 5，设置为1.0
+        if batch_size < 5:
+            top5_acc = torch.tensor(1.0, device=sim_matrix.device)
+        else:
+            top5_acc = correct.sum(dim=1).clamp(max=1).sum() / batch_size
         
         return top1_acc, top3_acc, top5_acc
 
