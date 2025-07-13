@@ -25,7 +25,7 @@ from data.build import build_dataloader
 from utils.logger import Logger, MetricsTracker, TPS, Metrics
 from models.multi_task import MultiTaskingSigLIP
 from runtime_option import runtime_option
-from utils.misc import set_seed
+from utils.misc import is_distributed, set_seed
 from configs.util import load_super_config, update_config, yaml_to_dict
 from models.build import build_loss_fn, build_metrics_fn
 
@@ -452,6 +452,8 @@ def train_engine(config: dict):
             logging_interval=config["LOGGING_INTERVAL"],
         )
         scheduler.step()
+        if is_distributed():
+            torch.distributed.barrier()
         
         # Evaluate after each epoch if test datasets are available
         if dataloader_test_dict and (epoch + 1) % config["EVAL_PER_EPOCH"] == 0:
@@ -467,6 +469,8 @@ def train_engine(config: dict):
                 logger=logger
             )
             logger.info(f"Evaluation completed for epoch {epoch}")
+        if is_distributed():
+            torch.distributed.barrier()
         
         if (epoch + 1) % config["SAVE_CHECKPOINT_PER_EPOCH"] == 0:
             # Save complete training state including model, optimizer, scheduler
