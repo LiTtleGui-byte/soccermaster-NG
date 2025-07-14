@@ -11,7 +11,8 @@ from data.video_caption import keywords_list
 from accelerate.utils.operations import gather_object
 
 class CaptionClassificationHead(nn.Module):
-    def __init__(self, input_dim=768, backbone_type='image', dropout_rate=0.1, use_attn_pool=False):
+    def __init__(self, input_dim=768, backbone_type='image', dropout_rate=0.1, use_attn_pool=False, 
+                 use_transformers=False, num_transformer_encoder=2):
         """
         Args:
             input_dim: 输入特征维度
@@ -19,19 +20,37 @@ class CaptionClassificationHead(nn.Module):
             backbone_type: backbone类型，'image'或'video'
             dropout_rate: dropout比率
             use_attn_pool: 是否使用attention pooling，默认False
+            use_transformers: 是否在pooling前使用transformer encoder，默认False
+            num_transformer_encoder: transformer encoder的层数，默认2
         """
         super().__init__()
         assert backbone_type == 'video'
         self.backbone_type = backbone_type
         self.use_attn_pool = use_attn_pool
+        self.use_transformers = use_transformers
         num_classes = len(keywords_list)
+        
+        # Transformer encoder layers (optional)
+        if self.use_transformers:
+            transformer_encoder_layer = nn.TransformerEncoderLayer(
+                d_model=input_dim,
+                nhead=12,
+                dim_feedforward=input_dim * 4,
+                dropout=dropout_rate,
+                activation='relu',
+                batch_first=True
+            )
+            self.transformer_encoder = nn.TransformerEncoder(
+                transformer_encoder_layer,
+                num_layers=num_transformer_encoder
+            )
         
         if self.use_attn_pool:
             self.query_token = nn.Parameter(torch.randn(1, 1, input_dim))
             # Multi-head attention for pooling
             self.attn_pool = nn.MultiheadAttention(
                 embed_dim=input_dim,
-                num_heads=8,
+                num_heads=12,
                 dropout=dropout_rate,
                 batch_first=True
             )
@@ -74,6 +93,10 @@ class CaptionClassificationHead(nn.Module):
             包含logits的字典
         """
         global_features = backbone_outputs['global_features']
+        
+        # 可选的transformer encoder处理
+        if self.use_transformers:
+            global_features = self.transformer_encoder(global_features)
         
         # 根据是否使用attention pooling选择不同的特征提取方式
         if self.use_attn_pool:
@@ -355,7 +378,9 @@ def build_caption_classification_head(config: dict):
         input_dim=768,
         backbone_type=config["BACKBONE_TYPE"],
         dropout_rate=config["CAPTION_CLASSIFICATION_DROPOUT_RATE"],
-        use_attn_pool=config["CAPTION_CLASSIFICATION_USE_ATTN_POOL"]
+        use_attn_pool=config["CAPTION_CLASSIFICATION_USE_ATTN_POOL"],
+        use_transformers=config["CAPTION_CLASSIFICATION_USE_TRANSFORMERS"],
+        num_transformer_encoder=config["CAPTION_CLASSIFICATION_NUM_TRANSFORMER_ENCODER"]
     )
 
 
