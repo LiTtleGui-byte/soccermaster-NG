@@ -50,12 +50,20 @@ class VideoCaptionDataset(Dataset):
         clip_root = os.path.join(data_root, "video_clip")
         clip_json_root = os.path.join(data_root, "video_clip_json")
         for dataset in video_caption_datasets:
-            clip_base_dir = os.path.join(clip_root, f"{dataset}-high-resolution") if '1988' in dataset else os.path.join(clip_root, dataset)
+            if dataset == 'SoccerReplay-1988':
+                clip_base_dir = os.path.join(clip_root, f"{dataset}-high-resolution")
+            else:
+                clip_base_dir = os.path.join(clip_root, dataset)
             clip_json_path = os.path.join(clip_json_root, dataset, f"classification_{split}.json")
             with open(clip_json_path, 'r') as file:
                 current_data = json.load(file)
                 for item in current_data:
-                    item["video"] = os.path.join(clip_base_dir, item["video"])
+                    if dataset in ['SoccerReplay-1988', 'SoccerNet-v2']:
+                        item["video"] = os.path.join(clip_base_dir, item["video"])
+                    elif dataset == 'MatchTime':
+                        item["video"] = os.path.join(clip_base_dir, split, item["video"]) if split in ['train', 'valid'] else os.path.join(clip_base_dir, 'SN-Caption-test-align', item["video"])
+                    else:
+                        raise ValueError(f"Invalid dataset: {dataset}")
                 self.data.extend(current_data)
 
     def __len__(self):
