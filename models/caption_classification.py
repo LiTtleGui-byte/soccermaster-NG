@@ -11,17 +11,32 @@ from data.video_caption import keywords_list
 from accelerate.utils.operations import gather_object
 
 class CaptionClassificationHead(nn.Module):
-    def __init__(self, input_dim=768, backbone_type='image', dropout_rate=0.1):
+    def __init__(self, input_dim=768, backbone_type='image', dropout_rate=0.1, use_attn_pool=False):
         """
         Args:
             input_dim: 输入特征维度
             num_classes: 分类类别数
             backbone_type: backbone类型，'image'或'video'
             dropout_rate: dropout比率
+            use_attn_pool: 是否使用attention pooling，默认False
         """
         super().__init__()
+        assert backbone_type == 'video'
         self.backbone_type = backbone_type
+        self.use_attn_pool = use_attn_pool
         num_classes = len(keywords_list)
+        
+        if self.use_attn_pool:
+            self.query_token = nn.Parameter(torch.randn(1, 1, input_dim))
+            # Multi-head attention for pooling
+            self.attn_pool = nn.MultiheadAttention(
+                embed_dim=input_dim,
+                num_heads=8,
+                dropout=dropout_rate,
+                batch_first=True
+            )
+            # Layer norm after attention pooling
+            self.attn_pool_ln = nn.LayerNorm(input_dim)
         
         # 分类头网络
         self.classifier = nn.Sequential(
@@ -44,6 +59,10 @@ class CaptionClassificationHead(nn.Module):
                 nn.init.xavier_uniform_(m.weight)
                 if m.bias is not None:
                     nn.init.constant_(m.bias, 0)
+        
+        # 初始化query token
+        if self.use_attn_pool:
+            nn.init.normal_(self.query_token, std=0.02)
 
     def forward(self, backbone_outputs, metas):
         """
@@ -56,10 +75,20 @@ class CaptionClassificationHead(nn.Module):
         """
         global_features = backbone_outputs['global_features']
         
-        if self.backbone_type == 'video':
-            vision_features = global_features.mean(dim=1)  # [N, D]
+        # 根据是否使用attention pooling选择不同的特征提取方式
+        if self.use_attn_pool:
+            batch_size = global_features.size(0)
+            query = self.query_token.expand(batch_size, -1, -1)  # [N, 1, D]
+            
+            attn_output, _ = self.attn_pool(
+                query=query,  # [N, 1, D]
+                key=global_features,  # [N, seq_len, D]
+                value=global_features  # [N, seq_len, D]
+            )
+            
+            vision_features = self.attn_pool_ln(attn_output.squeeze(1))  # [N, D]
         else:
-            vision_features = global_features[:, 0]  # [N, D]
+            vision_features = global_features.mean(dim=1)  # [N, D]
         
         logits = self.classifier(vision_features)  # [N, num_classes]
         
@@ -325,7 +354,8 @@ def build_caption_classification_head(config: dict):
     return CaptionClassificationHead(
         input_dim=768,
         backbone_type=config["BACKBONE_TYPE"],
-        dropout_rate=config["CAPTION_CLASSIFICATION_DROPOUT_RATE"]
+        dropout_rate=config["CAPTION_CLASSIFICATION_DROPOUT_RATE"],
+        use_attn_pool=config["CAPTION_CLASSIFICATION_USE_ATTN_POOL"]
     )
 
 
