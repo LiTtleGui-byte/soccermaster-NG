@@ -1,5 +1,6 @@
 SUPER_CONFIG_PATH: /remote-home/haolinyang/sports/Soccer-Backbone/configs/default.yaml
 
+LINES_HEAD_TYPE: dpt
 LOAD_CHECKPOINTS: True
 CKPT_PATH: /remote-home/haolinyang/sports/Soccer-Backbone/pretrained_models/google/siglip2-base-patch16-512
 STAGE_1_CKPT_DIR: /remote-home/haolinyang/sports/Soccer-Backbone/outputs/image_512_new/epoch_14

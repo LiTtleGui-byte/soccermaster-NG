@@ -41,6 +41,7 @@ class SoccerNetGSR_Detection(Dataset):
             detection_data_type: str = "image",
             backbone_type: str = "image",
             num_frames: int = 30,
+            image_input_size: int = 512,
     ):
         super(SoccerNetGSR_Detection, self).__init__()
         assert split in ['train', 'valid', 'test']
@@ -54,6 +55,7 @@ class SoccerNetGSR_Detection(Dataset):
         self.detection_data_type = detection_data_type
         self.backbone_type = backbone_type
         self.num_frames = num_frames
+        self.image_input_size = image_input_size
 
         self.sequence_infos = self._get_sequence_infos()
         self.image_paths = self._get_image_paths()
@@ -338,7 +340,7 @@ class SoccerNetGSR_Detection(Dataset):
             annotation['lines_target'] = torch.tensor(lines_target, dtype=torch.float32)
             annotation['valid_lines'] = torch.tensor(True, dtype=torch.bool)
         except Exception as e:
-            annotation['lines_target'] = torch.zeros((self.num_lines, 256, 256), dtype=torch.float32)
+            annotation['lines_target'] = torch.zeros((self.num_lines, self.image_input_size//2, self.image_input_size//2), dtype=torch.float32)
             annotation['valid_lines'] = torch.tensor(False, dtype=torch.bool)
         try:
             keypoints = KeypointsDB(self.correct_lines_labels(annotation['lines']), image)
@@ -347,7 +349,7 @@ class SoccerNetGSR_Detection(Dataset):
             annotation['keypoints_mask'] = torch.tensor(keypoints_mask, dtype=torch.float32)
             annotation['valid_keypoints'] = torch.tensor(True, dtype=torch.bool)
         except Exception as e:
-            annotation['keypoints_target'] = torch.zeros((self.num_keypoints, 256, 256), dtype=torch.float32)
+            annotation['keypoints_target'] = torch.zeros((self.num_keypoints, self.image_input_size//2, self.image_input_size//2), dtype=torch.float32)
             annotation['keypoints_mask'] = torch.zeros((self.num_keypoints), dtype=torch.float32)
             annotation['valid_keypoints'] = torch.tensor(False, dtype=torch.bool)
         
@@ -431,6 +433,7 @@ def build_gsr_detection_dataset(config: dict, split: str):
         detection_data_type=config["DETECTION_DATA_TYPE"],
         backbone_type=config["BACKBONE_TYPE"],
         num_frames=config["NUM_FRAMES"],
+        image_input_size=config["AUG_MAX_SIZE"],
     )
     return dataset
 

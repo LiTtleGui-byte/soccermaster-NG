@@ -13,7 +13,7 @@ import torch
 import json
 from data.utils import Compose, ToTensor, RandomResize, Normalize, get_image_hw
 
-role_mapping = {'ball': 0, 'goalkeeper': 1, 'other': 2, 'player': 3, 'referee': 4, None: -1}
+role_mapping = {'ball': 0, 'goalkeeper': 1, 'other': 2, 'player': 3, 'referee': 4, None: 5}
 reid_columns = ["role", "team", "filtered_jersey_number", "digit_head", "digit_tail"]
 jn_mapping = {str(i): i for i in range(100)}
 jn_mapping[None] = 100

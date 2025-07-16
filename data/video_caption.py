@@ -14,7 +14,7 @@ from typing import List
 from data.utils import Compose, ToTensor, RandomResize, Normalize
 
 # keywords_list = ['corner', 'goal', 'injury', 'own goal', 'penalty', 'penalty missed', 'red card', 'second yellow card', 'substitution', 'start of game(half)', 'end of game(half)', 'yellow card', 'throw in', 'free kick', 'saved by goal-keeper', 'shot off target', 'clearance', "lead to corner", 'off-side', 'var', 'foul with no card', 'statistics and summary', 'ball possession', 'ball out of play']
-keywords_list = ["var", "end of half game", "clearance", "second yellow card", "injury", "ball possession", "throw in", "show added time", "shot off target", "start of half game", "substitution", "saved by goal-keeper", "red card", "lead to corner", "ball out of play", "off side", "goal", "penalty", "yellow card", "foul lead to penalty", "corner", "free kick", "foul with no card"]
+keywords_list = ["var", "end of half game", "clearance", "second yellow card", "injury", "ball possession", "throw in", "show added time", "shot off target", "start of half game", "substitution", "saved by goal-keeper", "red card", "lead to corner", "ball out of play", "off side", u"goal", "penalty", "yellow card", "fol lead to penalty", "corner", "free kick", "foul with no card"]
 
 class VideoCaptionDataset(Dataset):
     def __init__(
@@ -50,15 +50,16 @@ class VideoCaptionDataset(Dataset):
         clip_root = os.path.join(data_root, "video_clip")
         clip_json_root = os.path.join(data_root, "video_clip_json")
         for dataset in video_caption_datasets:
-            if dataset == 'SoccerReplay-1988':
-                clip_base_dir = os.path.join(clip_root, f"{dataset}-high-resolution")
+            if dataset in ['SoccerReplay-1988', 'SoccerReplay-1988-subset']:
+                # clip_base_dir = os.path.join(clip_root, f"{dataset}-high-resolution")
+                clip_base_dir = os.path.join(clip_root, "SoccerReplay-1988-high-resolution")
             else:
                 clip_base_dir = os.path.join(clip_root, dataset)
             clip_json_path = os.path.join(clip_json_root, dataset, f"classification_{split}.json")
             with open(clip_json_path, 'r') as file:
                 current_data = json.load(file)
                 for item in current_data:
-                    if dataset in ['SoccerReplay-1988', 'SoccerNet-v2']:
+                    if dataset in ['SoccerReplay-1988', 'SoccerNet-v2', 'SoccerReplay-1988-subset']:
                         item["video"] = os.path.join(clip_base_dir, item["video"])
                     elif dataset == 'MatchTime':
                         item["video"] = os.path.join(clip_base_dir, split, item["video"]) if split in ['train', 'valid'] else os.path.join(clip_base_dir, 'SN-Caption-test-align', item["video"])

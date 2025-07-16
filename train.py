@@ -6,6 +6,8 @@
 # ------------------------------------------------------------------------
 import os
 os.environ["NCCL_TIMEOUT"] = "7200"   # 7200秒 = 120分钟
+# os.environ["NCCL_NVLS_ENABLE"] = "0"
+os.environ["TOKENIZERS_PARALLELISM"] = "false"
 
 import torch
 from torch.optim import AdamW
@@ -607,6 +609,8 @@ def evaluate_one_epoch(
     for head_name in all_heads:
         if metrics_fn_dict[head_name] is not None:
             # 计算最终metrics并只在主进程返回结果
+            if is_distributed():
+                torch.distributed.barrier()
             final_metrics = metrics_fn_dict[head_name].compute_final_metrics(accelerator)
             if accelerator.is_main_process:
                 final_metrics_results[head_name] = final_metrics
