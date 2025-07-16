@@ -1,0 +1,11 @@
+SUPER_CONFIG_PATH: ./configs/default.yaml
+
+DATASETS_TO_HEADS:
+  SoccerNetGSR_Detection: [SoccerNetGSR_Detection, LinesDetection, KeypointsDetection, CameraRegression]
+
+DETR_ROLE_LOSS_COEF: 20.0
+DETR_JN_LOSS_COEF: 10.0
+DETR_DIGIT_HEAD_LOSS_COEF: 10.0
+DETR_DIGIT_TAIL_LOSS_COEF: 10.0
+ENABLE_SOFTMAX_FOCAL_LOSS: False
+LINES_HEAD_TYPE: default
