@@ -166,7 +166,10 @@ class VideoCaptionLoss(nn.Module):
                 f'{self.loss_type}': dummy_loss,
                 'top_1_accuracy': torch.tensor(0.0, device=device),
                 'top_3_accuracy': torch.tensor(0.0, device=device),
-                'top_5_accuracy': torch.tensor(0.0, device=device)
+                'top_5_accuracy': torch.tensor(0.0, device=device),
+                'top_1_accuracy_type': torch.tensor(0.0, device=device),
+                'top_3_accuracy_type': torch.tensor(0.0, device=device),
+                'top_5_accuracy_type': torch.tensor(0.0, device=device)
             }
             return losses, self.weight_dict
         
@@ -180,12 +183,6 @@ class VideoCaptionLoss(nn.Module):
         # 收集全局标签矩阵
         # target_label = self._create_global_label(valid_captions, valid_base_sim.device)
         target_label = create_label_from_comment(valid_captions).to(valid_base_sim.device)
-        # 如果是主线程，打印调试信息
-        if not dist.is_initialized() or dist.get_rank() == 0:
-            # print(f'target_label shape: {target_label.shape}')
-            # print(f'valid_proc_sim shape: {valid_proc_sim.shape}')
-            # print(f'valid_base_sim shape: {valid_base_sim.shape}')
-            print('num_valid_text', valid_text_mask.sum().item(), 'num_target_label', target_label.shape[0])
         
         # 计算损失
         if self.loss_type == 'siglip_loss':
@@ -197,12 +194,18 @@ class VideoCaptionLoss(nn.Module):
         
         # 计算精度指标
         top_1_acc, top_3_acc, top_5_acc = self.calculate_top_k_accuracy(valid_base_sim, target_label)
+        with torch.no_grad():
+            target_label_type = create_label_from_type(valid_captions).to(valid_base_sim.device)
+            top_1_acc_type, top_3_acc_type, top_5_acc_type = self.calculate_top_k_accuracy(valid_base_sim, target_label_type)
         
         losses = {
             f'{self.loss_type}': loss,
             'top_1_accuracy': top_1_acc,
             'top_3_accuracy': top_3_acc,
-            'top_5_accuracy': top_5_acc
+            'top_5_accuracy': top_5_acc,
+            'top_1_accuracy_type': top_1_acc_type,
+            'top_3_accuracy_type': top_3_acc_type,
+            'top_5_accuracy_type': top_5_acc_type
         }
         return losses, self.weight_dict
     
@@ -314,7 +317,25 @@ def create_label_from_comment(captions, special_categories=None):
     # 特殊类别匹配
     for i, cap_i in enumerate(captions):
         for j, cap_j in enumerate(captions):
-            if i != j and cap_i in special_categories and cap_i == cap_j:
+            if cap_i in special_categories and cap_i == cap_j:
+                labels[i, j] = 1.0
+                labels[j, i] = 1.0
+    
+    return labels
+
+def create_label_from_type(captions):
+    """创建全局标签矩阵，1=正样本，-1=负样本"""
+    N = len(captions)
+    labels = -torch.ones(N, N)  # 默认全负样本
+    
+    # 对角线总是正样本 (自监督基础假设)
+    for i in range(N):
+        labels[i, i] = 1.0
+        
+    # 特殊类别匹配
+    for i, cap_i in enumerate(captions):
+        for j, cap_j in enumerate(captions):
+            if cap_i == cap_j:
                 labels[i, j] = 1.0
                 labels[j, i] = 1.0
     
@@ -356,6 +377,9 @@ class VideoCaptionMetrics(nn.Module):
             'top_1_accuracy': [],
             'top_3_accuracy': [],
             'top_5_accuracy': [],
+            'top_1_accuracy_type': [],
+            'top_3_accuracy_type': [],
+            'top_5_accuracy_type': [],
             'sample_count': 0
         }
 
@@ -377,11 +401,17 @@ class VideoCaptionMetrics(nn.Module):
         top_1_acc = loss_task_raw['top_1_accuracy']
         top_3_acc = loss_task_raw['top_3_accuracy'] 
         top_5_acc = loss_task_raw['top_5_accuracy']
+        top_1_acc_type = loss_task_raw['top_1_accuracy_type']
+        top_3_acc_type = loss_task_raw['top_3_accuracy_type']
+        top_5_acc_type = loss_task_raw['top_5_accuracy_type']
         
         # 转移到CPU并添加到收集器
         self.video_caption_metrics_data['top_1_accuracy'].append(top_1_acc.cpu().item())
         self.video_caption_metrics_data['top_3_accuracy'].append(top_3_acc.cpu().item())
         self.video_caption_metrics_data['top_5_accuracy'].append(top_5_acc.cpu().item())
+        self.video_caption_metrics_data['top_1_accuracy_type'].append(top_1_acc_type.cpu().item())
+        self.video_caption_metrics_data['top_3_accuracy_type'].append(top_3_acc_type.cpu().item())
+        self.video_caption_metrics_data['top_5_accuracy_type'].append(top_5_acc_type.cpu().item())
         
         # 更新样本计数（只计算有效的text样本数）
         valid_sample_count = valid_text_mask.sum().item()
@@ -389,7 +419,7 @@ class VideoCaptionMetrics(nn.Module):
 
     def gather_metrics_data(self, accelerator):
         """收集所有进程的指标数据"""
-        video_caption_key_list = ['top_1_accuracy', 'top_3_accuracy', 'top_5_accuracy']
+        video_caption_key_list = ['top_1_accuracy', 'top_3_accuracy', 'top_5_accuracy', 'top_1_accuracy_type', 'top_3_accuracy_type', 'top_5_accuracy_type']
         gathered_video_caption_metrics = {}
         
         for key in video_caption_key_list:
@@ -406,6 +436,9 @@ class VideoCaptionMetrics(nn.Module):
         all_top_1_accuracy = flatten_data(gathered_video_caption_metrics['top_1_accuracy'])
         all_top_3_accuracy = flatten_data(gathered_video_caption_metrics['top_3_accuracy'])
         all_top_5_accuracy = flatten_data(gathered_video_caption_metrics['top_5_accuracy'])
+        all_top_1_accuracy_type = flatten_data(gathered_video_caption_metrics['top_1_accuracy_type'])
+        all_top_3_accuracy_type = flatten_data(gathered_video_caption_metrics['top_3_accuracy_type'])
+        all_top_5_accuracy_type = flatten_data(gathered_video_caption_metrics['top_5_accuracy_type'])
         
         # 计算总的样本数
         total_sample_count = sum(gathered_video_caption_metrics['sample_count'])
@@ -415,10 +448,16 @@ class VideoCaptionMetrics(nn.Module):
             top_1_accuracy_tensor = torch.tensor(all_top_1_accuracy, dtype=torch.float32)
             top_3_accuracy_tensor = torch.tensor(all_top_3_accuracy, dtype=torch.float32)
             top_5_accuracy_tensor = torch.tensor(all_top_5_accuracy, dtype=torch.float32)
+            top_1_accuracy_type_tensor = torch.tensor(all_top_1_accuracy_type, dtype=torch.float32)
+            top_3_accuracy_type_tensor = torch.tensor(all_top_3_accuracy_type, dtype=torch.float32)
+            top_5_accuracy_type_tensor = torch.tensor(all_top_5_accuracy_type, dtype=torch.float32)
             
             metrics['video_caption_top_1_accuracy'] = top_1_accuracy_tensor.mean().item()
             metrics['video_caption_top_3_accuracy'] = top_3_accuracy_tensor.mean().item()
             metrics['video_caption_top_5_accuracy'] = top_5_accuracy_tensor.mean().item()
+            metrics['video_caption_top_1_accuracy_type'] = top_1_accuracy_type_tensor.mean().item()
+            metrics['video_caption_top_3_accuracy_type'] = top_3_accuracy_type_tensor.mean().item()
+            metrics['video_caption_top_5_accuracy_type'] = top_5_accuracy_type_tensor.mean().item()
             
             # 记录样本数量
             metrics['video_caption_total_samples'] = total_sample_count
@@ -427,11 +466,16 @@ class VideoCaptionMetrics(nn.Module):
             metrics['video_caption_top_1_accuracy_std'] = top_1_accuracy_tensor.std().item()
             metrics['video_caption_top_3_accuracy_std'] = top_3_accuracy_tensor.std().item()
             metrics['video_caption_top_5_accuracy_std'] = top_5_accuracy_tensor.std().item()
+            metrics['video_caption_top_1_accuracy_type_std'] = top_1_accuracy_type_tensor.std().item()
+            metrics['video_caption_top_3_accuracy_type_std'] = top_3_accuracy_type_tensor.std().item()
+            metrics['video_caption_top_5_accuracy_type_std'] = top_5_accuracy_type_tensor.std().item()
             
         else:
             # 没有有效的video caption数据
             for metric_name in ['video_caption_top_1_accuracy', 'video_caption_top_3_accuracy', 'video_caption_top_5_accuracy',
-                                'video_caption_top_1_accuracy_std', 'video_caption_top_3_accuracy_std', 'video_caption_top_5_accuracy_std']:
+                                'video_caption_top_1_accuracy_type', 'video_caption_top_3_accuracy_type', 'video_caption_top_5_accuracy_type',
+                                'video_caption_top_1_accuracy_std', 'video_caption_top_3_accuracy_std', 'video_caption_top_5_accuracy_std',
+                                'video_caption_top_1_accuracy_type_std', 'video_caption_top_3_accuracy_type_std', 'video_caption_top_5_accuracy_type_std']:
                 metrics[metric_name] = 0.0
             metrics['video_caption_total_samples'] = 0
         
