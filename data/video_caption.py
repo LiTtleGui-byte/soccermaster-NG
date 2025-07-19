@@ -88,7 +88,7 @@ class VideoCaptionDataset(Dataset):
             # "size_divisibility": 1,
             }
         
-        text = video_info[self.text_key] if self.text_key in video_info else ''
+        text = video_info[self.text_key] if self.text_key in video_info else None
         annotation = {'caption': video_info['caption'], 'caption_index': self.caption_to_tensor(video_info['caption']), 'text': text}
         
         processed_frames = []

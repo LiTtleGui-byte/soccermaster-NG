@@ -69,7 +69,26 @@ class SiglipBackbone(nn.Module):
             vision_outputs = self.vision_model(images, output_hidden_states=True)
         
         if text is not None:
-            text_pooled_output = self.text_model(text)[0] # only get the pooled output
+            # 过滤出非None的text并记录其索引
+            valid_texts = []
+            valid_indices = []
+            for i, t in enumerate(text):
+                if t is not None:
+                    valid_texts.append(t)
+                    valid_indices.append(i)
+            
+            # 创建和原始batch_size匹配的tensor，None位置用零向量填充
+            batch_size = len(text)
+            text_dim = 768
+            text_pooled_output = torch.zeros(batch_size, text_dim, device=images.device, dtype=images.dtype)
+            
+            # 如果valid_texts为空，则返回全0，不要返回None
+            if valid_texts:
+                # 对有效的text进行编码
+                text_pooled_output_valid = self.text_model(valid_texts)[0] # only get the pooled output
+                # 填充有效text的特征到对应位置
+                for valid_idx, original_idx in enumerate(valid_indices):
+                    text_pooled_output[original_idx] = text_pooled_output_valid[valid_idx]
         else:
             text_pooled_output = None
         

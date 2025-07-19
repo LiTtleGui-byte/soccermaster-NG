@@ -37,31 +37,53 @@ class VideoCaptionHead(nn.Module):
         
         # 归一化特征
         vision_features = F.normalize(vision_features, dim=-1)
+        
+        assert text_features is not None
+        # if text_features is not None:
+        # 检测哪些位置有有效的text特征（非零向量）
+        text_norms = torch.norm(text_features, dim=-1)
+        valid_text_mask = text_norms > 1e-6  # 零向量的norm接近0
+        
+        # if valid_text_mask.any():
+        # 无论是否有，都要进行gather，不然会死锁
         text_features = F.normalize(text_features, dim=-1)
         
         # DDP模式下收集全局特征
         if dist.is_initialized() and gather_distributed:
-            vision_features, text_features = self._gather_features_distributed(
+            vision_features, text_features, valid_text_mask = self._gather_features_distributed_with_mask(
                 vision_features, 
-                text_features
+                text_features,
+                valid_text_mask
             )
         
-        # 计算相似度矩阵
-        base_similarity_matrix = vision_features @ text_features.t()
-        
-        # 根据损失类型处理相似度矩阵
-        if self.loss_type == 'siglip_loss':
-            processed_similarity_matrix = base_similarity_matrix * self.logit_scale.exp() + self.logits_bias
-        elif self.loss_type == 'infonce_loss':
-            processed_similarity_matrix = base_similarity_matrix / self.temperature.clamp(min=1e-6)
+        # 此时valid_text_mask是全局的
+        if valid_text_mask.any():
+            # 计算相似度矩阵
+            base_similarity_matrix = vision_features @ text_features.t()
+            
+            # 根据损失类型处理相似度矩阵
+            if self.loss_type == 'siglip_loss':
+                processed_similarity_matrix = base_similarity_matrix * self.logit_scale.exp() + self.logits_bias
+            elif self.loss_type == 'infonce_loss':
+                processed_similarity_matrix = base_similarity_matrix / self.temperature.clamp(min=1e-6)
+            else:
+                processed_similarity_matrix = base_similarity_matrix
         else:
-            processed_similarity_matrix = base_similarity_matrix
+            # 没有有效的text特征
+            base_similarity_matrix = None
+            processed_similarity_matrix = None
+            valid_text_mask = torch.zeros(vision_features.shape[0], dtype=torch.bool, device=vision_features.device)
+        # else:
+        #     base_similarity_matrix = None
+        #     processed_similarity_matrix = None
+        #     valid_text_mask = torch.zeros(vision_features.shape[0], dtype=torch.bool, device=vision_features.device)
         
         output = {
             'vision_features': vision_features,
             'text_features': text_features,
             'base_similarity_matrix': base_similarity_matrix,
-            'processed_similarity_matrix': processed_similarity_matrix
+            'processed_similarity_matrix': processed_similarity_matrix,
+            'valid_text_mask': valid_text_mask
         }
         return output
     
@@ -89,6 +111,35 @@ class VideoCaptionHead(nn.Module):
         text_global = torch.cat(text_list, dim=0)
         
         return vision_global, text_global
+    
+    def _gather_features_distributed_with_mask(self, vision, text, valid_mask):
+        """
+        跨GPU收集特征张量和mask信息
+        返回形状: [world_size * local_batch, D]
+        """
+        world_size = dist.get_world_size()
+        
+        # 准备收集容器
+        vision_list = [torch.zeros_like(vision) for _ in range(world_size)]
+        text_list = [torch.zeros_like(text) for _ in range(world_size)]
+        mask_list = [torch.zeros_like(valid_mask) for _ in range(world_size)]
+        
+        # 全收集操作
+        dist.all_gather(vision_list, vision)
+        dist.all_gather(text_list, text)
+        dist.all_gather(mask_list, valid_mask)
+        
+        # 保留当前进程特征的梯度
+        vision_list[dist.get_rank()] = vision
+        text_list[dist.get_rank()] = text
+        mask_list[dist.get_rank()] = valid_mask
+        
+        # 拼接所有特征
+        vision_global = torch.cat(vision_list, dim=0)
+        text_global = torch.cat(text_list, dim=0)
+        mask_global = torch.cat(mask_list, dim=0)
+        
+        return vision_global, text_global, mask_global
 
 class VideoCaptionLoss(nn.Module):
     def __init__(self, 
@@ -101,23 +152,51 @@ class VideoCaptionLoss(nn.Module):
         self.distributed_gather = distributed_gather
 
     def forward(self, outputs, targets):
-        # 从输出中获取特征
+        # 获取有效text的mask
+        valid_text_mask = outputs.get('valid_text_mask', None)
         proc_sim = outputs['processed_similarity_matrix']
         base_sim = outputs['base_similarity_matrix']
         
+        # 检查是否有有效的text样本
+        if valid_text_mask is None or not valid_text_mask.any() or proc_sim is None or base_sim is None:
+            # 如果没有有效的text样本，返回零loss
+            device = next(iter(outputs.values())).device if outputs else torch.device('cpu')
+            dummy_loss = torch.tensor(0.0, requires_grad=True, device=device)
+            losses = {
+                f'{self.loss_type}': dummy_loss,
+                'top_1_accuracy': torch.tensor(0.0, device=device),
+                'top_3_accuracy': torch.tensor(0.0, device=device),
+                'top_5_accuracy': torch.tensor(0.0, device=device)
+            }
+            return losses, self.weight_dict
+        
+        # 只保留有效的text样本
+        global_captions = self._gather_captions_distributed(targets)
+        valid_indices = torch.where(valid_text_mask)[0]
+        valid_captions = [global_captions[i] for i in valid_indices.cpu().tolist()]
+        valid_proc_sim = proc_sim[valid_text_mask][:, valid_text_mask]
+        valid_base_sim = base_sim[valid_text_mask][:, valid_text_mask]
+        
         # 收集全局标签矩阵
-        target_label = self._create_global_label(targets, base_sim.device)
+        # target_label = self._create_global_label(valid_captions, valid_base_sim.device)
+        target_label = create_label_from_comment(valid_captions).to(valid_base_sim.device)
+        # 如果是主线程，打印调试信息
+        if not dist.is_initialized() or dist.get_rank() == 0:
+            # print(f'target_label shape: {target_label.shape}')
+            # print(f'valid_proc_sim shape: {valid_proc_sim.shape}')
+            # print(f'valid_base_sim shape: {valid_base_sim.shape}')
+            print('num_valid_text', valid_text_mask.sum().item(), 'num_target_label', target_label.shape[0])
         
         # 计算损失
         if self.loss_type == 'siglip_loss':
-            loss = self.compute_siglip_loss(proc_sim, target_label)
+            loss = self.compute_siglip_loss(valid_proc_sim, target_label)
         elif self.loss_type == 'infonce_loss':
-            loss = self.compute_infonce_loss(proc_sim, target_label)
+            loss = self.compute_infonce_loss(valid_proc_sim, target_label)
         else:
             raise ValueError(f"Unsupported loss: {self.loss_type}")
         
         # 计算精度指标
-        top_1_acc, top_3_acc, top_5_acc = self.calculate_top_k_accuracy(base_sim, target_label)
+        top_1_acc, top_3_acc, top_5_acc = self.calculate_top_k_accuracy(valid_base_sim, target_label)
         
         losses = {
             f'{self.loss_type}': loss,
@@ -127,6 +206,14 @@ class VideoCaptionLoss(nn.Module):
         }
         return losses, self.weight_dict
     
+    def _gather_captions_distributed(self, targets):
+        local_captions = [t['caption'] for t in targets]
+        if dist.is_initialized() and self.distributed_gather:
+            global_captions = self._gather_list_distributed(local_captions)
+        else:
+            global_captions = local_captions
+        return global_captions
+    
     def _create_global_label(self, targets, device):
         """创建全局标签矩阵，支持DDP模式"""
         # Step 1: 本地caption收集
@@ -134,29 +221,28 @@ class VideoCaptionLoss(nn.Module):
         
         # Step 2: 分布式收集所有caption
         if dist.is_initialized() and self.distributed_gather:
-            global_captions = self._gather_captions_distributed(local_captions)
+            global_captions = self._gather_list_distributed(local_captions)
         else:
             global_captions = local_captions
             
         # Step 3: 创建全局标签矩阵
         return create_label_from_comment(global_captions).to(device)
     
-    def _gather_captions_distributed(self, local_captions):
-        """跨GPU收集caption字符串"""
+    def _gather_list_distributed(self, local_list):
         world_size = dist.get_world_size()
         
         # 当前进程的数据包装为对象
-        local_data = [local_captions]
+        local_data = [local_list]
         all_data = [None] * world_size
         
         # 使用PyTorch的跨进程对象收集
         dist.all_gather_object(all_data, local_data)
         
         # 展平收集的数据
-        flat_captions = []
+        flat_list = []
         for data in all_data:
-            flat_captions.extend(data[0])
-        return flat_captions
+            flat_list.extend(data[0])
+        return flat_list
 
     def compute_siglip_loss(self, logits, target_label):
         """
@@ -282,6 +368,12 @@ class VideoCaptionMetrics(nn.Module):
             targets: 目标数据
             loss_task_raw: 损失字典，包含top_k_accuracy值
         """
+        # 检查是否有有效的text样本
+        valid_text_mask = outputs.get('valid_text_mask', None)
+        if valid_text_mask is None or not valid_text_mask.any():
+            # 如果没有有效的text样本，跳过更新
+            return
+        
         top_1_acc = loss_task_raw['top_1_accuracy']
         top_3_acc = loss_task_raw['top_3_accuracy'] 
         top_5_acc = loss_task_raw['top_5_accuracy']
@@ -291,9 +383,9 @@ class VideoCaptionMetrics(nn.Module):
         self.video_caption_metrics_data['top_3_accuracy'].append(top_3_acc.cpu().item())
         self.video_caption_metrics_data['top_5_accuracy'].append(top_5_acc.cpu().item())
         
-        # 更新样本计数（基于batch size）
-        batch_size = len(targets)
-        self.video_caption_metrics_data['sample_count'] += batch_size
+        # 更新样本计数（只计算有效的text样本数）
+        valid_sample_count = valid_text_mask.sum().item()
+        self.video_caption_metrics_data['sample_count'] += valid_sample_count
 
     def gather_metrics_data(self, accelerator):
         """收集所有进程的指标数据"""
