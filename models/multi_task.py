@@ -9,6 +9,7 @@ from models.keypoints_detection import build_keypoints_detection_head
 from models.soccernet_gsr_reid import build_soccer_net_gsr_reid_head
 from models.video_caption import build_video_caption_head
 from models.caption_classification import build_caption_classification_head
+from models.caption_classification_align import build_caption_classification_head_align
 from models.camera import build_camera_head
 from transformers import SiglipVisionConfig, SiglipVisionModel
 from models.modeling_timesformer_siglip import SiglipVisionModel as TimesformerSiglipVisionModel
@@ -53,6 +54,8 @@ class MultiTaskingSigLIP(nn.Module):
                 self.multi_task_head[head] = build_video_caption_head(config)
             elif head == "CaptionClassification":
                 self.multi_task_head[head] = build_caption_classification_head(config)
+            elif head == "CaptionClassificationAlign":
+                self.multi_task_head[head] = build_caption_classification_head_align(config)
             elif head == "CameraRegression":
                 self.multi_task_head[head] = build_camera_head(config)
             else:

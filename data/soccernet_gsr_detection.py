@@ -298,20 +298,27 @@ class SoccerNetGSR_Detection(Dataset):
         """
         Set the position of each legal sample.
         For test split in video mode, only frames where frame_idx % num_frames == 0 can be starting points.
+        Also ensures that starting position + num_frames doesn't exceed sequence length.
         """
         self.sample_position = list()
         for sequence_name in self.annotations:
+            sequence_length = self.sequence_infos[sequence_name]["length"]
             for frame_idx in range(len(self.annotations[sequence_name])):
                 if self.annotations[sequence_name][frame_idx]["is_legal"]:
                     # 在test阶段的video模式下，只有frame_idx能被num_frames整除的才能作为起点
                     if (self.detection_data_type == "video" and 
                         self.backbone_type == "video" and 
                         self.split == "test"):
-                        # 只有当frame_idx能被num_frames整除时，才能作为起点
-                        if frame_idx % self.num_frames == 0:
+                        # 只有当frame_idx能被num_frames整除时，且不会超出序列长度时，才能作为起点
+                        if (frame_idx % self.num_frames == 0 and 
+                            frame_idx + self.num_frames <= sequence_length):
+                            self.sample_position.append((sequence_name, frame_idx))
+                    elif self.detection_data_type == "video" and self.backbone_type == "video":
+                        # 其他video模式下，确保不会超出序列长度
+                        if frame_idx + self.num_frames <= sequence_length:
                             self.sample_position.append((sequence_name, frame_idx))
                     else:
-                        # 非test的video模式或image模式，保持原有逻辑
+                        # image模式，保持原有逻辑
                         self.sample_position.append((sequence_name, frame_idx))
         return
     

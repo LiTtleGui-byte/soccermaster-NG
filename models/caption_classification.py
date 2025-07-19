@@ -12,7 +12,7 @@ from accelerate.utils.operations import gather_object
 
 class CaptionClassificationHead(nn.Module):
     def __init__(self, input_dim=768, backbone_type='image', dropout_rate=0.1, use_attn_pool=False, 
-                 use_transformers=False, num_transformer_encoder=2):
+                 use_transformers=False, num_transformer_encoder=2, use_mlp=True, use_layer_norm=False):
         """
         Args:
             input_dim: 输入特征维度
@@ -22,12 +22,16 @@ class CaptionClassificationHead(nn.Module):
             use_attn_pool: 是否使用attention pooling，默认False
             use_transformers: 是否在pooling前使用transformer encoder，默认False
             num_transformer_encoder: transformer encoder的层数，默认2
+            use_mlp: 是否使用MLP分类器，默认True。如果False则使用单层Linear
+            use_layer_norm: 是否使用LayerNorm，默认False
         """
         super().__init__()
         assert backbone_type == 'video'
         self.backbone_type = backbone_type
         self.use_attn_pool = use_attn_pool
         self.use_transformers = use_transformers
+        self.use_mlp = use_mlp
+        self.use_layer_norm = use_layer_norm
         num_classes = len(keywords_list)
         
         # Transformer encoder layers (optional)
@@ -58,15 +62,25 @@ class CaptionClassificationHead(nn.Module):
             self.attn_pool_ln = nn.LayerNorm(input_dim)
         
         # 分类头网络
-        self.classifier = nn.Sequential(
-            nn.Linear(input_dim, input_dim // 2),
-            nn.ReLU(inplace=True),
-            nn.Dropout(dropout_rate),
-            nn.Linear(input_dim // 2, input_dim // 4),
-            nn.ReLU(inplace=True),
-            nn.Dropout(dropout_rate),
-            nn.Linear(input_dim // 4, num_classes)
-        )
+        if self.use_mlp:
+            # MLP分类器（多层神经网络）
+            self.classifier = nn.Sequential(
+                nn.Linear(input_dim, input_dim // 2),
+                nn.ReLU(inplace=True),
+                nn.Dropout(dropout_rate),
+                nn.Linear(input_dim // 2, input_dim // 4),
+                nn.ReLU(inplace=True),
+                nn.Dropout(dropout_rate),
+                nn.Linear(input_dim // 4, num_classes)
+            )
+        else:
+            # 单层Linear分类器
+            self.classifier = nn.Linear(input_dim, num_classes)
+        
+        # LayerNorm层（可选）
+        if self.use_layer_norm:
+            self.classifier_ln1 = nn.LayerNorm(input_dim)
+            self.classifier_ln2 = nn.LayerNorm(input_dim)
         
         # 初始化权重
         self._init_weights()
@@ -94,6 +108,10 @@ class CaptionClassificationHead(nn.Module):
         """
         global_features = backbone_outputs['global_features']
         
+        # 可选的LayerNorm处理（第一个）
+        if self.use_layer_norm:
+            global_features = self.classifier_ln1(global_features)
+        
         # 可选的transformer encoder处理
         if self.use_transformers:
             global_features = self.transformer_encoder(global_features)
@@ -112,6 +130,10 @@ class CaptionClassificationHead(nn.Module):
             vision_features = self.attn_pool_ln(attn_output.squeeze(1))  # [N, D]
         else:
             vision_features = global_features.mean(dim=1)  # [N, D]
+        
+        # 可选的LayerNorm处理（第二个）
+        if self.use_layer_norm:
+            vision_features = self.classifier_ln2(vision_features)
         
         logits = self.classifier(vision_features)  # [N, num_classes]
         
@@ -380,7 +402,9 @@ def build_caption_classification_head(config: dict):
         dropout_rate=config["CAPTION_CLASSIFICATION_DROPOUT_RATE"],
         use_attn_pool=config["CAPTION_CLASSIFICATION_USE_ATTN_POOL"],
         use_transformers=config["CAPTION_CLASSIFICATION_USE_TRANSFORMERS"],
-        num_transformer_encoder=config["CAPTION_CLASSIFICATION_NUM_TRANSFORMER_ENCODER"]
+        num_transformer_encoder=config["CAPTION_CLASSIFICATION_NUM_TRANSFORMER_ENCODER"],
+        use_mlp=config["CAPTION_CLASSIFICATION_USE_MLP"],
+        use_layer_norm=config["CAPTION_CLASSIFICATION_USE_LAYER_NORM"]
     )
 
 

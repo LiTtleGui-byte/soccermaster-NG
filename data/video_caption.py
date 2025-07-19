@@ -14,7 +14,7 @@ from typing import List
 from data.utils import Compose, ToTensor, RandomResize, Normalize
 
 # keywords_list = ['corner', 'goal', 'injury', 'own goal', 'penalty', 'penalty missed', 'red card', 'second yellow card', 'substitution', 'start of game(half)', 'end of game(half)', 'yellow card', 'throw in', 'free kick', 'saved by goal-keeper', 'shot off target', 'clearance', "lead to corner", 'off-side', 'var', 'foul with no card', 'statistics and summary', 'ball possession', 'ball out of play']
-keywords_list = ["var", "end of half game", "clearance", "second yellow card", "injury", "ball possession", "throw in", "show added time", "shot off target", "start of half game", "substitution", "saved by goal-keeper", "red card", "lead to corner", "ball out of play", "off side", u"goal", "penalty", "yellow card", "fol lead to penalty", "corner", "free kick", "foul with no card"]
+keywords_list = ["var", "end of half game", "clearance", "second yellow card", "injury", "ball possession", "throw in", "show added time", "shot off target", "start of half game", "substitution", "saved by goal-keeper", "red card", "lead to corner", "ball out of play", "off side", "goal", "penalty", "yellow card", "foul lead to penalty", "corner", "free kick", "foul with no card"]
 
 class VideoCaptionDataset(Dataset):
     def __init__(
@@ -88,7 +88,8 @@ class VideoCaptionDataset(Dataset):
             # "size_divisibility": 1,
             }
         
-        annotation = {'caption': video_info['caption'], 'caption_index': self.caption_to_tensor(video_info['caption']), 'text': video_info[self.text_key]}
+        text = video_info[self.text_key] if self.text_key in video_info else ''
+        annotation = {'caption': video_info['caption'], 'caption_index': self.caption_to_tensor(video_info['caption']), 'text': text}
         
         processed_frames = []
         frames = frames.asnumpy().astype(np.uint8)

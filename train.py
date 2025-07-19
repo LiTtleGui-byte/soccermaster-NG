@@ -225,23 +225,56 @@ def create_param_groups(model, config):
         'KeypointsDetection': config["LR_KEYPOINTS_DETECTION"],
         'CameraRegression': config["LR_CAMERA_REGRESSION"],
         'VideoCaption': config["LR_VIDEO_CAPTION"],
-        'CaptionClassification': config["LR_CAPTION_CLASSIFICATION"]
+        'CaptionClassification': config["LR_CAPTION_CLASSIFICATION"],
+        'CaptionClassificationAlign': config["LR_CAPTION_CLASSIFICATION"]
     }
     
     for head_name, head in original_model.multi_task_head.items():
-        head_params = []
-        for param in head.parameters():
-            if param.requires_grad:
-                head_params.append(param)
-        
-        if head_params:
-            lr = head_lr_mapping[head_name]  # Default to base LR if not specified
-            param_groups.append({
-                'params': head_params,
-                'lr': lr,
-                'weight_decay': config["WEIGHT_DECAY"],
-                'name': head_name
-            })
+        # Special handling for CaptionClassificationAlign head to separate classifier parameters
+        if head_name in ['CaptionClassification', 'CaptionClassificationAlign']:
+            # Separate classifier parameters from other parameters
+            classifier_params = []
+            other_params = []
+            
+            for name, param in head.named_parameters():
+                if param.requires_grad:
+                    if 'classifier' in name.lower():
+                        classifier_params.append(param)
+                    else:
+                        other_params.append(param)
+            
+            # Add classifier parameters with specific learning rate
+            if classifier_params:
+                param_groups.append({
+                    'params': classifier_params,
+                    'lr': config["LR_CAPTION_CLASSIFICATION_CLASSIFIER"],
+                    'weight_decay': config["WEIGHT_DECAY"],
+                    'name': f'{head_name}_classifier'
+                })
+            
+            # Add other parameters with default head learning rate
+            if other_params:
+                param_groups.append({
+                    'params': other_params,
+                    'lr': head_lr_mapping[head_name],
+                    'weight_decay': config["WEIGHT_DECAY"],
+                    'name': f'{head_name}_other'
+                })
+        else:
+            # Regular head parameter handling
+            head_params = []
+            for param in head.parameters():
+                if param.requires_grad:
+                    head_params.append(param)
+            
+            if head_params:
+                lr = head_lr_mapping[head_name]  # Default to base LR if not specified
+                param_groups.append({
+                    'params': head_params,
+                    'lr': lr,
+                    'weight_decay': config["WEIGHT_DECAY"],
+                    'name': head_name
+                })
     
     return param_groups
 
@@ -575,7 +608,7 @@ def evaluate_one_epoch(
                                     target_sizes = torch.tensor([[512, 512]] * batch_size, device=device)
                                 metrics_fn_dict[head_name].update(outputs[head_name], annotations, target_sizes)
                                 
-                        elif head_name in ["SoccerNetGSR_ReID", "VideoCaption", "CaptionClassification", "LinesDetection", "KeypointsDetection", "CameraRegression"]:
+                        elif head_name in ["SoccerNetGSR_ReID", "VideoCaption", "CaptionClassification", "CaptionClassificationAlign", "LinesDetection", "KeypointsDetection", "CameraRegression"]:
                             loss_task_raw, weight_dict = loss_output
                             
                             # Compute weighted and unweighted losses
@@ -797,7 +830,7 @@ def train_one_epoch(
                     loss_output = loss_outputs[head_name]
                     if head_name in ["SoccerNetGSR_Detection"]:
                         loss_task_raw, weight_dict, _ = loss_output
-                    elif head_name in ["SoccerNetGSR_ReID", "VideoCaption", "CaptionClassification", "KeypointsDetection", "LinesDetection", "CameraRegression"]:
+                    elif head_name in ["SoccerNetGSR_ReID", "VideoCaption", "CaptionClassification", "CaptionClassificationAlign", "KeypointsDetection", "LinesDetection", "CameraRegression"]:
                         loss_task_raw, weight_dict = loss_output
                     else:
                         raise ValueError(f"Head {head_name} not supported.")

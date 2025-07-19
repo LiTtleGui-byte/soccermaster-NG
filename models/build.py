@@ -5,6 +5,7 @@ from models.soccernet_gsr_reid import build_soccer_net_gsr_reid_loss
 from models.video_caption import build_video_caption_loss, build_video_caption_metrics
 from models.camera import build_camera_loss, build_camera_metrics
 from models.caption_classification import build_caption_classification_loss, build_caption_classification_metrics
+from models.caption_classification_align import build_caption_classification_loss_align, build_caption_classification_metrics_align
 
 def build_loss_fn(config: dict):
     loss_fn_dict = {}
@@ -29,6 +30,8 @@ def build_loss_fn(config: dict):
             loss_fn_dict[head] = build_video_caption_loss(config=config)
         elif head == "CaptionClassification":
             loss_fn_dict[head] = build_caption_classification_loss(config=config)
+        elif head == "CaptionClassificationAlign":
+            loss_fn_dict[head] = build_caption_classification_loss_align(config=config)
         elif head == "CameraRegression":
             loss_fn_dict[head] = build_camera_loss(config=config)
         else:
@@ -62,6 +65,8 @@ def build_metrics_fn(config: dict):
             metrics_fn_dict[head] = build_video_caption_metrics(config=config)
         elif head == "CaptionClassification":
             metrics_fn_dict[head] = build_caption_classification_metrics(config=config)
+        elif head == "CaptionClassificationAlign":
+            metrics_fn_dict[head] = build_caption_classification_metrics_align(config=config)
         elif head == "CameraRegression":
             metrics_fn_dict[head] = build_camera_metrics(config=config)
         else:
