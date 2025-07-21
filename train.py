@@ -203,11 +203,17 @@ def create_param_groups(model, config):
     
     param_groups = []
     
-    # Backbone parameters
+    # Backbone parameters - separate temporal_embedding if needed
     backbone_params = []
-    for param in original_model.backbone.parameters():
+    temporal_embedding_params = []
+    
+    for name, param in original_model.backbone.named_parameters():
         if param.requires_grad:
-            backbone_params.append(param)
+            # Check if this is temporal_embedding parameter
+            if config.get("EXCLUDE_TEMPORAL_EMBEDDING_WEIGHT_DECAY", False) and "temporal_embedding" in name:
+                temporal_embedding_params.append(param)
+            else:
+                backbone_params.append(param)
     
     if backbone_params:
         param_groups.append({
@@ -215,6 +221,15 @@ def create_param_groups(model, config):
             'lr': config["LR_BACKBONE"],
             'weight_decay': config["WEIGHT_DECAY"],
             'name': 'backbone'
+        })
+    
+    # Add temporal_embedding parameters with no weight decay if needed
+    if temporal_embedding_params:
+        param_groups.append({
+            'params': temporal_embedding_params,
+            'lr': config["LR_BACKBONE"],
+            'weight_decay': 0.0,  # No weight decay for temporal_embedding
+            'name': 'backbone_temporal_embedding'
         })
     
     # Head parameters with different learning rates
