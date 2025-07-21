@@ -192,7 +192,8 @@ def evaluation_engine(config: dict, checkpoint_path: str, log_dir: str = None):
     model = MultiTaskingSigLIP(config=config)
     
     # Load checkpoint
-    model = load_checkpoint(model, checkpoint_path, accelerator.device)
+    # model = load_checkpoint(model, checkpoint_path, accelerator.device)
+    model.load_checkpoint(checkpoint_path)
     
     # Prepare model and dataloaders
     model = accelerator.prepare(model)

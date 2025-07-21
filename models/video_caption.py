@@ -380,6 +380,7 @@ class VideoCaptionMetrics(nn.Module):
             'top_1_accuracy_type': [],
             'top_3_accuracy_type': [],
             'top_5_accuracy_type': [],
+            'retrieval_batch_size': [],
             'sample_count': 0
         }
 
@@ -416,10 +417,11 @@ class VideoCaptionMetrics(nn.Module):
         # 更新样本计数（只计算有效的text样本数）
         valid_sample_count = valid_text_mask.sum().item()
         self.video_caption_metrics_data['sample_count'] += valid_sample_count
+        self.video_caption_metrics_data['retrieval_batch_size'].append(valid_sample_count)
 
     def gather_metrics_data(self, accelerator):
         """收集所有进程的指标数据"""
-        video_caption_key_list = ['top_1_accuracy', 'top_3_accuracy', 'top_5_accuracy', 'top_1_accuracy_type', 'top_3_accuracy_type', 'top_5_accuracy_type']
+        video_caption_key_list = ['top_1_accuracy', 'top_3_accuracy', 'top_5_accuracy', 'top_1_accuracy_type', 'top_3_accuracy_type', 'top_5_accuracy_type', 'retrieval_batch_size']
         gathered_video_caption_metrics = {}
         
         for key in video_caption_key_list:
@@ -439,6 +441,7 @@ class VideoCaptionMetrics(nn.Module):
         all_top_1_accuracy_type = flatten_data(gathered_video_caption_metrics['top_1_accuracy_type'])
         all_top_3_accuracy_type = flatten_data(gathered_video_caption_metrics['top_3_accuracy_type'])
         all_top_5_accuracy_type = flatten_data(gathered_video_caption_metrics['top_5_accuracy_type'])
+        all_retrieval_batch_size = flatten_data(gathered_video_caption_metrics['retrieval_batch_size'])
         
         # 计算总的样本数
         total_sample_count = sum(gathered_video_caption_metrics['sample_count'])
@@ -451,6 +454,7 @@ class VideoCaptionMetrics(nn.Module):
             top_1_accuracy_type_tensor = torch.tensor(all_top_1_accuracy_type, dtype=torch.float32)
             top_3_accuracy_type_tensor = torch.tensor(all_top_3_accuracy_type, dtype=torch.float32)
             top_5_accuracy_type_tensor = torch.tensor(all_top_5_accuracy_type, dtype=torch.float32)
+            retrieval_batch_size_tensor = torch.tensor(all_retrieval_batch_size, dtype=torch.float32)
             
             metrics['video_caption_top_1_accuracy'] = top_1_accuracy_tensor.mean().item()
             metrics['video_caption_top_3_accuracy'] = top_3_accuracy_tensor.mean().item()
@@ -458,6 +462,7 @@ class VideoCaptionMetrics(nn.Module):
             metrics['video_caption_top_1_accuracy_type'] = top_1_accuracy_type_tensor.mean().item()
             metrics['video_caption_top_3_accuracy_type'] = top_3_accuracy_type_tensor.mean().item()
             metrics['video_caption_top_5_accuracy_type'] = top_5_accuracy_type_tensor.mean().item()
+            metrics['video_caption_retrieval_batch_size'] = retrieval_batch_size_tensor.mean().item()
             
             # 记录样本数量
             metrics['video_caption_total_samples'] = total_sample_count
@@ -473,7 +478,7 @@ class VideoCaptionMetrics(nn.Module):
         else:
             # 没有有效的video caption数据
             for metric_name in ['video_caption_top_1_accuracy', 'video_caption_top_3_accuracy', 'video_caption_top_5_accuracy',
-                                'video_caption_top_1_accuracy_type', 'video_caption_top_3_accuracy_type', 'video_caption_top_5_accuracy_type',
+                                'video_caption_top_1_accuracy_type', 'video_caption_top_3_accuracy_type', 'video_caption_top_5_accuracy_type', 'video_caption_retrieval_batch_size',
                                 'video_caption_top_1_accuracy_std', 'video_caption_top_3_accuracy_std', 'video_caption_top_5_accuracy_std',
                                 'video_caption_top_1_accuracy_type_std', 'video_caption_top_3_accuracy_type_std', 'video_caption_top_5_accuracy_type_std']:
                 metrics[metric_name] = 0.0
