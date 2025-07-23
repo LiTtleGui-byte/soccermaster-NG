@@ -30,7 +30,7 @@ class MultiTaskingSigLIP(nn.Module):
         super().__init__()
         self.config = config
         
-        self.backbone = SiglipBackbone(config['BACKBONE_TYPE'], config['NUM_FRAMES'], config['CKPT_PATH'], config['STAGE_1_CKPT_DIR'], config['TEXT_ENCODER_CKPT_PATH'], config['TRAIN_BACKBONE'], False)
+        self.backbone = SiglipBackbone(config['BACKBONE_TYPE'], config['NUM_FRAMES'], config['CKPT_PATH'], config['STAGE_1_CKPT_DIR'], config['TEXT_ENCODER_CKPT_PATH'], config['TRAIN_BACKBONE'], False, config['BACKBONE_USE_TEMPORAL_GATE'])
         
         # multi-task heads
         self.multi_task_head = nn.ModuleDict()

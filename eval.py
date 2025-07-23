@@ -21,125 +21,99 @@ from configs.util import load_super_config, update_config, yaml_to_dict
 from models.build import build_loss_fn, build_metrics_fn
 from train import evaluate_one_epoch
 
-
-def load_checkpoint(model, checkpoint_path, device):
+def save_results_with_logger(eval_results: dict, logger: Logger):
     """
-    加载checkpoint到模型
+    将evaluation结果保存到log.txt文件中
+    
+    Args:
+        eval_results: 包含evaluation结果的字典
+        logger: Logger实例
     """
-    if not os.path.exists(checkpoint_path):
-        raise FileNotFoundError(f"Checkpoint not found: {checkpoint_path}")
+    logger.info("=== Evaluation Results Summary ===")
     
-    print(f"Loading checkpoint from: {checkpoint_path}")
-    
-    # 检查是否是目录结构的checkpoint（包含backbone和各个head）
-    if os.path.isdir(checkpoint_path):
-        # 加载backbone
-        backbone_path = os.path.join(checkpoint_path, 'backbone')
-        if os.path.exists(backbone_path):
-            print(f"Loading backbone from: {backbone_path}")
-            model.backbone.vision_model = model.backbone.vision_model.from_pretrained(backbone_path)
+    # 保存head_metrics_results
+    if "head_metrics_results" in eval_results:
+        logger.info("--- Head Metrics Results ---")
+        head_metrics = eval_results["head_metrics_results"]
         
-        # 加载各个task head
-        for task_name in model.multi_task_head.keys():
-            head_path = os.path.join(checkpoint_path, f'{task_name}.pt')
-            if os.path.exists(head_path):
-                print(f"Loading {task_name} head from: {head_path}")
-                head_state_dict = torch.load(head_path, map_location=device)
-                model.multi_task_head[task_name].load_state_dict(head_state_dict)
-            else:
-                print(f"Warning: {task_name} head checkpoint not found at {head_path}")
-    else:
-        # 加载单个checkpoint文件
-        checkpoint = torch.load(checkpoint_path, map_location=device)
-        if 'model_state_dict' in checkpoint:
-            model.load_state_dict(checkpoint['model_state_dict'])
+        if head_metrics:
+            for head_name, metrics_dict in head_metrics.items():
+                if metrics_dict:  # 确保metrics_dict不为空
+                    logger.info(f"{head_name} Metrics:")
+                    for metric_name, metric_value in metrics_dict.items():
+                        logger.info(f"  {metric_name}: {metric_value:.4f}")
+                else:
+                    logger.info(f"{head_name}: No metrics available")
         else:
-            model.load_state_dict(checkpoint)
+            logger.info("No head metrics results available")
     
-    print("Checkpoint loaded successfully!")
-    return model
-
-
-def format_results(results):
-    """
-    格式化evaluation结果为易读的字符串
-    """
-    output_lines = []
-    output_lines.append("="*80)
-    output_lines.append("EVALUATION RESULTS")
-    output_lines.append("="*80)
-    
-    # 整体结果
-    output_lines.append(f"\nOVERALL RESULTS:")
-    output_lines.append(f"  Overall Weighted Loss: {results['overall_weighted_loss']:.4f}")
-    output_lines.append(f"  Overall Unweighted Loss: {results['overall_unweighted_loss']:.4f}")
-    output_lines.append(f"  Total Samples: {sum(results['task_sample_counts'].values())}")
-    
-    # 每个任务的结果
-    for task_name in results['task_sample_counts'].keys():
-        output_lines.append(f"\n{task_name.upper()} RESULTS:")
-        output_lines.append(f"  Sample Count: {results['task_sample_counts'][task_name]}")
+    # # 保存head_weighted_results
+    # if "head_weighted_results" in eval_results:
+    #     logger.info("--- Head Weighted Loss Results ---")
+    #     head_weighted = eval_results["head_weighted_results"]
         
-        # Loss results
-        weighted_results = results['task_weighted_results'][task_name]
-        unweighted_results = results['task_unweighted_results'][task_name]
-        metrics_results = results['task_metrics_results'][task_name]
+    #     if head_weighted:
+    #         for head_name, loss_dict in head_weighted.items():
+    #             if loss_dict:  # 确保loss_dict不为空
+    #                 logger.info(f"{head_name} Weighted Losses:")
+    #                 for loss_name, loss_value in loss_dict.items():
+    #                     logger.info(f"  {loss_name}: {loss_value:.4f}")
+    #             else:
+    #                 logger.info(f"{head_name}: No weighted losses available")
+    #     else:
+    #         logger.info("No head weighted results available")
+    
+    # # 保存head_unweighted_results
+    # if "head_unweighted_results" in eval_results:
+    #     logger.info("--- Head Unweighted Loss Results ---")
+    #     head_unweighted = eval_results["head_unweighted_results"]
         
-        if weighted_results:
-            output_lines.append(f"  Weighted Losses:")
-            for metric_name, value in weighted_results.items():
-                output_lines.append(f"    {metric_name}: {value:.4f}")
-            total_weighted = sum(weighted_results.values())
-            output_lines.append(f"    Total Weighted Loss: {total_weighted:.4f}")
+    #     if head_unweighted:
+    #         for head_name, loss_dict in head_unweighted.items():
+    #             if loss_dict:  # 确保loss_dict不为空
+    #                 logger.info(f"{head_name} Unweighted Losses:")
+    #                 for loss_name, loss_value in loss_dict.items():
+    #                     logger.info(f"  {loss_name}: {loss_value:.4f}")
+    #             else:
+    #                 logger.info(f"{head_name}: No unweighted losses available")
+    #     else:
+    #         logger.info("No head unweighted results available")
+    
+    # # 保存head_log_only_results
+    # if "head_log_only_results" in eval_results:
+    #     logger.info("--- Head Log-Only Results ---")
+    #     head_log_only = eval_results["head_log_only_results"]
         
-        if unweighted_results:
-            output_lines.append(f"  Unweighted Losses:")
-            for metric_name, value in unweighted_results.items():
-                output_lines.append(f"    {metric_name}: {value:.4f}")
-            total_unweighted = sum(unweighted_results.values())
-            output_lines.append(f"    Total Unweighted Loss: {total_unweighted:.4f}")
+    #     if head_log_only:
+    #         for head_name, log_dict in head_log_only.items():
+    #             if log_dict:  # 确保log_dict不为空
+    #                 logger.info(f"{head_name} Log-Only Values:")
+    #                 for log_name, log_value in log_dict.items():
+    #                     logger.info(f"  {log_name}: {log_value:.4f}")
+    #             else:
+    #                 logger.info(f"{head_name}: No log-only values available")
+    #     else:
+    #         logger.info("No head log-only results available")
+    
+    # # 保存head_sample_counts
+    # if "head_sample_counts" in eval_results:
+    #     logger.info("--- Head Sample Counts ---")
+    #     head_counts = eval_results["head_sample_counts"]
         
-        # Evaluation metrics (mAP, precision, recall等)
-        if metrics_results:
-            output_lines.append(f"  Evaluation Metrics:")
-            
-            # 按重要性排序metrics
-            important_metrics = ['mAP', 'mAP@0.5', 'mAP@0.75', 'precision', 'recall', 'f1']
-            
-            # 先显示重要metrics
-            for metric_name in important_metrics:
-                if metric_name in metrics_results:
-                    value = metrics_results[metric_name]
-                    output_lines.append(f"    {metric_name}: {value:.4f}")
-            
-            # 然后显示其他metrics
-            for metric_name, value in metrics_results.items():
-                if metric_name not in important_metrics:
-                    output_lines.append(f"    {metric_name}: {value:.4f}")
+    #     if head_counts:
+    #         for head_name, count in head_counts.items():
+    #             logger.info(f"{head_name}: {count} samples")
+    #     else:
+    #         logger.info("No head sample counts available")
     
-    output_lines.append("="*80)
-    return "\n".join(output_lines)
-
-
-def save_results_with_logger(results, logger):
-    """
-    使用Logger将结果保存到文件
-    """
-    formatted_results = format_results(results)
+    # # 保存overall results
+    # logger.info("--- Overall Results ---")
+    # if "overall_weighted_loss" in eval_results:
+    #     logger.info(f"Overall Weighted Loss: {eval_results['overall_weighted_loss']:.4f}")
+    # if "overall_unweighted_loss" in eval_results:
+    #     logger.info(f"Overall Unweighted Loss: {eval_results['overall_unweighted_loss']:.4f}")
     
-    # 保存格式化的文本结果
-    timestamp = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-    logger._save(f"Evaluation Results - {timestamp}", filename="eval_results.txt", mode="w")
-    
-    # 将格式化结果按行保存
-    for line in formatted_results.split('\n'):
-        logger._save(line, filename="eval_results.txt", mode="a")
-    
-    # 保存详细的JSON结果
-    # logger._write_dict_to_json(results, filename="eval_results.json", mode="w")
-    
-    logger.success(f"Results saved to: {logger.log_dir}/eval_results.txt and eval_results.json")
-
+    logger.info("=== End of Evaluation Results ===")
 
 def evaluation_engine(config: dict, checkpoint_path: str, log_dir: str = None):
     """
@@ -192,7 +166,6 @@ def evaluation_engine(config: dict, checkpoint_path: str, log_dir: str = None):
     model = MultiTaskingSigLIP(config=config)
     
     # Load checkpoint
-    # model = load_checkpoint(model, checkpoint_path, accelerator.device)
     model.load_checkpoint(checkpoint_path)
     
     # Prepare model and dataloaders
@@ -257,9 +230,6 @@ def evaluation_engine(config: dict, checkpoint_path: str, log_dir: str = None):
     
     # Format and print results (只在主进程输出)
     if accelerator.is_main_process:
-        formatted_results = format_results(eval_results)
-        print(formatted_results)
-        
         # Save results using logger
         save_results_with_logger(eval_results, logger)
     

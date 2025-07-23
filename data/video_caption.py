@@ -1,11 +1,14 @@
 import torch
 import sys
+sys.path.append('/remote-home/haolinyang/sports/Soccer-Backbone')
 import json
 import os
 import random
 from einops import rearrange
 from torch.utils.data import Dataset
 from decord import VideoReader
+import decord
+decord.bridge.set_bridge("torch")
 import numpy as np
 from PIL import Image
 from torch.utils.data import DataLoader
@@ -50,11 +53,11 @@ class VideoCaptionDataset(Dataset):
         clip_root = os.path.join(data_root, "video_clip")
         clip_json_root = os.path.join(data_root, "video_clip_json")
         for dataset in video_caption_datasets:
-            if dataset in ['SoccerReplay-1988', 'SoccerReplay-1988-subset']:
-                # clip_base_dir = os.path.join(clip_root, f"{dataset}-high-resolution")
-                clip_base_dir = os.path.join(clip_root, "SoccerReplay-1988-high-resolution")
-            else:
-                clip_base_dir = os.path.join(clip_root, dataset)
+            # if dataset in ['SoccerReplay-1988', 'SoccerReplay-1988-subset']:
+            #     # clip_base_dir = os.path.join(clip_root, f"{dataset}-high-resolution")
+            #     clip_base_dir = os.path.join(clip_root, "SoccerReplay-1988-high-resolution")
+            # else:
+            clip_base_dir = os.path.join(clip_root, dataset)
             clip_json_path = os.path.join(clip_json_root, dataset, f"classification_{split}.json")
             with open(clip_json_path, 'r') as file:
                 current_data = json.load(file)
@@ -91,14 +94,15 @@ class VideoCaptionDataset(Dataset):
         text = video_info[self.text_key] if self.text_key in video_info else None
         annotation = {'caption': video_info['caption'], 'caption_index': self.caption_to_tensor(video_info['caption']), 'text': text}
         
-        processed_frames = []
-        frames = frames.asnumpy().astype(np.uint8)
-        bs = frames.shape[0]
-        for frame in frames:
-            frame_pil = Image.fromarray(frame)
-            transformed_frame, _, _ = self.transforms(frame_pil, annotation, metas)
-            processed_frames.append(transformed_frame.unsqueeze(0))
-        frames = torch.cat(processed_frames, dim=0)
+        frames, annotation, metas = self.transforms(frames, annotation, metas)
+        # processed_frames = []
+        # frames = frames.asnumpy().astype(np.uint8)
+        # bs = frames.shape[0]
+        # for frame in frames:
+        #     frame_pil = Image.fromarray(frame)
+        #     transformed_frame, _, _ = self.transforms(frame_pil, annotation, metas)
+        #     processed_frames.append(transformed_frame.unsqueeze(0))
+        # frames = torch.cat(processed_frames, dim=0)
         
         return frames, annotation, metas
             
@@ -159,8 +163,7 @@ def get_frame_indices(num_frames, vlen, sample='rand', fix_start=None, input_fps
 
 def read_frames_decord(
         video_path, num_frames, sample='rand', fix_start=None, 
-        max_num_frames=-1, trimmed30=False, processor=None
-    ):
+        max_num_frames=-1, trimmed30=False):
     video_reader = VideoReader(video_path, num_threads=1)
     vlen = len(video_reader)
     fps = video_reader.get_avg_fps()
@@ -176,6 +179,7 @@ def read_frames_decord(
         input_fps=fps, max_num_frames=max_num_frames
     )
     frames = video_reader.get_batch(frame_indices)  # (T, H, W, C), torch.uint8
+    frames = frames.permute(0, 3, 1, 2)  # (T, C, H, W), torch.uint8
 
     return frames, frame_indices, duration
 
@@ -225,3 +229,51 @@ def build_video_caption_dataloader(config: dict, split: str):
     prefetch_factor = config["PREFETCH_FACTOR"] if config["VIDEO_CAPTION_NUM_WORKERS"] > 0 else None
     persistent_workers = config["VIDEO_CAPTION_NUM_WORKERS"] > 0
     return DataLoader(dataset, batch_size=config["VIDEO_CAPTION_BATCH_SIZE"], shuffle=shuffle, collate_fn=collate_fn, num_workers=config["VIDEO_CAPTION_NUM_WORKERS"], prefetch_factor=prefetch_factor, persistent_workers=persistent_workers)
+
+if __name__ == "__main__":
+    
+    def set_transform(
+            model_name = "/remote-home/jiayuanrao/huggingface_models/models--google--siglip-base-patch16-224/snapshots/cc3289c7ee0594a9e640dbf5580511cdcca21837"
+        ):
+        from transformers import AutoProcessor
+        # 创建 SiglipProcessor 实例
+        processor = AutoProcessor.from_pretrained(model_name)
+        return processor
+    
+    import pdb
+    import numpy as np
+    from PIL import Image
+    video_path = '/remote-home/haolinyang/sports/UniSoccer/train_data/video_clip/MatchTime/SN-Caption-test-align/england_epl_2015-2016/2015-08-16 - 18-00 Manchester City 3 - 0 Chelsea/1_11_37.mp4'
+    num_frames = 30
+    sample = 'middle'
+    fix_start = None
+    max_num_frames = -1
+    trimmed30 = False
+    
+    frames, frame_indices, duration = read_frames_decord(
+            video_path, num_frames, sample, fix_start, 
+            max_num_frames, trimmed30
+        )
+    
+    transforms = Compose([
+        ToTensor(),
+        RandomResize(sizes=[224,], max_size=224, keep_aspect_ratio=False),
+        Normalize(mean=[0.5, 0.5, 0.5], std=[0.5, 0.5, 0.5]),
+    ])
+    transformed_frame1, _, _ = transforms(frames, {}, {})
+    
+    model_name = '/remote-home/haolinyang/sports/UniSoccer/pretrained_models/google/siglip-base-patch16-224'
+    transform2 = set_transform(model_name)
+    transformed_frames2 = torch.cat([transform2(images=frame, return_tensors="pt")["pixel_values"] for frame in frames], dim=0)
+    
+    processed_frames = []
+    frames = frames.numpy().astype(np.uint8)
+    bs = frames.shape[0]
+    for frame in frames:
+        frame = frame.transpose(1, 2, 0)
+        frame_pil = Image.fromarray(frame)
+        transformed_frame, _, _ = transforms(frame_pil, {}, {})
+        processed_frames.append(transformed_frame.unsqueeze(0))
+    transformed_frames3 = torch.cat(processed_frames, dim=0)
+    
+    pdb.set_trace()

@@ -203,15 +203,23 @@ def create_param_groups(model, config):
     
     param_groups = []
     
-    # Backbone parameters - separate temporal_embedding if needed
+    # Backbone parameters - separate temporal-related parameters
     backbone_params = []
     temporal_embedding_params = []
+    other_temporal_params = []
     
     for name, param in original_model.backbone.named_parameters():
         if param.requires_grad:
             # Check if this is temporal_embedding parameter
-            if config.get("EXCLUDE_TEMPORAL_EMBEDDING_WEIGHT_DECAY", False) and "temporal_embedding" in name:
+            if "temporal_embedding" in name:
                 temporal_embedding_params.append(param)
+            # Check if this is other temporal-related parameter
+            elif (
+                "temporal_attention" in name or 
+                "temporal_layernorm" in name or
+                "temporal_attention_gating" in name
+            ):
+                other_temporal_params.append(param)
             else:
                 backbone_params.append(param)
     
@@ -223,13 +231,25 @@ def create_param_groups(model, config):
             'name': 'backbone'
         })
     
-    # Add temporal_embedding parameters with no weight decay if needed
+    # Add temporal_embedding parameters with conditional weight decay
     if temporal_embedding_params:
+        # temporal_embedding weight decay depends on EXCLUDE_TEMPORAL_EMBEDDING_WEIGHT_DECAY
+        temporal_embedding_weight_decay = 0.0 if config["EXCLUDE_TEMPORAL_EMBEDDING_WEIGHT_DECAY"] else config["WEIGHT_DECAY"]
+        
         param_groups.append({
             'params': temporal_embedding_params,
-            'lr': config["LR_BACKBONE"],
-            'weight_decay': 0.0,  # No weight decay for temporal_embedding
+            'lr': config["LR_BACKBONE_TEMPORAL"],
+            'weight_decay': temporal_embedding_weight_decay,
             'name': 'backbone_temporal_embedding'
+        })
+    
+    # Add other temporal parameters with normal weight decay
+    if other_temporal_params:
+        param_groups.append({
+            'params': other_temporal_params,
+            'lr': config["LR_BACKBONE_TEMPORAL"],
+            'weight_decay': config["WEIGHT_DECAY"],  # Always use normal weight decay
+            'name': 'backbone_temporal_other'
         })
     
     # Head parameters with different learning rates

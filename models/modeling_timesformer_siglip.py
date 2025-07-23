@@ -501,7 +501,12 @@ class SiglipEncoderLayer(nn.Module):
         if attention_type == "divided_space_time":
             self.temporal_attention = SiglipTemporalAttention(config)
             self.temporal_layernorm = nn.LayerNorm(self.embed_dim, eps=config.layer_norm_eps)
+            # Temporal embedding gate mechanism
+            self.use_temporal_gate = config.use_temporal_gate
+            if self.use_temporal_gate:
+                self.temporal_attention_gating = nn.Parameter(torch.tensor(0.0))
         self.attention_type = attention_type
+        
 
     def forward(
         self,
@@ -556,7 +561,12 @@ class SiglipEncoderLayer(nn.Module):
                 output_attentions=False,
             )
             temporal_embedding = temporal_embedding.transpose(1, 2).reshape(batch_size, num_frames, num_patches, embed_dim)
-            hidden_states = residual + temporal_embedding
+            
+            # Apply temporal embedding gate if enabled
+            if self.use_temporal_gate:
+                hidden_states = residual + self.temporal_attention_gating.tanh() * temporal_embedding
+            else:
+                hidden_states = residual + temporal_embedding
             # else:
             #     # For single frame, skip temporal attention entirely
             #     temporal_attn_weights = None
@@ -615,7 +625,13 @@ class SiglipPreTrainedModel(PreTrainedModel):
                 else self.config.hidden_size
             )
             nn.init.normal_(module.position_embedding.weight, std=1 / np.sqrt(width))
-            # Initialize temporal embedding with zero for smooth training start
+            # Initialize temporal embedding based on config
+            # use_temporal_gate = module.config.use_temporal_gate
+            # if use_temporal_gate:
+            #     # Use default random initialization when gate is enabled
+            #     default_flax_embed_init(module.temporal_embedding.weight)
+            # else:
+            #     # Initialize temporal embedding with zero for smooth training start
             nn.init.zeros_(module.temporal_embedding.weight)
         elif isinstance(module, nn.Embedding):
             default_flax_embed_init(module.weight)
@@ -629,15 +645,28 @@ class SiglipPreTrainedModel(PreTrainedModel):
             nn.init.zeros_(module.v_proj.bias)
             nn.init.zeros_(module.out_proj.bias)
         elif isinstance(module, SiglipTemporalAttention):
-            # 零初始化时序注意力的权重以保证训练稳定性
-            nn.init.zeros_(module.q_proj.weight)
-            nn.init.zeros_(module.k_proj.weight)
-            nn.init.zeros_(module.v_proj.weight)
-            nn.init.zeros_(module.out_proj.weight)
-            nn.init.zeros_(module.q_proj.bias)
-            nn.init.zeros_(module.k_proj.bias)
-            nn.init.zeros_(module.v_proj.bias)
-            nn.init.zeros_(module.out_proj.bias)
+            # Initialize temporal attention based on config
+            use_temporal_gate = module.config.use_temporal_gate
+            if use_temporal_gate:
+                # Use default random initialization when gate is enabled
+                nn.init.xavier_uniform_(module.q_proj.weight)
+                nn.init.xavier_uniform_(module.k_proj.weight)
+                nn.init.xavier_uniform_(module.v_proj.weight)
+                nn.init.xavier_uniform_(module.out_proj.weight)
+                nn.init.zeros_(module.q_proj.bias)
+                nn.init.zeros_(module.k_proj.bias)
+                nn.init.zeros_(module.v_proj.bias)
+                nn.init.zeros_(module.out_proj.bias)
+            else:
+                # 零初始化时序注意力的权重以保证训练稳定性
+                nn.init.zeros_(module.q_proj.weight)
+                nn.init.zeros_(module.k_proj.weight)
+                nn.init.zeros_(module.v_proj.weight)
+                nn.init.zeros_(module.out_proj.weight)
+                nn.init.zeros_(module.q_proj.bias)
+                nn.init.zeros_(module.k_proj.bias)
+                nn.init.zeros_(module.v_proj.bias)
+                nn.init.zeros_(module.out_proj.bias)
         elif isinstance(module, SiglipMLP):
             nn.init.xavier_uniform_(module.fc1.weight)
             nn.init.xavier_uniform_(module.fc2.weight)

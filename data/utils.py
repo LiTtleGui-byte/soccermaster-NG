@@ -65,7 +65,7 @@ class RandomResize:
         
         # Resize images:
         if isinstance(image, torch.Tensor):
-            image = v2.functional.resize(image, new_hw)
+            image = v2.functional.resize(image, new_hw, interpolation=v2.InterpolationMode.BICUBIC)
         else:
             raise NotImplementedError(f"The input image type {type(image)} is not supported.")
         # Resize annotations:
@@ -82,7 +82,6 @@ class ToTensor:
         return
 
     def __call__(self, image, annotation, metas):
-        assert isinstance(image, Image.Image)
         image = v2.functional.to_image(image)
         return image, annotation, metas
     

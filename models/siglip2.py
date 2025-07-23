@@ -28,7 +28,8 @@ class SiglipBackbone(nn.Module):
                  stage_1_ckpt_dir: str,
                  text_encoder_ckpt_path: str,
                  train_backbone: bool,
-                 use_lora: bool):
+                 use_lora: bool,
+                 use_temporal_gate: bool):
         super().__init__()
         assert backbone_type in ['image', 'video']
         if backbone_type == 'image':
@@ -36,9 +37,10 @@ class SiglipBackbone(nn.Module):
         elif backbone_type == 'video':
             self.num_frames = num_frames
             # backbone_ckpt_path = os.path.join(stage_1_ckpt_dir, "backbone")
-            config = SiglipVisionConfig.from_pretrained(ckpt_path)
-            config.num_frames = num_frames
-            self.vision_model = TimesformerSiglipVisionModel.from_pretrained(ckpt_path, config=config, device_map="cpu")
+            vision_config = SiglipVisionConfig.from_pretrained(ckpt_path)
+            vision_config.num_frames = num_frames
+            vision_config.use_temporal_gate = use_temporal_gate
+            self.vision_model = TimesformerSiglipVisionModel.from_pretrained(ckpt_path, config=vision_config, device_map="cpu")
         self.backbone_type = backbone_type
         
         if train_backbone:
@@ -102,12 +104,16 @@ class TextEncoder(nn.Module):
     def __init__(self, model_name: str):
         super().__init__()
         
+        self.model_name = model_name
         self.model = SiglipTextModel.from_pretrained(model_name, device_map="cpu")
         self.tokenizer = AutoTokenizer.from_pretrained(model_name, device_map="cpu")
 
     def forward(self, text):
         # important: make sure to set padding="max_length" as that's how the model was trained
-        inputs = self.tokenizer(text=text, padding="max_length", max_length=64, return_tensors="pt", truncation=True)
+        if 'siglip2' in self.model_name:
+            inputs = self.tokenizer(text=text, padding="max_length", max_length=64, return_tensors="pt", truncation=True)
+        else:
+            inputs = self.tokenizer(text=text, padding="max_length", return_tensors="pt", truncation=True)
         inputs["input_ids"] = inputs["input_ids"].to(self.model.device)
         outputs = self.model(**inputs)
         last_hidden_state = outputs.last_hidden_state
