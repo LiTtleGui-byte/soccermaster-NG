@@ -81,15 +81,43 @@ class MultiTaskingSigLIP(nn.Module):
         
         return outputs
     
+    def save_checkpoint(self, checkpoint_dir: str, logger=None):
+        """
+        Save model checkpoint including backbone, text encoder, and task heads
+        
+        Args:
+            checkpoint_dir: Directory to save checkpoint
+            logger: Logger instance for logging messages
+        """
+        os.makedirs(checkpoint_dir, exist_ok=True)
+        
+        # Save backbone weights
+        backbone_dir = os.path.join(checkpoint_dir, 'backbone')
+        self.backbone.vision_model.save_pretrained(backbone_dir)
+        if logger is not None:
+            logger.info(f"Saved backbone weights to: {backbone_dir}")
+        else:
+            print(f"Saved backbone weights to: {backbone_dir}")
+        
+        # Save text encoder weights
+        text_model_dir = os.path.join(checkpoint_dir, 'text_model')
+        self.backbone.text_model.model.save_pretrained(text_model_dir)
+        if logger is not None:
+            logger.info(f"Saved text encoder weights to: {text_model_dir}")
+        else:
+            print(f"Saved text encoder weights to: {text_model_dir}")
+        
+        # Save task heads
+        for head_name, head in self.multi_task_head.items():
+            head_path = os.path.join(checkpoint_dir, f'{head_name}.pt')
+            torch.save(head.state_dict(), head_path)
+            if logger is not None:
+                logger.info(f"Saved {head_name} head to: {head_path}")
+            else:
+                print(f"Saved {head_name} head to: {head_path}")
+    
     def load_checkpoint(self, checkpoint_dir: str, logger=None):
-        # backbone_ckpt_path = os.path.join(checkpoint_dir, "backbone")
-        # siglip_vision_config = SiglipVisionConfig.from_pretrained(backbone_ckpt_path)
-        # siglip_vision_config.num_frames = self.config['NUM_FRAMES']
-        # del self.backbone.vision_model
-        # if self.config['BACKBONE_TYPE'] == 'video':
-        #     self.backbone.vision_model = TimesformerSiglipVisionModel.from_pretrained(backbone_ckpt_path, config=siglip_vision_config, device_map="cpu")
-        # else:
-        #     self.backbone.vision_model = SiglipVisionModel.from_pretrained(backbone_ckpt_path, config=siglip_vision_config, device_map="cpu")
+        # Load backbone weights
         backbone_ckpt_path = os.path.join(checkpoint_dir, "backbone", "model.safetensors")
         with safe_open(backbone_ckpt_path, framework="pt") as f:
             state_dict = {k: f.get_tensor(k) for k in f.keys()}
@@ -99,6 +127,23 @@ class MultiTaskingSigLIP(nn.Module):
             else:
                 print(f"Loaded backbone weights from: {backbone_ckpt_path}")
         
+        # Load text encoder weights
+        text_model_ckpt_path = os.path.join(checkpoint_dir, "text_model", "model.safetensors")
+        if os.path.exists(text_model_ckpt_path):
+            with safe_open(text_model_ckpt_path, framework="pt") as f:
+                state_dict = {k: f.get_tensor(k) for k in f.keys()}
+                self.backbone.text_model.model.load_state_dict(state_dict, strict=False)
+                if logger is not None:
+                    logger.info(f"Loaded text encoder weights from: {text_model_ckpt_path}")
+                else:
+                    print(f"Loaded text encoder weights from: {text_model_ckpt_path}")
+        else:
+            if logger is not None:
+                logger.warning(f"Warning: text encoder checkpoint not found at {text_model_ckpt_path}")
+            else:
+                print(f"Warning: text encoder checkpoint not found at {text_model_ckpt_path}")
+        
+        # Load task heads
         for head in self.multi_task_head:
             head_ckpt_path = os.path.join(checkpoint_dir, f"{head}.pt")
             if os.path.exists(head_ckpt_path):

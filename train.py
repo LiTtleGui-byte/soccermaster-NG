@@ -91,13 +91,8 @@ def save_training_state(outputs_dir, epoch, model, optimizer, scheduler, train_s
     epoch_dir = os.path.join(outputs_dir, f"epoch_{epoch}")
     os.makedirs(epoch_dir, exist_ok=True)
     
-    # Save backbone weights in backbone subdirectory
-    backbone_dir = os.path.join(epoch_dir, 'backbone')
-    original_model.backbone.vision_model.save_pretrained(backbone_dir)
-    
-    # Save each head separately
-    for head_name, head in original_model.multi_task_head.items():
-        torch.save(head.state_dict(), os.path.join(epoch_dir, f'{head_name}.pt'))
+    # Save model weights using the model's save_checkpoint method
+    original_model.save_checkpoint(epoch_dir, logger)
     
     # Save optimizer state
     optimizer_state_file = os.path.join(epoch_dir, "optimizer_state.pt")
@@ -147,20 +142,6 @@ def load_training_state(checkpoint_dir, model, optimizer, scheduler, train_state
     logger.info(f"Loading training state from {checkpoint_dir}")
     
     original_model.load_checkpoint(checkpoint_dir, logger)
-    # # Load backbone weights
-    # backbone_dir = os.path.join(checkpoint_dir, 'backbone')
-    # if os.path.exists(backbone_dir):
-    #     # Load backbone weights using the from_pretrained method
-    #     backbone_model = original_model.backbone.vision_model.__class__.from_pretrained(backbone_dir)
-    #     original_model.backbone.vision_model.load_state_dict(backbone_model.state_dict())
-    #     logger.info(f"Loaded backbone weights from {backbone_dir}")
-    
-    # # Load each head
-    # for head_name, head in original_model.multi_task_head.items():
-    #     head_file = os.path.join(checkpoint_dir, f'{head_name}.pt')
-    #     if os.path.exists(head_file):
-    #         head.load_state_dict(torch.load(head_file, map_location='cpu'))
-    #         logger.info(f"Loaded {head_name} head weights from {head_file}")
     
     # Load optimizer state
     optimizer_state_file = os.path.join(checkpoint_dir, "optimizer_state.pt")
@@ -328,6 +309,116 @@ def create_param_groups(model, config):
     
     return param_groups
 
+def verify_parameter_learning_rates(model, optimizer, logger):
+    """
+    验证模型中每个参数都有对应的学习率设置
+    
+    Args:
+        model: 模型实例
+        optimizer: 优化器实例
+        logger: 日志记录器
+    """
+    # 获取原始模型（处理DDP包装）
+    original_model = model.module if hasattr(model, 'module') else model
+    
+    # 收集优化器中的所有参数ID和对应的学习率
+    optimizer_params = {}
+    for group_idx, param_group in enumerate(optimizer.param_groups):
+        group_name = param_group.get('name', f'group_{group_idx}')
+        group_lr = param_group['lr']
+        
+        for param in param_group['params']:
+            param_id = id(param)
+            optimizer_params[param_id] = {
+                'lr': group_lr,
+                'group_name': group_name,
+                'group_idx': group_idx
+            }
+    
+    # 遍历模型中的所有参数
+    logger.info("=== 验证模型参数学习率设置 ===")
+    
+    missing_params = []
+    frozen_params = []
+    param_lr_summary = {}
+    
+    total_model_params = 0
+    total_trainable_params = 0
+    total_optimizer_params = len(optimizer_params)
+    
+    for name, param in original_model.named_parameters():
+        total_model_params += 1
+        param_id = id(param)
+        
+        if not param.requires_grad:
+            # 冻结参数
+            frozen_params.append(name)
+            continue
+            
+        total_trainable_params += 1
+        
+        if param_id in optimizer_params:
+            # 参数在优化器中找到
+            param_info = optimizer_params[param_id]
+            group_name = param_info['group_name']
+            lr = param_info['lr']
+            
+            if group_name not in param_lr_summary:
+                param_lr_summary[group_name] = {
+                    'lr': lr,
+                    'param_count': 0,
+                    'param_names': []
+                }
+            param_lr_summary[group_name]['param_count'] += 1
+            param_lr_summary[group_name]['param_names'].append(name)
+        else:
+            # 参数未在优化器中找到
+            missing_params.append(name)
+    
+    # 记录验证结果
+    logger.info(f"模型总参数数量: {total_model_params}")
+    logger.info(f"可训练参数数量: {total_trainable_params}")
+    logger.info(f"冻结参数数量: {len(frozen_params)}")
+    logger.info(f"优化器中参数数量: {total_optimizer_params}")
+    
+    # 检查是否有缺失的参数
+    if missing_params:
+        logger.error(f"发现 {len(missing_params)} 个可训练参数未在优化器中找到:")
+        for param_name in missing_params:
+            logger.error(f"  - {param_name}")
+        raise RuntimeError(f"有 {len(missing_params)} 个可训练参数未在优化器中设置学习率!")
+    
+    # 验证数量一致性
+    if total_trainable_params != total_optimizer_params:
+        logger.warning(f"可训练参数数量 ({total_trainable_params}) 与优化器参数数量 ({total_optimizer_params}) 不匹配!")
+    
+    # 记录参数组详细信息
+    logger.info(f"参数组学习率设置详情:")
+    for group_name, info in param_lr_summary.items():
+        logger.info(f"  组名: {group_name}")
+        logger.info(f"    学习率: {info['lr']:.0e}")
+        logger.info(f"    参数数量: {info['param_count']}")
+        
+        # 只显示前几个参数名称，避免日志过长
+        max_display = 5
+        displayed_names = info['param_names'][:max_display]
+        logger.info(f"    参数示例: {displayed_names}")
+        if len(info['param_names']) > max_display:
+            logger.info(f"    ... 还有 {len(info['param_names']) - max_display} 个参数")
+    
+    # 记录冻结参数信息（只显示前几个）
+    if frozen_params:
+        max_display = 10
+        logger.info(f"冻结参数 (共{len(frozen_params)}个):")
+        displayed_frozen = frozen_params[:max_display]
+        for param_name in displayed_frozen:
+            logger.info(f"  - {param_name}")
+        if len(frozen_params) > max_display:
+            logger.info(f"  ... 还有 {len(frozen_params) - max_display} 个冻结参数")
+    
+    logger.info("✓ 所有可训练参数都已正确设置学习率")
+    logger.info("=====================================")
+
 def train_engine(config: dict):
     # Init some settings:
     assert "EXP_NAME" in config and config["EXP_NAME"] is not None, "Please set the experiment name."
@@ -398,6 +489,8 @@ def train_engine(config: dict):
         gamma=config["SCHEDULER_GAMMA"],
     )
     
+    
+    
     # torch.cuda.init()  # 显式初始化CUDA
     # device = torch.device("cuda")
     # torch.tensor([1.0]).to(device)  # 创建虚拟张量强制初始化上下文
@@ -459,6 +552,9 @@ def train_engine(config: dict):
     dataloader_train_dict = {dataset: accelerator.prepare(dataloader) for dataset, dataloader in dataloader_train_dict.items()}
     if dataloader_test_dict:
         dataloader_test_dict = {dataset: accelerator.prepare(dataloader) for dataset, dataloader in dataloader_test_dict.items()}
+
+    # 在正式训练前验证所有参数的学习率设置
+    verify_parameter_learning_rates(model, optimizer, logger)
 
     total_params = sum(p.numel() for p in model.parameters())
     trainable_params = sum(p.numel() for p in model.parameters() if p.requires_grad)
