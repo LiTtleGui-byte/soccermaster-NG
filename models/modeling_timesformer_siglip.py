@@ -501,6 +501,7 @@ class SiglipEncoderLayer(nn.Module):
         if attention_type == "divided_space_time":
             self.temporal_attention = SiglipTemporalAttention(config)
             self.temporal_layernorm = nn.LayerNorm(self.embed_dim, eps=config.layer_norm_eps)
+            self.temporal_dense = nn.Linear(self.embed_dim, self.embed_dim)
             # Temporal embedding gate mechanism
             self.use_temporal_gate = config.use_temporal_gate
             if self.use_temporal_gate:
@@ -561,7 +562,7 @@ class SiglipEncoderLayer(nn.Module):
                 output_attentions=False,
             )
             temporal_embedding = temporal_embedding.transpose(1, 2).reshape(batch_size, num_frames, num_patches, embed_dim)
-            
+            temporal_embedding = self.temporal_dense(temporal_embedding)
             # Apply temporal embedding gate if enabled
             if self.use_temporal_gate:
                 hidden_states = residual + self.temporal_attention_gating.tanh() * temporal_embedding
@@ -635,6 +636,9 @@ class SiglipPreTrainedModel(PreTrainedModel):
             nn.init.zeros_(module.temporal_embedding.weight)
         elif isinstance(module, nn.Embedding):
             default_flax_embed_init(module.weight)
+        elif isinstance(module, nn.Linear):
+            nn.init.xavier_uniform_(module.weight)
+            nn.init.zeros_(module.bias)
         elif isinstance(module, SiglipAttention):
             nn.init.xavier_uniform_(module.q_proj.weight)
             nn.init.xavier_uniform_(module.k_proj.weight)

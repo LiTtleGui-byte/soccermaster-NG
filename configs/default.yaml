@@ -35,6 +35,7 @@ LR: 1.0e-4
 # Different learning rates for different components:
 LR_BACKBONE: 1.0e-4
 LR_BACKBONE_TEMPORAL: 1.0e-4
+LR_TEXT_ENCODER: 5.0e-5
 LR_SOCCERNET_GSR_REID: 1.0e-3
 LR_SOCCERNET_GSR_DETECTION: 1.0e-3
 LR_LINES_DETECTION: 1.0e-2
@@ -51,6 +52,7 @@ LR_CAPTION_CLASSIFICATION: 1.0e-3
 LR_WARMUP_EPOCHS: 1
 WEIGHT_DECAY: 0.0005
 EXCLUDE_TEMPORAL_EMBEDDING_WEIGHT_DECAY: False  # 是否排除temporal_embedding的weight decay
+USE_CLIP_GRAD_NORM: True          # 是否使用梯度裁剪，默认启用
 MAX_CLIP_NORM: 0.1
 EPOCHS: 30
 ACCUMULATE_STEPS: 1
@@ -109,6 +111,7 @@ LOAD_CHECKPOINTS: False
 STAGE_1_CKPT_DIR: ./pretrained_models/google/siglip2-base-patch16-512
 TEXT_ENCODER_CKPT_PATH: ./pretrained_models/google/siglip2-base-patch16-512
 TRAIN_BACKBONE: True
+FREEZE_TEXT_ENCODER: True  # 是否冻结文本编码器，默认为True不训练
 BACKBONE_USE_TEMPORAL_GATE: False  # 是否使用temporal embedding gate机制
 
 # DETR HEAD:

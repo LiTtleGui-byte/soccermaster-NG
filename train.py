@@ -203,12 +203,12 @@ def create_param_groups(model, config):
     
     param_groups = []
     
-    # Backbone parameters - separate temporal-related parameters
+    # Backbone parameters - separate temporal-related parameters and exclude text_model
     backbone_params = []
     temporal_embedding_params = []
     other_temporal_params = []
     
-    for name, param in original_model.backbone.named_parameters():
+    for name, param in original_model.backbone.vision_model.named_parameters():
         if param.requires_grad:
             # Check if this is temporal_embedding parameter
             if "temporal_embedding" in name:
@@ -217,7 +217,8 @@ def create_param_groups(model, config):
             elif (
                 "temporal_attention" in name or 
                 "temporal_layernorm" in name or
-                "temporal_attention_gating" in name
+                "temporal_attention_gating" in name or
+                "temporal_dense" in name
             ):
                 other_temporal_params.append(param)
             else:
@@ -250,6 +251,20 @@ def create_param_groups(model, config):
             'lr': config["LR_BACKBONE_TEMPORAL"],
             'weight_decay': config["WEIGHT_DECAY"],  # Always use normal weight decay
             'name': 'backbone_temporal_other'
+        })
+    
+    # Text encoder parameters
+    text_encoder_params = []
+    for name, param in original_model.backbone.text_model.named_parameters():
+        if param.requires_grad:
+            text_encoder_params.append(param)
+    
+    if text_encoder_params:
+        param_groups.append({
+            'params': text_encoder_params,
+            'lr': config["LR_TEXT_ENCODER"],
+            'weight_decay': config["WEIGHT_DECAY"],
+            'name': 'text_encoder'
         })
     
     # Head parameters with different learning rates
@@ -456,6 +471,10 @@ def train_engine(config: dict):
     vision_params = sum(p.numel() for p in original_model.backbone.vision_model.parameters())
     vision_trainable_params = sum(p.numel() for p in original_model.backbone.vision_model.parameters() if p.requires_grad)
     
+    # Calculate text_model parameters
+    text_params = sum(p.numel() for p in original_model.backbone.text_model.parameters())
+    text_trainable_params = sum(p.numel() for p in original_model.backbone.text_model.parameters() if p.requires_grad)
+    
     # Calculate each head parameters
     head_params = {}
     head_trainable_params = {}
@@ -478,6 +497,9 @@ def train_engine(config: dict):
     logger.info(f"")
     logger.info(f"Vision Model parameters: {vision_params/1e6:.2f}M")
     logger.info(f"Vision Model trainable: {vision_trainable_params/1e6:.2f}M ({vision_trainable_params/vision_params*100:.2f}%)")
+    logger.info(f"")
+    logger.info(f"Text Model parameters: {text_params/1e6:.2f}M")
+    logger.info(f"Text Model trainable: {text_trainable_params/1e6:.2f}M ({text_trainable_params/text_params*100:.2f}%)")
     logger.info(f"")
     logger.info(f"Total Head parameters: {total_head_params/1e6:.2f}M")
     logger.info(f"Total Head trainable: {total_head_trainable_params/1e6:.2f}M ({total_head_trainable_params/total_head_params*100:.2f}%)")
@@ -519,6 +541,7 @@ def train_engine(config: dict):
             accumulate_steps=config["ACCUMULATE_STEPS"],
             max_clip_norm=config["MAX_CLIP_NORM"],
             use_accelerate_clip_norm=config["USE_ACCELERATE_CLIP_NORM"],
+            use_clip_grad_norm=config["USE_CLIP_GRAD_NORM"],
             logging_interval=config["LOGGING_INTERVAL"],
         )
         scheduler.step()
@@ -765,6 +788,7 @@ def train_one_epoch(
         accumulate_steps: int = 1,
         max_clip_norm: float = 0.1,
         use_accelerate_clip_norm: bool = True,
+        use_clip_grad_norm: bool = True,
         logging_interval: int = 20,
 ):
     epoch_start_timestamp = TPS.timestamp()
@@ -875,6 +899,7 @@ def train_one_epoch(
             
             # 立即对当前dataset所属的所有heads计算的loss进行backward，减少显存占用
             dataset_total_loss = sum(sum(weighted_loss_dict[head].values()) for head in datasets_to_heads[dataset_name])
+            
             # dataset_total_loss /= (accumulate_steps * len_tasks)  # 除以任务数量进行平均
             accelerator.backward(dataset_total_loss)
             
@@ -884,23 +909,32 @@ def train_one_epoch(
         
         # 梯度裁剪和参数更新
         if (cur_iter + 1) % accumulate_steps == 0:
-            if use_accelerate_clip_norm:
-                # Clip gradients separately for backbone and each head
-                # Use model.module to access original model attributes when using DDP
-                original_model = model.module if hasattr(model, 'module') else model
-                backbone_grad_norm = accelerator.clip_grad_norm_(original_model.backbone.parameters(), max_norm=max_clip_norm)
-                head_grad_norms = {}
-                for head_name, head in original_model.multi_task_head.items():
-                    head_grad_norms[head_name] = accelerator.clip_grad_norm_(head.parameters(), max_norm=max_clip_norm)
+            if use_clip_grad_norm:
+                if use_accelerate_clip_norm:
+                    # Clip gradients separately for backbone and each head
+                    # Use model.module to access original model attributes when using DDP
+                    original_model = model.module if hasattr(model, 'module') else model
+                    backbone_grad_norm = accelerator.clip_grad_norm_(original_model.backbone.parameters(), max_norm=max_clip_norm)
+                    head_grad_norms = {}
+                    for head_name, head in original_model.multi_task_head.items():
+                        head_grad_norms[head_name] = accelerator.clip_grad_norm_(head.parameters(), max_norm=max_clip_norm)
+                else:
+                    accelerator.unscale_gradients()
+                    # Clip gradients separately for backbone and each head
+                    # Use model.module to access original model attributes when using DDP
+                    original_model = model.module if hasattr(model, 'module') else model
+                    backbone_grad_norm = torch.nn.utils.clip_grad_norm_(original_model.backbone.parameters(), max_clip_norm)
+                    head_grad_norms = {}
+                    for head_name, head in original_model.multi_task_head.items():
+                        head_grad_norms[head_name] = torch.nn.utils.clip_grad_norm_(head.parameters(), max_norm=max_clip_norm)
             else:
-                accelerator.unscale_gradients()
-                # Clip gradients separately for backbone and each head
-                # Use model.module to access original model attributes when using DDP
-                original_model = model.module if hasattr(model, 'module') else model
-                backbone_grad_norm = torch.nn.utils.clip_grad_norm_(original_model.backbone.parameters(), max_clip_norm)
-                head_grad_norms = {}
-                for head_name, head in original_model.multi_task_head.items():
-                    head_grad_norms[head_name] = torch.nn.utils.clip_grad_norm_(head.parameters(), max_norm=max_clip_norm)
+                pass
+                # 不使用梯度裁剪时，设置默认的梯度范数值用于日志记录
+                # original_model = model.module if hasattr(model, 'module') else model
+                # backbone_grad_norm = torch.tensor(0.0, device=device)
+                # head_grad_norms = {}
+                # for head_name in original_model.multi_task_head.keys():
+                #     head_grad_norms[head_name] = torch.tensor(0.0, device=device)
             optimizer.step()
             optimizer.zero_grad()
                 
@@ -929,10 +963,11 @@ def train_one_epoch(
                     logger.log_loss_dict(log_only_loss_dict[head_name], states["global_step"], prefix=f"train_unweighted_{head_name}", count_sum=False)
             
             logger.log_learning_rate(optimizer, states["global_step"])
-            # Log separate gradient norms for backbone and each head
-            logger.log_scalar("train_grad_norm/backbone_grad_norm", backbone_grad_norm, states["global_step"])
-            for head_name, head_grad_norm in head_grad_norms.items():
-                logger.log_scalar(f"train_grad_norm/{head_name}_head_grad_norm", head_grad_norm, states["global_step"])
+            # Log separate gradient norms for backbone and each head (only if grad clipping is enabled)
+            if use_clip_grad_norm:
+                logger.log_scalar("train_grad_norm/backbone_grad_norm", backbone_grad_norm, states["global_step"])
+                for head_name, head_grad_norm in head_grad_norms.items():
+                    logger.log_scalar(f"train_grad_norm/{head_name}_head_grad_norm", head_grad_norm, states["global_step"])
             
             # Log parameter and gradient statistics if enabled
             # if config.get("LOG_PARAMS_GRADS", False):
@@ -975,11 +1010,11 @@ def train_one_epoch(
                 _lr = param_group['lr']
                 metrics[f"lr_{group_name}"].clear()
                 metrics.update(name=f"lr_{group_name}", value=_lr)
-            # Add gradient norm metrics
-            # if 'backbone_grad_norm' in locals():
-            metrics.update(name="backbone_grad_norm", value=backbone_grad_norm.detach())
-            for head_name, head_grad_norm in head_grad_norms.items():
-                metrics.update(name=f"{head_name}_head_grad_norm", value=head_grad_norm.detach())
+            # Add gradient norm metrics (only if grad clipping is enabled)
+            if use_clip_grad_norm:
+                metrics.update(name="backbone_grad_norm", value=backbone_grad_norm.detach())
+                for head_name, head_grad_norm in head_grad_norms.items():
+                    metrics.update(name=f"{head_name}_head_grad_norm", value=head_grad_norm.detach())
             torch.cuda.synchronize()
             _cuda_memory = torch.cuda.max_memory_allocated(device) / 1024 / 1024
             _cuda_memory = torch.tensor([_cuda_memory], device=device)

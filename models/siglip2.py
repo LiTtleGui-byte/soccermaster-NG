@@ -29,7 +29,8 @@ class SiglipBackbone(nn.Module):
                  text_encoder_ckpt_path: str,
                  train_backbone: bool,
                  use_lora: bool,
-                 use_temporal_gate: bool):
+                 use_temporal_gate: bool,
+                 freeze_text_encoder: bool = True):
         super().__init__()
         assert backbone_type in ['image', 'video']
         if backbone_type == 'image':
@@ -51,8 +52,12 @@ class SiglipBackbone(nn.Module):
                 param.requires_grad = False
                 
         self.text_model = TextEncoder(text_encoder_ckpt_path)
-        for param in self.text_model.parameters():
-            param.requires_grad = False
+        if freeze_text_encoder:
+            for param in self.text_model.parameters():
+                param.requires_grad = False
+        else:
+            for param in self.text_model.parameters():
+                param.requires_grad = True
         
         if use_lora:
             raise NotImplementedError("Siglip does not support LoRA.")
