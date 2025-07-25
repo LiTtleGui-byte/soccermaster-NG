@@ -104,7 +104,8 @@ def save_video_clip(video_path, save_dir, start_frame, end_frame):
         filepath = os.path.join(save_dir, filename)
         
         # cv2.imwrite(filepath, resized_frame, [cv2.IMWRITE_JPEG_QUALITY, 95])
-        cv2.imwrite(filepath, resized_frame)
+        if not os.path.exists(filepath):
+            cv2.imwrite(filepath, resized_frame)
     
     # 释放资源
     cap.release()
@@ -115,7 +116,7 @@ def process_single_clip(args):
     league, season, game, half, start_frame, end_frame, clip_id, src_vid_root, save_root = args
     try:
         video_src_path = os.path.join(src_vid_root, league, season, game, f'{half}_720p.mkv')
-        video_save_dir = os.path.join(save_root, f"SNGS-{clip_id+10000:05d}")
+        video_save_dir = os.path.join(save_root, f"SNGS-{clip_id+10000:05d}", "img1")
         save_video_clip(video_src_path, video_save_dir, start_frame, end_frame)
         return f"成功处理: SNGS-{clip_id+10000:05d}"
     except Exception as e:
@@ -124,7 +125,8 @@ def process_single_clip(args):
 if __name__ == '__main__':
     src_vid_root = '/remote-home/haolinyang/public/sports/SoccerNet/dataset-720p'
     metadata_root = '/remote-home/haolinyang/public/sports/SoccerNet/dataset-cameras'
-    save_root = '/remote-home/haolinyang/datasets/SN-GSR-2024/SoccerNetGS/sn500'
+    # save_root = '/remote-home/haolinyang/datasets/SN-GSR-2024/SoccerNetGS/sn500'
+    save_root = '/remote-home/haolinyang/datasets/SN-GSR-2024/sn500'
     os.makedirs(save_root, exist_ok=True)
 
     # 用来记录(league, season, game, half, indices) -> clip_id
@@ -187,7 +189,7 @@ if __name__ == '__main__':
         args_list.append((league, season, game, half, start_frame, end_frame, clip_id, src_vid_root, save_root))
     
     # 使用16个线程处理
-    max_workers = 16
+    max_workers = 2
     print(f"开始使用 {max_workers} 个线程处理 {len(args_list)} 个视频片段...")
     
     # 初始化失败日志文件和线程锁
