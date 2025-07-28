@@ -82,13 +82,13 @@ class Timesformer(nn.Module):
         return x
     
 class UniSoccerBackbone(nn.Module):
-    def __init__(self, ckpt_path: str, num_frames: int, stage_1_ckpt_dir: str):
+    def __init__(self, ckpt_path: str, num_frames: int, stage_1_backbone_dir: str):
         super().__init__()
 
-        model = SiglipVisionModel.from_pretrained(ckpt_path, device_map="cpu")
+        model = SiglipVisionModel.from_pretrained(stage_1_backbone_dir, device_map="cpu")
         siglip_vision_model = model.vision_model
         self.vision_model_embedding = siglip_vision_model.embeddings
-        self.timesformer = Timesformer(width=768, layers=12, heads=12, model_name=ckpt_path, drop_path=0., checkpoint_num=0, dropout=0.)
+        self.timesformer = Timesformer(width=768, layers=12, heads=12, model_name=stage_1_backbone_dir, drop_path=0., checkpoint_num=0, dropout=0.)
         self.post_norm = siglip_vision_model.post_layernorm
         self.head = siglip_vision_model.head
         self.temporal_embedding = nn.Parameter(torch.zeros(1, num_frames, 768))
@@ -122,7 +122,9 @@ class SiglipBackbone(nn.Module):
         if backbone_type == 'image':
             self.vision_model = SiglipVisionModel.from_pretrained(ckpt_path, device_map="cpu")
         elif backbone_type == 'video':
-            self.vision_model = UniSoccerBackbone(ckpt_path, num_frames, stage_1_ckpt_dir)
+            stage_1_backbone_dir = os.path.join(stage_1_ckpt_dir, 'backbone')
+            assert os.path.exists(stage_1_backbone_dir), f"Stage 1 backbone checkpoint not found at {stage_1_backbone_dir}"
+            self.vision_model = UniSoccerBackbone(ckpt_path, num_frames, stage_1_backbone_dir)
             
         self.backbone_type = backbone_type
                 
