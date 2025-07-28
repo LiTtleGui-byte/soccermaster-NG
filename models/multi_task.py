@@ -3,6 +3,7 @@ import torch
 from torch import nn
 
 from models.siglip2 import SiglipBackbone
+from models.siglip2_unisoccer import SiglipBackbone as UniSoccerSiglipBackbone
 from models.deformable_detr.deformable_detr import build_deformable_detr_head
 from models.lines_detection import build_lines_detection_head
 from models.keypoints_detection import build_keypoints_detection_head
@@ -12,6 +13,7 @@ from models.caption_classification import build_caption_classification_head
 from models.caption_classification_align import build_caption_classification_head_align
 from models.camera import build_camera_head
 from transformers import SiglipVisionConfig, SiglipVisionModel
+from transformers.models.siglip.modeling_siglip import SiglipPreTrainedModel
 from models.modeling_timesformer_siglip import SiglipVisionModel as TimesformerSiglipVisionModel
 from safetensors import safe_open
 
@@ -30,7 +32,30 @@ class MultiTaskingSigLIP(nn.Module):
         super().__init__()
         self.config = config
         
-        self.backbone = SiglipBackbone(config['BACKBONE_TYPE'], config['NUM_FRAMES'], config['CKPT_PATH'], config['STAGE_1_CKPT_DIR'], config['TEXT_ENCODER_CKPT_PATH'], config['TRAIN_BACKBONE'], False, config['BACKBONE_USE_TEMPORAL_GATE'], config['FREEZE_TEXT_ENCODER'])
+        # 根据配置选择使用哪种SiglipBackbone
+        siglip_backbone_type = config.get('SIGLIP_BACKBONE_TYPE', 'standard').lower()
+        
+        if siglip_backbone_type == 'standard':
+            SiglipBackboneType = SiglipBackbone
+        elif siglip_backbone_type == 'unisoccer':
+            SiglipBackboneType = UniSoccerSiglipBackbone
+        else:
+            raise ValueError(f"Unsupported SIGLIP_BACKBONE_TYPE: {siglip_backbone_type}. Supported types: 'standard', 'unisoccer'")
+        self.backbone = SiglipBackboneType(
+            config['BACKBONE_TYPE'], 
+            config['NUM_FRAMES'], 
+            config['CKPT_PATH'], 
+            config['STAGE_1_CKPT_DIR'], 
+            config['TEXT_ENCODER_CKPT_PATH'], 
+            config['TRAIN_BACKBONE'], 
+            False, 
+            config['BACKBONE_USE_TEMPORAL_GATE'], 
+            config['FREEZE_TEXT_ENCODER']
+        )
+        if logger is not None:
+            logger.info(f"Using SiglipBackbone type: {siglip_backbone_type}")
+        else:
+            print(f"Using SiglipBackbone type: {siglip_backbone_type}")
         
         # multi-task heads
         self.multi_task_head = nn.ModuleDict()
@@ -91,13 +116,23 @@ class MultiTaskingSigLIP(nn.Module):
         """
         os.makedirs(checkpoint_dir, exist_ok=True)
         
-        # Save backbone weights
-        backbone_dir = os.path.join(checkpoint_dir, 'backbone')
-        self.backbone.vision_model.save_pretrained(backbone_dir)
-        if logger is not None:
-            logger.info(f"Saved backbone weights to: {backbone_dir}")
+        # 判断vision_model的类型来决定保存方式
+        if isinstance(self.backbone.vision_model, SiglipPreTrainedModel):
+            # 对于标准的SiglipVisionModel，使用save_pretrained方法
+            backbone_dir = os.path.join(checkpoint_dir, 'backbone')
+            self.backbone.vision_model.save_pretrained(backbone_dir)
+            if logger is not None:
+                logger.info(f"Saved SiglipPreTrainedModel backbone weights to: {backbone_dir}")
+            else:
+                print(f"Saved SiglipPreTrainedModel backbone weights to: {backbone_dir}")
         else:
-            print(f"Saved backbone weights to: {backbone_dir}")
+            # 对于自定义的UniSoccerBackbone，使用torch.save保存state_dict
+            backbone_path = os.path.join(checkpoint_dir, 'backbone.pt')
+            torch.save(self.backbone.vision_model.state_dict(), backbone_path)
+            if logger is not None:
+                logger.info(f"Saved custom backbone weights to: {backbone_path}")
+            else:
+                print(f"Saved custom backbone weights to: {backbone_path}")
         
         # Save text encoder weights
         text_model_dir = os.path.join(checkpoint_dir, 'text_model')
@@ -117,15 +152,45 @@ class MultiTaskingSigLIP(nn.Module):
                 print(f"Saved {head_name} head to: {head_path}")
     
     def load_checkpoint(self, checkpoint_dir: str, logger=None):
-        # Load backbone weights
-        backbone_ckpt_path = os.path.join(checkpoint_dir, "backbone", "model.safetensors")
-        with safe_open(backbone_ckpt_path, framework="pt") as f:
-            state_dict = {k: f.get_tensor(k) for k in f.keys()}
-            self.backbone.vision_model.load_state_dict(state_dict, strict=False)
-            if logger is not None:
-                logger.info(f"Loaded backbone weights from: {backbone_ckpt_path}")
+        """
+        Load model checkpoint including backbone, text encoder, and task heads
+        
+        Args:
+            checkpoint_dir: Directory to load checkpoint from
+            logger: Logger instance for logging messages
+        """
+        # 判断vision_model的类型来决定加载方式
+        if isinstance(self.backbone.vision_model, SiglipPreTrainedModel):
+            # 对于标准的SiglipVisionModel，从safetensors文件加载
+            backbone_ckpt_path = os.path.join(checkpoint_dir, "backbone", "model.safetensors")
+            if os.path.exists(backbone_ckpt_path):
+                with safe_open(backbone_ckpt_path, framework="pt") as f:
+                    state_dict = {k: f.get_tensor(k) for k in f.keys()}
+                    self.backbone.vision_model.load_state_dict(state_dict, strict=False)
+                    if logger is not None:
+                        logger.info(f"Loaded SiglipPreTrainedModel backbone weights from: {backbone_ckpt_path}")
+                    else:
+                        print(f"Loaded SiglipPreTrainedModel backbone weights from: {backbone_ckpt_path}")
             else:
-                print(f"Loaded backbone weights from: {backbone_ckpt_path}")
+                if logger is not None:
+                    logger.warning(f"Warning: SiglipPreTrainedModel backbone checkpoint not found at {backbone_ckpt_path}")
+                else:
+                    print(f"Warning: SiglipPreTrainedModel backbone checkpoint not found at {backbone_ckpt_path}")
+        else:
+            # 对于自定义的UniSoccerBackbone，从.pt文件加载
+            backbone_ckpt_path = os.path.join(checkpoint_dir, "backbone.pt")
+            if os.path.exists(backbone_ckpt_path):
+                backbone_state_dict = torch.load(backbone_ckpt_path, map_location="cpu")
+                self.backbone.vision_model.load_state_dict(backbone_state_dict, strict=False)
+                if logger is not None:
+                    logger.info(f"Loaded custom backbone weights from: {backbone_ckpt_path}")
+                else:
+                    print(f"Loaded custom backbone weights from: {backbone_ckpt_path}")
+            else:
+                if logger is not None:
+                    logger.warning(f"Warning: custom backbone checkpoint not found at {backbone_ckpt_path}")
+                else:
+                    print(f"Warning: custom backbone checkpoint not found at {backbone_ckpt_path}")
         
         # Load text encoder weights
         text_model_ckpt_path = os.path.join(checkpoint_dir, "text_model", "model.safetensors")

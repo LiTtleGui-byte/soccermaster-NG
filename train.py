@@ -195,12 +195,14 @@ def create_param_groups(model, config):
             if "temporal_embedding" in name:
                 temporal_embedding_params.append(param)
             # Check if this is other temporal-related parameter
-            elif (
-                "temporal_attention" in name or 
-                "temporal_layernorm" in name or
-                "temporal_attention_gating" in name or
-                "temporal_dense" in name
-            ):
+            # elif (
+            #     "temporal_attention" in name or 
+            #     "temporal_layernorm" in name or
+            #     "temporal_attention_gating" in name or
+            #     "temporal_dense" in name
+            # ):
+            #     other_temporal_params.append(param)
+            elif ('temporal' in name and 'embedding' not in name):
                 other_temporal_params.append(param)
             else:
                 backbone_params.append(param)
@@ -998,6 +1000,15 @@ def train_one_epoch(
             
             # dataset_total_loss /= (accumulate_steps * len_tasks)  # 除以任务数量进行平均
             accelerator.backward(dataset_total_loss)
+            
+            # # 打印text_encoder的梯度norm
+            # original_model = model.module if hasattr(model, 'module') else model
+            # text_encoder_params = [p for p in original_model.backbone.text_model.parameters() if p.requires_grad and p.grad is not None]
+            # if text_encoder_params:
+            #     text_encoder_grad_norm = torch.norm(torch.stack([p.grad.norm() for p in text_encoder_params]), p=2).item()
+            #     logger.info(f"text_encoder grad norm: {text_encoder_grad_norm:.6f}")
+            # else:
+            #     logger.info("text_encoder没有可用的梯度参数或未参与训练。")
             
             # 可选：每个任务后清理CUDA缓存（会影响性能，但最大化显存释放）
             if config.get("AGGRESSIVE_MEMORY_CLEANUP", False):

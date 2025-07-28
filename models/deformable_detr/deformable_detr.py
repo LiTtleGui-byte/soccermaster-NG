@@ -314,7 +314,7 @@ class SetCriterion(nn.Module):
         1) we compute hungarian assignment between ground truth boxes and the outputs of the model
         2) we supervise each pair of matched ground-truth / prediction (supervise class and box)
     """
-    def __init__(self, num_classes, matcher, weight_dict, losses, focal_alpha=0.25, detr_loss_batch_len=10, detection_data_type='image', backbone_type='image', enable_softmax_focal_loss=False):
+    def __init__(self, num_classes, matcher, weight_dict, losses, focal_alpha=0.25, detr_loss_batch_len=10, detection_data_type='image', backbone_type='image', enable_softmax_focal_loss=False, detect_ball=False):
         """ Create the criterion.
         Parameters:
             num_classes: number of object categories, omitting the special no-object category
@@ -323,6 +323,7 @@ class SetCriterion(nn.Module):
             losses: list of all the losses to be applied. See get_loss for list of available losses.
             focal_alpha: alpha in Focal Loss
             enable_softmax_focal_loss: whether to use softmax focal loss instead of sigmoid focal loss for attributes
+            detect_ball: whether ball detection is enabled
         """
         super().__init__()
         self.num_classes = num_classes
@@ -338,6 +339,7 @@ class SetCriterion(nn.Module):
         self.detection_data_type = detection_data_type
         self.backbone_type = backbone_type
         self.enable_softmax_focal_loss = enable_softmax_focal_loss
+        self.detect_ball = detect_ball
         
     def loss_labels(self, outputs, targets, indices, num_boxes, log=True):
         """Classification loss (NLL)
@@ -375,22 +377,40 @@ class SetCriterion(nn.Module):
         idx = self._get_src_permutation_idx(indices)
         target_roles_o = torch.cat([t["roles"][J] for t, (_, J) in zip(targets, indices)])
         
+        # If ball detection is enabled, only supervise roles for person objects (category 0)
+        if self.detect_ball:
+            target_labels_o = torch.cat([t["labels"][J] for t, (_, J) in zip(targets, indices)])
+            person_mask = (target_labels_o == 0).cpu()  # Only person objects
+            if person_mask.sum() == 0:
+                # No person objects to supervise
+                loss_role = torch.tensor(0.0, device=src_logits.device, requires_grad=True)
+                losses = {'loss_role': loss_role}
+                if log:
+                    losses['role_error'] = torch.tensor(0.0, device=src_logits.device)
+                return losses
+            
+            # Filter to only person objects
+            idx_filtered = (idx[0][person_mask], idx[1][person_mask])
+            target_roles_o = target_roles_o[person_mask]
+        else:
+            idx_filtered = idx
+        
         if self.enable_softmax_focal_loss:
             # Use softmax focal loss
             if len(target_roles_o) > 0:
-                loss_role = softmax_focal_loss(src_logits[idx], target_roles_o, num_boxes, alpha=self.focal_alpha, gamma=2) * src_logits.shape[1]
+                loss_role = softmax_focal_loss(src_logits[idx_filtered], target_roles_o, num_boxes, alpha=self.focal_alpha, gamma=2) * src_logits.shape[1]
             else:
                 loss_role = torch.tensor(0.0, device=src_logits.device, requires_grad=True)
         else:
             # Use sigmoid focal loss (original implementation)
             target_roles_onehot = torch.zeros_like(src_logits, dtype=src_logits.dtype, layout=src_logits.layout, device=src_logits.device)
-            target_roles_onehot[idx[0], idx[1], target_roles_o] = 1
+            target_roles_onehot[idx_filtered[0], idx_filtered[1], target_roles_o] = 1
             loss_role = sigmoid_focal_loss(src_logits, target_roles_onehot, num_boxes, alpha=self.focal_alpha, gamma=2) * src_logits.shape[1]
         
         losses = {'loss_role': loss_role}
 
         if log:
-            losses['role_error'] = 100 - accuracy(src_logits[idx], target_roles_o)[0]
+            losses['role_error'] = 100 - accuracy(src_logits[idx_filtered], target_roles_o)[0]
         return losses
 
     def loss_jn_holistic(self, outputs, targets, indices, num_boxes, log=True):
@@ -403,22 +423,40 @@ class SetCriterion(nn.Module):
         idx = self._get_src_permutation_idx(indices)
         target_jn_holistic_o = torch.cat([t["jersey"][J] for t, (_, J) in zip(targets, indices)])
         
+        # If ball detection is enabled, only supervise jersey numbers for person objects (category 0)
+        if self.detect_ball:
+            target_labels_o = torch.cat([t["labels"][J] for t, (_, J) in zip(targets, indices)])
+            person_mask = (target_labels_o == 0).cpu()  # Only person objects
+            if person_mask.sum() == 0:
+                # No person objects to supervise
+                loss_jn_holistic = torch.tensor(0.0, device=src_logits.device, requires_grad=True)
+                losses = {'loss_jn_holistic': loss_jn_holistic}
+                if log:
+                    losses['jn_holistic_error'] = torch.tensor(0.0, device=src_logits.device)
+                return losses
+            
+            # Filter to only person objects
+            idx_filtered = (idx[0][person_mask], idx[1][person_mask])
+            target_jn_holistic_o = target_jn_holistic_o[person_mask]
+        else:
+            idx_filtered = idx
+        
         if self.enable_softmax_focal_loss:
             # Use softmax focal loss
             if len(target_jn_holistic_o) > 0:
-                loss_jn_holistic = softmax_focal_loss(src_logits[idx], target_jn_holistic_o, num_boxes, alpha=self.focal_alpha, gamma=2) * src_logits.shape[1]
+                loss_jn_holistic = softmax_focal_loss(src_logits[idx_filtered], target_jn_holistic_o, num_boxes, alpha=self.focal_alpha, gamma=2) * src_logits.shape[1]
             else:
                 loss_jn_holistic = torch.tensor(0.0, device=src_logits.device, requires_grad=True)
         else:
             # Use sigmoid focal loss (original implementation)
             target_jn_holistic_onehot = torch.zeros_like(src_logits, dtype=src_logits.dtype, layout=src_logits.layout, device=src_logits.device)
-            target_jn_holistic_onehot[idx[0], idx[1], target_jn_holistic_o] = 1
+            target_jn_holistic_onehot[idx_filtered[0], idx_filtered[1], target_jn_holistic_o] = 1
             loss_jn_holistic = sigmoid_focal_loss(src_logits, target_jn_holistic_onehot, num_boxes, alpha=self.focal_alpha, gamma=2) * src_logits.shape[1]
         
         losses = {'loss_jn_holistic': loss_jn_holistic}
 
         if log:
-            losses['jn_holistic_error'] = 100 - accuracy(src_logits[idx], target_jn_holistic_o)[0]
+            losses['jn_holistic_error'] = 100 - accuracy(src_logits[idx_filtered], target_jn_holistic_o)[0]
         return losses
 
     def loss_digit_head(self, outputs, targets, indices, num_boxes, log=True):
@@ -431,22 +469,40 @@ class SetCriterion(nn.Module):
         idx = self._get_src_permutation_idx(indices)
         target_digit_head_o = torch.cat([t["digit_head"][J] for t, (_, J) in zip(targets, indices)])
         
+        # If ball detection is enabled, only supervise digit head for person objects (category 0)
+        if self.detect_ball:
+            target_labels_o = torch.cat([t["labels"][J] for t, (_, J) in zip(targets, indices)])
+            person_mask = (target_labels_o == 0).cpu()  # Only person objects
+            if person_mask.sum() == 0:
+                # No person objects to supervise
+                loss_digit_head = torch.tensor(0.0, device=src_logits.device, requires_grad=True)
+                losses = {'loss_digit_head': loss_digit_head}
+                if log:
+                    losses['digit_head_error'] = torch.tensor(0.0, device=src_logits.device)
+                return losses
+            
+            # Filter to only person objects
+            idx_filtered = (idx[0][person_mask], idx[1][person_mask])
+            target_digit_head_o = target_digit_head_o[person_mask]
+        else:
+            idx_filtered = idx
+        
         if self.enable_softmax_focal_loss:
             # Use softmax focal loss
             if len(target_digit_head_o) > 0:
-                loss_digit_head = softmax_focal_loss(src_logits[idx], target_digit_head_o, num_boxes, alpha=self.focal_alpha, gamma=2) * src_logits.shape[1]
+                loss_digit_head = softmax_focal_loss(src_logits[idx_filtered], target_digit_head_o, num_boxes, alpha=self.focal_alpha, gamma=2) * src_logits.shape[1]
             else:
                 loss_digit_head = torch.tensor(0.0, device=src_logits.device, requires_grad=True)
         else:
             # Use sigmoid focal loss (original implementation)
             target_digit_head_onehot = torch.zeros_like(src_logits, dtype=src_logits.dtype, layout=src_logits.layout, device=src_logits.device)
-            target_digit_head_onehot[idx[0], idx[1], target_digit_head_o] = 1
+            target_digit_head_onehot[idx_filtered[0], idx_filtered[1], target_digit_head_o] = 1
             loss_digit_head = sigmoid_focal_loss(src_logits, target_digit_head_onehot, num_boxes, alpha=self.focal_alpha, gamma=2) * src_logits.shape[1]
         
         losses = {'loss_digit_head': loss_digit_head}
 
         if log:
-            losses['digit_head_error'] = 100 - accuracy(src_logits[idx], target_digit_head_o)[0]
+            losses['digit_head_error'] = 100 - accuracy(src_logits[idx_filtered], target_digit_head_o)[0]
         return losses
 
     def loss_digit_tail(self, outputs, targets, indices, num_boxes, log=True):
@@ -459,22 +515,40 @@ class SetCriterion(nn.Module):
         idx = self._get_src_permutation_idx(indices)
         target_digit_tail_o = torch.cat([t["digit_tail"][J] for t, (_, J) in zip(targets, indices)])
         
+        # If ball detection is enabled, only supervise digit tail for person objects (category 0)
+        if self.detect_ball:
+            target_labels_o = torch.cat([t["labels"][J] for t, (_, J) in zip(targets, indices)])
+            person_mask = (target_labels_o == 0).cpu()  # Only person objects
+            if person_mask.sum() == 0:
+                # No person objects to supervise
+                loss_digit_tail = torch.tensor(0.0, device=src_logits.device, requires_grad=True)
+                losses = {'loss_digit_tail': loss_digit_tail}
+                if log:
+                    losses['digit_tail_error'] = torch.tensor(0.0, device=src_logits.device)
+                return losses
+            
+            # Filter to only person objects
+            idx_filtered = (idx[0][person_mask], idx[1][person_mask])
+            target_digit_tail_o = target_digit_tail_o[person_mask]
+        else:
+            idx_filtered = idx
+        
         if self.enable_softmax_focal_loss:
             # Use softmax focal loss
             if len(target_digit_tail_o) > 0:
-                loss_digit_tail = softmax_focal_loss(src_logits[idx], target_digit_tail_o, num_boxes, alpha=self.focal_alpha, gamma=2) * src_logits.shape[1]
+                loss_digit_tail = softmax_focal_loss(src_logits[idx_filtered], target_digit_tail_o, num_boxes, alpha=self.focal_alpha, gamma=2) * src_logits.shape[1]
             else:
                 loss_digit_tail = torch.tensor(0.0, device=src_logits.device, requires_grad=True)
         else:
             # Use sigmoid focal loss (original implementation)
             target_digit_tail_onehot = torch.zeros_like(src_logits, dtype=src_logits.dtype, layout=src_logits.layout, device=src_logits.device)
-            target_digit_tail_onehot[idx[0], idx[1], target_digit_tail_o] = 1
+            target_digit_tail_onehot[idx_filtered[0], idx_filtered[1], target_digit_tail_o] = 1
             loss_digit_tail = sigmoid_focal_loss(src_logits, target_digit_tail_onehot, num_boxes, alpha=self.focal_alpha, gamma=2) * src_logits.shape[1]
         
         losses = {'loss_digit_tail': loss_digit_tail}
 
         if log:
-            losses['digit_tail_error'] = 100 - accuracy(src_logits[idx], target_digit_tail_o)[0]
+            losses['digit_tail_error'] = 100 - accuracy(src_logits[idx_filtered], target_digit_tail_o)[0]
         return losses
 
     @torch.no_grad()
@@ -896,7 +970,11 @@ def cvt_config_to_args(config: dict):
     # Generate DETR args:
     detr_args = Args()
     # 1. transformer:
-    detr_args.num_classes = config["NUM_CLASSES"]
+    # Automatically set num_classes based on DETR_DETECT_BALL
+    if config.get("DETR_DETECT_BALL", False):
+        detr_args.num_classes = 2  # person (0) and ball (1)
+    else:
+        detr_args.num_classes = config["NUM_CLASSES"]  # only person (0)
     detr_args.device = config["DEVICE"]
     detr_args.num_queries = config["DETR_NUM_QUERIES"]
     detr_args.num_feature_levels = config["DETR_NUM_FEATURE_LEVELS"]
@@ -982,6 +1060,7 @@ def build_deformable_detr_criterion(config: dict):
         detection_data_type=config["DETECTION_DATA_TYPE"],
         backbone_type=config["BACKBONE_TYPE"],
         enable_softmax_focal_loss=config.get("ENABLE_SOFTMAX_FOCAL_LOSS", False),
+        detect_ball=config.get("DETR_DETECT_BALL", False),
     )
     return detr_criterion
 
@@ -1013,8 +1092,9 @@ class DetectionMetrics(nn.Module):
     """
     计算detection常见的metrics，包括mAP、IoU、precision、recall等指标
     支持多进程聚合和整个数据集上的AP计算
+    支持分类别计算metrics（人和球分别计算）
     """
-    def __init__(self, num_classes, iou_thresholds=None, score_threshold=0.5, backbone_type='image'):
+    def __init__(self, num_classes, iou_thresholds=None, score_threshold=0.5, backbone_type='image', class_names=None):
         super().__init__()
         self.num_classes = num_classes
         self.iou_thresholds = iou_thresholds if iou_thresholds is not None else [0.5, 0.55, 0.6, 0.65, 0.7, 0.75, 0.8, 0.85, 0.9, 0.95]
@@ -1022,12 +1102,35 @@ class DetectionMetrics(nn.Module):
         self.backbone_type = backbone_type
         self.postprocess = PostProcess()
         
+        # 设置类别名称，用于分类别metrics
+        if class_names is None:
+            if num_classes == 1:
+                self.class_names = ['person']
+            elif num_classes == 2:
+                self.class_names = ['person', 'ball']
+            else:
+                self.class_names = [f'class_{i}' for i in range(num_classes)]
+        else:
+            self.class_names = class_names
+        
         self.reset()
         
     def reset(self):
         """重置收集的数据"""
+        # 总体的metrics数据
         self.tp_fp_scores_per_thresh = {thresh: {'tp': [], 'fp': [], 'scores': []} for thresh in self.iou_thresholds}
         self.total_gt_count = 0
+        
+        # 分类别的metrics数据
+        self.tp_fp_scores_per_class_thresh = {}
+        self.total_gt_count_per_class = {}
+        for class_idx in range(self.num_classes):
+            class_name = self.class_names[class_idx]
+            self.tp_fp_scores_per_class_thresh[class_name] = {
+                thresh: {'tp': [], 'fp': [], 'scores': []} for thresh in self.iou_thresholds
+            }
+            self.total_gt_count_per_class[class_name] = 0
+        
         self.attribute_matches = {
             'role': {'correct': [], 'total': []},
             'jersey': {'correct': [], 'total': []}, 
@@ -1131,6 +1234,11 @@ class DetectionMetrics(nn.Module):
             fp_list = []
             scores_list = []
             
+            # 分类别的TP/FP/scores列表
+            tp_list_per_class = {class_name: [] for class_name in self.class_names}
+            fp_list_per_class = {class_name: [] for class_name in self.class_names}
+            scores_list_per_class = {class_name: [] for class_name in self.class_names}
+            
             # 处理当前batch中的每个sample
             for sample_idx, (pred, target, target_size) in enumerate(zip(predictions, targets_for_metrics, target_sizes)):
                 pred_boxes = pred['boxes']  # [N, 4]
@@ -1176,11 +1284,15 @@ class DetectionMetrics(nn.Module):
                     gt_matched = torch.zeros(len(gt_boxes), dtype=torch.bool, device=device)
                     
                     for i, (pred_box, pred_label, pred_score) in enumerate(zip(pred_boxes, pred_labels, pred_scores)):
+                        pred_class_name = self.class_names[pred_label.item()]
+                        
                         # 找到与当前预测同类别的GT
                         same_class_mask = (gt_labels == pred_label)
                         if not same_class_mask.any():
                             fp_list.append(1)
                             tp_list.append(0)
+                            fp_list_per_class[pred_class_name].append(1)
+                            tp_list_per_class[pred_class_name].append(0)
                         else:
                             # 在同类别GT中找到IoU最大的
                             class_ious = ious[i] * same_class_mask.float()
@@ -1189,6 +1301,8 @@ class DetectionMetrics(nn.Module):
                             if max_iou >= iou_thresh and not gt_matched[max_idx]:
                                 tp_list.append(1)
                                 fp_list.append(0)
+                                tp_list_per_class[pred_class_name].append(1)
+                                fp_list_per_class[pred_class_name].append(0)
                                 gt_matched[max_idx] = True
                                 
                                 # 只在IoU@0.5时计算attributes准确度
@@ -1197,22 +1311,44 @@ class DetectionMetrics(nn.Module):
                             else:
                                 tp_list.append(0)
                                 fp_list.append(1)
+                                tp_list_per_class[pred_class_name].append(0)
+                                fp_list_per_class[pred_class_name].append(1)
                         
                         scores_list.append(pred_score.cpu().item())  # 转到CPU
+                        scores_list_per_class[pred_class_name].append(pred_score.cpu().item())
                 else:
                     # 没有GT，所有预测都是FP
                     fp_list.extend([1] * len(pred_boxes))
                     tp_list.extend([0] * len(pred_boxes))
                     scores_list.extend(pred_scores.cpu().tolist())  # 转到CPU
+                    
+                    # 分类别处理
+                    for pred_label, pred_score in zip(pred_labels, pred_scores):
+                        pred_class_name = self.class_names[pred_label.item()]
+                        fp_list_per_class[pred_class_name].append(1)
+                        tp_list_per_class[pred_class_name].append(0)
+                        scores_list_per_class[pred_class_name].append(pred_score.cpu().item())
             
             # 将当前batch的结果添加到对应IoU阈值的收集器中
             self.tp_fp_scores_per_thresh[iou_thresh]['tp'].extend(tp_list)
             self.tp_fp_scores_per_thresh[iou_thresh]['fp'].extend(fp_list)
             self.tp_fp_scores_per_thresh[iou_thresh]['scores'].extend(scores_list)
+            
+            # 分类别收集结果
+            for class_name in self.class_names:
+                self.tp_fp_scores_per_class_thresh[class_name][iou_thresh]['tp'].extend(tp_list_per_class[class_name])
+                self.tp_fp_scores_per_class_thresh[class_name][iou_thresh]['fp'].extend(fp_list_per_class[class_name])
+                self.tp_fp_scores_per_class_thresh[class_name][iou_thresh]['scores'].extend(scores_list_per_class[class_name])
         
         # 统计GT数量
         batch_gt_count = sum(len(target['labels']) for target in targets_for_metrics)
         self.total_gt_count += batch_gt_count
+        
+        # 分类别统计GT数量
+        for target in targets_for_metrics:
+            for gt_label in target['labels']:
+                class_name = self.class_names[gt_label.item()]
+                self.total_gt_count_per_class[class_name] += 1
             
     def _compute_attribute_accuracy(self, pred, target, pred_idx, gt_idx):
         """
@@ -1266,7 +1402,8 @@ class DetectionMetrics(nn.Module):
             accelerator: Accelerator实例
             
         Returns:
-            gathered_tp_fp_scores_per_thresh, gathered_total_gt_count, gathered_attribute_matches
+            gathered_tp_fp_scores_per_thresh, gathered_total_gt_count, gathered_attribute_matches, 
+            gathered_tp_fp_scores_per_class_thresh, gathered_total_gt_count_per_class
         """
         # 聚合每个IoU阈值的TP/FP/scores
         gathered_tp_fp_scores = {}
@@ -1276,8 +1413,24 @@ class DetectionMetrics(nn.Module):
             for key in key_list:
                 gathered_tp_fp_scores[thresh][key] = gather_object(self.tp_fp_scores_per_thresh[thresh][key])
         
+        # 聚合分类别的TP/FP/scores
+        gathered_tp_fp_scores_per_class = {}
+        for class_name in self.class_names:
+            gathered_tp_fp_scores_per_class[class_name] = {}
+            for thresh in self.iou_thresholds:
+                gathered_tp_fp_scores_per_class[class_name][thresh] = {}
+                for key in key_list:
+                    gathered_tp_fp_scores_per_class[class_name][thresh][key] = gather_object(
+                        self.tp_fp_scores_per_class_thresh[class_name][thresh][key]
+                    )
+        
         # 聚合GT总数（需要包装成列表）
         gathered_gt_count = gather_object([self.total_gt_count])
+        
+        # 聚合分类别GT总数
+        gathered_gt_count_per_class = {}
+        for class_name in self.class_names:
+            gathered_gt_count_per_class[class_name] = gather_object([self.total_gt_count_per_class[class_name]])
         
         # 聚合attribute匹配结果
         attr_name_list = ['role', 'jersey', 'digit_head', 'digit_tail']
@@ -1288,9 +1441,11 @@ class DetectionMetrics(nn.Module):
             for key in key_list_attr:
                 gathered_attribute_matches[attr_name][key] = gather_object(self.attribute_matches[attr_name][key])
         
-        return gathered_tp_fp_scores, gathered_gt_count, gathered_attribute_matches
+        return (gathered_tp_fp_scores, gathered_gt_count, gathered_attribute_matches, 
+                gathered_tp_fp_scores_per_class, gathered_gt_count_per_class)
 
-    def compute_metrics_from_gathered_tp_fp(self, gathered_tp_fp_scores, gathered_gt_count, gathered_attribute_matches):
+    def compute_metrics_from_gathered_tp_fp(self, gathered_tp_fp_scores, gathered_gt_count, gathered_attribute_matches, 
+                                           gathered_tp_fp_scores_per_class=None, gathered_gt_count_per_class=None):
         """
         从聚合的TP/FP/scores数据计算metrics
         
@@ -1298,6 +1453,8 @@ class DetectionMetrics(nn.Module):
             gathered_tp_fp_scores: 聚合的TP/FP/scores数据
             gathered_gt_count: 聚合的GT总数
             gathered_attribute_matches: 聚合的attribute匹配结果
+            gathered_tp_fp_scores_per_class: 聚合的分类别TP/FP/scores数据
+            gathered_gt_count_per_class: 聚合的分类别GT总数
             
         Returns:
             dict: 包含各种metrics的字典
@@ -1380,6 +1537,68 @@ class DetectionMetrics(nn.Module):
                 metrics[f'{attr_name}_accuracy'] = 0.0
                 metrics[f'{attr_name}_matched_count'] = 0
         
+        # 计算分类别metrics
+        if gathered_tp_fp_scores_per_class is not None and gathered_gt_count_per_class is not None:
+            for class_name in self.class_names:
+                class_tp_fp_scores = gathered_tp_fp_scores_per_class[class_name]
+                class_gt_count = sum(gathered_gt_count_per_class[class_name])
+                
+                # 为每个IoU阈值计算分类别metrics
+                for iou_thresh in self.iou_thresholds:
+                    thresh_data = class_tp_fp_scores[iou_thresh]
+                    
+                    # 展平所有进程的数据
+                    all_tp = flatten_data(thresh_data['tp'])
+                    all_fp = flatten_data(thresh_data['fp'])
+                    all_scores = flatten_data(thresh_data['scores'])
+                    
+                    if len(all_tp) > 0 and class_gt_count > 0:
+                        # 转换为tensor
+                        tp = torch.tensor(all_tp, dtype=torch.float32)
+                        fp = torch.tensor(all_fp, dtype=torch.float32)
+                        scores = torch.tensor(all_scores, dtype=torch.float32)
+                        
+                        # 按分数排序
+                        sorted_indices = torch.argsort(scores, descending=True)
+                        tp = tp[sorted_indices]
+                        fp = fp[sorted_indices]
+                        
+                        # 计算累积TP和FP
+                        tp_cumsum = torch.cumsum(tp, dim=0)
+                        fp_cumsum = torch.cumsum(fp, dim=0)
+                        
+                        # 计算precision和recall
+                        precision = tp_cumsum / (tp_cumsum + fp_cumsum + 1e-8)
+                        recall = tp_cumsum / (class_gt_count + 1e-8)
+                        
+                        # 计算AP
+                        ap = self.compute_ap(precision, recall)
+                        metrics[f'{class_name}_AP@{iou_thresh:.2f}'] = ap.item()
+                        
+                        # 保存最终的precision和recall用于计算整体指标
+                        if iou_thresh == 0.5:
+                            final_precision = precision[-1].item() if len(precision) > 0 else 0.0
+                            final_recall = recall[-1].item() if len(recall) > 0 else 0.0
+                            
+                            metrics[f'{class_name}_precision'] = final_precision
+                            metrics[f'{class_name}_recall'] = final_recall
+                            if final_precision + final_recall > 0:
+                                metrics[f'{class_name}_f1'] = 2 * final_precision * final_recall / (final_precision + final_recall)
+                            else:
+                                metrics[f'{class_name}_f1'] = 0.0
+                    else:
+                        metrics[f'{class_name}_AP@{iou_thresh:.2f}'] = 0.0
+                        if iou_thresh == 0.5:
+                            metrics[f'{class_name}_precision'] = 0.0
+                            metrics[f'{class_name}_recall'] = 0.0
+                            metrics[f'{class_name}_f1'] = 0.0
+                
+                # 计算分类别mAP
+                class_ap_values = [metrics[f'{class_name}_AP@{thresh:.2f}'] for thresh in self.iou_thresholds]
+                metrics[f'{class_name}_mAP'] = sum(class_ap_values) / len(class_ap_values)
+                metrics[f'{class_name}_mAP@0.5'] = metrics.get(f'{class_name}_AP@0.50', 0.0)
+                metrics[f'{class_name}_mAP@0.75'] = metrics.get(f'{class_name}_AP@0.75', 0.0)
+                metrics[f'{class_name}_gt_count'] = class_gt_count
 
         
         return metrics
@@ -1405,11 +1624,15 @@ class DetectionMetrics(nn.Module):
             dict: 包含各种metrics的字典
         """
         # 聚合所有进程的TP/FP/scores结果和attribute匹配结果
-        gathered_tp_fp_scores, gathered_gt_count, gathered_attribute_matches = self.gather_tp_fp_scores(accelerator)
+        (gathered_tp_fp_scores, gathered_gt_count, gathered_attribute_matches, 
+         gathered_tp_fp_scores_per_class, gathered_gt_count_per_class) = self.gather_tp_fp_scores(accelerator)
         
         # 只在主进程计算metrics
         if accelerator.is_main_process:
-            return self.compute_metrics_from_gathered_tp_fp(gathered_tp_fp_scores, gathered_gt_count, gathered_attribute_matches)
+            return self.compute_metrics_from_gathered_tp_fp(
+                gathered_tp_fp_scores, gathered_gt_count, gathered_attribute_matches,
+                gathered_tp_fp_scores_per_class, gathered_gt_count_per_class
+            )
         else:
             return {}
 
@@ -1418,13 +1641,20 @@ def build_detection_metrics(config: dict):
     """
     构建detection metrics计算器
     """
-    num_classes = config["NUM_CLASSES"]
+    # Automatically set num_classes based on DETR_DETECT_BALL
+    if config["DETR_DETECT_BALL"]:
+        num_classes = 2  # person (0) and ball (1)
+        class_names = ['person', 'ball']
+    else:
+        num_classes = config["NUM_CLASSES"]  # only person (0)
+        class_names = ['person']
     
     metrics = DetectionMetrics(
         num_classes=num_classes,
         iou_thresholds=[0.5, 0.55, 0.6, 0.65, 0.7, 0.75, 0.8, 0.85, 0.9, 0.95],
-        score_threshold=config.get("EVAL_SCORE_THRESHOLD", 0.5),
-        backbone_type=config["BACKBONE_TYPE"]
+        score_threshold=config["EVAL_SCORE_THRESHOLD"],
+        backbone_type=config["BACKBONE_TYPE"],
+        class_names=class_names
     )
     
     return metrics

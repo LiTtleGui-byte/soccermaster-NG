@@ -42,6 +42,7 @@ class SoccerNetGSR_Detection(Dataset):
             backbone_type: str = "image",
             num_frames: int = 30,
             image_input_size: int = 512,
+            detect_ball: bool = False,
     ):
         super(SoccerNetGSR_Detection, self).__init__()
         assert split in ['train', 'valid', 'test']
@@ -56,6 +57,7 @@ class SoccerNetGSR_Detection(Dataset):
         self.backbone_type = backbone_type
         self.num_frames = num_frames
         self.image_input_size = image_input_size
+        self.detect_ball = detect_ball
 
         self.sequence_infos = self._get_sequence_infos()
         self.image_paths = self._get_image_paths()
@@ -166,50 +168,72 @@ class SoccerNetGSR_Detection(Dataset):
             gt = json.load(open(gt_file_path))
             annos = gt['annotations']
             for anno in annos:
-                if not ((anno['supercategory'] == 'object' and anno['attributes']['role'] != 'ball') or (anno['supercategory']== 'pitch')):
-                    continue
-                # if anno['supercategory'] != 'object' or anno['attributes']['role'] == 'ball':
-                #     continue
+                # Filter based on detect_ball parameter
+                if self.detect_ball:
+                    # Include both person and ball
+                    if not ((anno['supercategory'] == 'object') or (anno['supercategory']== 'pitch')):
+                        continue
+                else:
+                    # Only include person (exclude ball)
+                    if not ((anno['supercategory'] == 'object' and anno['attributes']['role'] != 'ball') or (anno['supercategory']== 'pitch')):
+                        continue
+                
                 frame_idx = int(anno['image_id'][-6:]) - 1
-                if anno['supercategory'] == 'object' and anno['attributes']['role'] != 'ball':
+                if anno['supercategory'] == 'object':
                     obj_id = anno['track_id']
                     x, y, w, h = anno['bbox_image']['x'], anno['bbox_image']['y'], anno['bbox_image']['w'], anno['bbox_image']['h']
                     bbox = [x, y, w, h]
-                    category, visibility = 0, 1.0
+                    visibility = 1.0
+                    
+                    # Set category: 0 for person, 1 for ball
+                    if anno['attributes']['role'] == 'ball':
+                        category = 1
+                    else:
+                        category = 0
                     
                     # Append to lists instead of using torch.cat
                     annotations[sequence_name][frame_idx]["id"].append(obj_id)
                     annotations[sequence_name][frame_idx]["category"].append(category)
                     annotations[sequence_name][frame_idx]["bbox"].append(bbox)
                     annotations[sequence_name][frame_idx]["visibility"].append(visibility)
-                    annotations[sequence_name][frame_idx]["role"].append(role_mapping[anno['attributes']['role']])
                     
-                    # get legibility score $$ filtered jn
-                    sequence_id = sequence_name[-3:]
-                    image_id = anno['image_id']
-                    track_id = anno['track_id']
-                    legibility_score = legibility_jn_dict[(sequence_id, image_id, track_id)][1]
-                    annotations[sequence_name][frame_idx]["legibility_score"].append(legibility_score)
-                    jn = anno['attributes']['jersey'] if legibility_score > 0.5 else None
-                    annotations[sequence_name][frame_idx]["jersey"].append(jn_mapping[jn])
-                    # get digit head and digit tail
-                    if jn is not None:
-                        if len(jn) == 1:
-                            # 对于1位数，设置tail为该数字
-                            annotations[sequence_name][frame_idx]["digit_tail"].append(digit_tail_mapping[jn])
-                            annotations[sequence_name][frame_idx]["digit_head"].append(digit_head_mapping[None])
-                        elif len(jn) == 2:
-                            # 对于2位数，设置head为高位，tail为低位
-                            annotations[sequence_name][frame_idx]["digit_head"].append(digit_head_mapping[jn[0]])
-                            annotations[sequence_name][frame_idx]["digit_tail"].append(digit_tail_mapping[jn[1]])
-                        else:
-                            # 对于其他情况，设置为None
-                            annotations[sequence_name][frame_idx]["digit_head"].append(digit_head_mapping[None])
-                            annotations[sequence_name][frame_idx]["digit_tail"].append(digit_tail_mapping[None])
-                    else:
-                        # 如果jersey number为None，则digit_head和digit_tail也设置为None
+                    # For ball, set all attributes to default values
+                    if anno['attributes']['role'] == 'ball':
+                        annotations[sequence_name][frame_idx]["role"].append(role_mapping['ball'])
+                        annotations[sequence_name][frame_idx]["legibility_score"].append(0.0)
+                        annotations[sequence_name][frame_idx]["jersey"].append(jn_mapping[None])
                         annotations[sequence_name][frame_idx]["digit_head"].append(digit_head_mapping[None])
                         annotations[sequence_name][frame_idx]["digit_tail"].append(digit_tail_mapping[None])
+                    else:
+                        # For person, process attributes as before
+                        annotations[sequence_name][frame_idx]["role"].append(role_mapping[anno['attributes']['role']])
+                        
+                        # get legibility score $$ filtered jn
+                        sequence_id = sequence_name[-3:]
+                        image_id = anno['image_id']
+                        track_id = anno['track_id']
+                        legibility_score = legibility_jn_dict[(sequence_id, image_id, track_id)][1]
+                        annotations[sequence_name][frame_idx]["legibility_score"].append(legibility_score)
+                        jn = anno['attributes']['jersey'] if legibility_score > 0.5 else None
+                        annotations[sequence_name][frame_idx]["jersey"].append(jn_mapping[jn])
+                        # get digit head and digit tail
+                        if jn is not None:
+                            if len(jn) == 1:
+                                # 对于1位数，设置tail为该数字
+                                annotations[sequence_name][frame_idx]["digit_tail"].append(digit_tail_mapping[jn])
+                                annotations[sequence_name][frame_idx]["digit_head"].append(digit_head_mapping[None])
+                            elif len(jn) == 2:
+                                # 对于2位数，设置head为高位，tail为低位
+                                annotations[sequence_name][frame_idx]["digit_head"].append(digit_head_mapping[jn[0]])
+                                annotations[sequence_name][frame_idx]["digit_tail"].append(digit_tail_mapping[jn[1]])
+                            else:
+                                # 对于其他情况，设置为None
+                                annotations[sequence_name][frame_idx]["digit_head"].append(digit_head_mapping[None])
+                                annotations[sequence_name][frame_idx]["digit_tail"].append(digit_tail_mapping[None])
+                        else:
+                            # 如果jersey number为None，则digit_head和digit_tail也设置为None
+                            annotations[sequence_name][frame_idx]["digit_head"].append(digit_head_mapping[None])
+                            annotations[sequence_name][frame_idx]["digit_tail"].append(digit_tail_mapping[None])
                 elif anno['supercategory']== 'pitch':
                     # annotations[sequence_name][frame_idx]['lines'] = self.correct_lines_labels(anno['lines'])
                     annotations[sequence_name][frame_idx]['lines'] = anno['lines']
@@ -441,6 +465,7 @@ def build_gsr_detection_dataset(config: dict, split: str):
         backbone_type=config["BACKBONE_TYPE"],
         num_frames=config["NUM_FRAMES"],
         image_input_size=config["AUG_MAX_SIZE"],
+        detect_ball=config.get("DETR_DETECT_BALL", False),
     )
     return dataset
 
