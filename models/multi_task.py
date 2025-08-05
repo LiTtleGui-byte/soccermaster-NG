@@ -33,7 +33,7 @@ class MultiTaskingSigLIP(nn.Module):
         self.config = config
         
         # 根据配置选择使用哪种SiglipBackbone
-        siglip_backbone_type = config.get('SIGLIP_BACKBONE_TYPE', 'standard').lower()
+        siglip_backbone_type = config['SIGLIP_BACKBONE_TYPE'].lower()
         
         if siglip_backbone_type == 'standard':
             SiglipBackboneType = SiglipBackbone

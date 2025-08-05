@@ -929,7 +929,11 @@ class SiglipVisionTransformer(nn.Module):
         )
 
         last_hidden_state = encoder_outputs.last_hidden_state
+        
+        batch_size, num_frames, num_patches, embed_dim = last_hidden_state.shape
+        last_hidden_state = last_hidden_state.reshape(batch_size * num_frames, num_patches, embed_dim)
         last_hidden_state = self.post_layernorm(last_hidden_state)
+        last_hidden_state = last_hidden_state.reshape(batch_size, num_frames, num_patches, embed_dim)
 
         pooler_output = self.head(last_hidden_state) if self.use_head else None
 
@@ -958,11 +962,11 @@ class SiglipMultiheadAttentionPoolingHead(nn.Module):
         probe = self.probe.repeat(batch_size * num_frames, 1, 1)
 
         hidden_state = self.attention(probe, hidden_state, hidden_state)[0]
-        hidden_state = hidden_state.reshape(batch_size, num_frames, embed_dim)
 
         residual = hidden_state
         hidden_state = self.layernorm(hidden_state)
         hidden_state = residual + self.mlp(hidden_state)
+        hidden_state = hidden_state.reshape(batch_size, num_frames, embed_dim)
 
         return hidden_state # [batch_size, num_frames, embed_dim]
 

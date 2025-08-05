@@ -604,7 +604,7 @@ def build_lines_detection_head(config: dict):
     backbone_num_channels = [768]  # 根据SigLIP backbone的输出通道数
     num_lines = config["NUM_LINES"]
     backbone_type = config["BACKBONE_TYPE"]
-    head_type = config.get("LINES_HEAD_TYPE", "default")  # 默认使用原来的LinesHead
+    head_type = config["LINES_HEAD_TYPE"]  # 默认使用原来的LinesHead
     selected_layers = config["DPT_SELECTED_LAYERS"]  # DPT选择的层
     
     head = LinesDetection(

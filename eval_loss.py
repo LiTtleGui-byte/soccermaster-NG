@@ -58,9 +58,8 @@ def eval_loss_engine(config: dict):
         log_dir=log_dir,
         accelerator=accelerator,
         config=config,
-        # use_tensorboard=config.get("USE_TENSORBOARD", False),
         use_tensorboard=False,
-        tensorboard_flush_secs=config.get("TENSORBOARD_FLUSH_SECS", 30)
+        tensorboard_flush_secs=config["TENSORBOARD_FLUSH_SECS"]
     )
     logger.config(config=config)
     

@@ -314,7 +314,7 @@ class SetCriterion(nn.Module):
         1) we compute hungarian assignment between ground truth boxes and the outputs of the model
         2) we supervise each pair of matched ground-truth / prediction (supervise class and box)
     """
-    def __init__(self, num_classes, matcher, weight_dict, losses, focal_alpha=0.25, detr_loss_batch_len=10, detection_data_type='image', backbone_type='image', enable_softmax_focal_loss=False, detect_ball=False):
+    def __init__(self, num_classes, matcher, weight_dict, losses, focal_alpha=0.25, detr_loss_batch_len=10, detection_data_type='image', backbone_type='image', enable_softmax_focal_loss=False, detect_ball=False, detect_ball_only=False):
         """ Create the criterion.
         Parameters:
             num_classes: number of object categories, omitting the special no-object category
@@ -324,6 +324,7 @@ class SetCriterion(nn.Module):
             focal_alpha: alpha in Focal Loss
             enable_softmax_focal_loss: whether to use softmax focal loss instead of sigmoid focal loss for attributes
             detect_ball: whether ball detection is enabled
+            detect_ball_only: whether to only detect ball (exclude person detection)
         """
         super().__init__()
         self.num_classes = num_classes
@@ -340,6 +341,7 @@ class SetCriterion(nn.Module):
         self.backbone_type = backbone_type
         self.enable_softmax_focal_loss = enable_softmax_focal_loss
         self.detect_ball = detect_ball
+        self.detect_ball_only = detect_ball_only
         
     def loss_labels(self, outputs, targets, indices, num_boxes, log=True):
         """Classification loss (NLL)
@@ -377,8 +379,16 @@ class SetCriterion(nn.Module):
         idx = self._get_src_permutation_idx(indices)
         target_roles_o = torch.cat([t["roles"][J] for t, (_, J) in zip(targets, indices)])
         
-        # If ball detection is enabled, only supervise roles for person objects (category 0)
-        if self.detect_ball:
+        # Role supervision logic based on detection mode
+        if self.detect_ball_only:
+            # In ball-only mode, there are no person objects, so skip role supervision entirely
+            loss_role = torch.tensor(0.0, device=src_logits.device, requires_grad=True)
+            losses = {'loss_role': loss_role}
+            if log:
+                losses['role_error'] = torch.tensor(0.0, device=src_logits.device)
+            return losses
+        elif self.detect_ball:
+            # In mixed mode, only supervise roles for person objects (category 0)
             target_labels_o = torch.cat([t["labels"][J] for t, (_, J) in zip(targets, indices)])
             person_mask = (target_labels_o == 0).cpu()  # Only person objects
             if person_mask.sum() == 0:
@@ -393,6 +403,7 @@ class SetCriterion(nn.Module):
             idx_filtered = (idx[0][person_mask], idx[1][person_mask])
             target_roles_o = target_roles_o[person_mask]
         else:
+            # In person-only mode, supervise all objects (they are all persons)
             idx_filtered = idx
         
         if self.enable_softmax_focal_loss:
@@ -423,8 +434,16 @@ class SetCriterion(nn.Module):
         idx = self._get_src_permutation_idx(indices)
         target_jn_holistic_o = torch.cat([t["jersey"][J] for t, (_, J) in zip(targets, indices)])
         
-        # If ball detection is enabled, only supervise jersey numbers for person objects (category 0)
-        if self.detect_ball:
+        # Jersey number supervision logic based on detection mode
+        if self.detect_ball_only:
+            # In ball-only mode, there are no person objects, so skip jersey number supervision entirely
+            loss_jn_holistic = torch.tensor(0.0, device=src_logits.device, requires_grad=True)
+            losses = {'loss_jn_holistic': loss_jn_holistic}
+            if log:
+                losses['jn_holistic_error'] = torch.tensor(0.0, device=src_logits.device)
+            return losses
+        elif self.detect_ball:
+            # In mixed mode, only supervise jersey numbers for person objects (category 0)
             target_labels_o = torch.cat([t["labels"][J] for t, (_, J) in zip(targets, indices)])
             person_mask = (target_labels_o == 0).cpu()  # Only person objects
             if person_mask.sum() == 0:
@@ -439,6 +458,7 @@ class SetCriterion(nn.Module):
             idx_filtered = (idx[0][person_mask], idx[1][person_mask])
             target_jn_holistic_o = target_jn_holistic_o[person_mask]
         else:
+            # In person-only mode, supervise all objects (they are all persons)
             idx_filtered = idx
         
         if self.enable_softmax_focal_loss:
@@ -469,8 +489,16 @@ class SetCriterion(nn.Module):
         idx = self._get_src_permutation_idx(indices)
         target_digit_head_o = torch.cat([t["digit_head"][J] for t, (_, J) in zip(targets, indices)])
         
-        # If ball detection is enabled, only supervise digit head for person objects (category 0)
-        if self.detect_ball:
+        # Digit head supervision logic based on detection mode
+        if self.detect_ball_only:
+            # In ball-only mode, there are no person objects, so skip digit head supervision entirely
+            loss_digit_head = torch.tensor(0.0, device=src_logits.device, requires_grad=True)
+            losses = {'loss_digit_head': loss_digit_head}
+            if log:
+                losses['digit_head_error'] = torch.tensor(0.0, device=src_logits.device)
+            return losses
+        elif self.detect_ball:
+            # In mixed mode, only supervise digit head for person objects (category 0)
             target_labels_o = torch.cat([t["labels"][J] for t, (_, J) in zip(targets, indices)])
             person_mask = (target_labels_o == 0).cpu()  # Only person objects
             if person_mask.sum() == 0:
@@ -485,6 +513,7 @@ class SetCriterion(nn.Module):
             idx_filtered = (idx[0][person_mask], idx[1][person_mask])
             target_digit_head_o = target_digit_head_o[person_mask]
         else:
+            # In person-only mode, supervise all objects (they are all persons)
             idx_filtered = idx
         
         if self.enable_softmax_focal_loss:
@@ -515,8 +544,16 @@ class SetCriterion(nn.Module):
         idx = self._get_src_permutation_idx(indices)
         target_digit_tail_o = torch.cat([t["digit_tail"][J] for t, (_, J) in zip(targets, indices)])
         
-        # If ball detection is enabled, only supervise digit tail for person objects (category 0)
-        if self.detect_ball:
+        # Digit tail supervision logic based on detection mode
+        if self.detect_ball_only:
+            # In ball-only mode, there are no person objects, so skip digit tail supervision entirely
+            loss_digit_tail = torch.tensor(0.0, device=src_logits.device, requires_grad=True)
+            losses = {'loss_digit_tail': loss_digit_tail}
+            if log:
+                losses['digit_tail_error'] = torch.tensor(0.0, device=src_logits.device)
+            return losses
+        elif self.detect_ball:
+            # In mixed mode, only supervise digit tail for person objects (category 0)
             target_labels_o = torch.cat([t["labels"][J] for t, (_, J) in zip(targets, indices)])
             person_mask = (target_labels_o == 0).cpu()  # Only person objects
             if person_mask.sum() == 0:
@@ -531,6 +568,7 @@ class SetCriterion(nn.Module):
             idx_filtered = (idx[0][person_mask], idx[1][person_mask])
             target_digit_tail_o = target_digit_tail_o[person_mask]
         else:
+            # In person-only mode, supervise all objects (they are all persons)
             idx_filtered = idx
         
         if self.enable_softmax_focal_loss:
@@ -657,7 +695,7 @@ class SetCriterion(nn.Module):
                 if k not in loss_dict:
                     loss_dict[k] = v
                 else:
-                    loss_dict[k] += v
+                    loss_dict[k] = loss_dict[k] + v
         # Average the loss:
         if loss == "labels" or loss == "boxes" or loss == "masks" or loss == "roles" or loss == "jn_holistic" or loss == "digit_head" or loss == "digit_tail":
             for k in loss_dict.keys():
@@ -969,9 +1007,16 @@ class Args:
 def cvt_config_to_args(config: dict):
     # Generate DETR args:
     detr_args = Args()
+    
+    # Validate configuration options
+    if config["DETECT_BALL_ONLY"] and config["DETR_DETECT_BALL"]:
+        print("Warning: Both DETECT_BALL_ONLY and DETR_DETECT_BALL are set to True. DETECT_BALL_ONLY takes precedence.")
+    
     # 1. transformer:
-    # Automatically set num_classes based on DETR_DETECT_BALL
-    if config.get("DETR_DETECT_BALL", False):
+    # Automatically set num_classes based on DETR_DETECT_BALL and DETECT_BALL_ONLY
+    if config["DETECT_BALL_ONLY"]:
+        detr_args.num_classes = 1  # only ball (0 in this case, since we remap ball to index 0)
+    elif config["DETR_DETECT_BALL"]:
         detr_args.num_classes = 2  # person (0) and ball (1)
     else:
         detr_args.num_classes = config["NUM_CLASSES"]  # only person (0)
@@ -1004,7 +1049,7 @@ def cvt_config_to_args(config: dict):
     detr_args.set_cost_giou = config["DETR_SET_COST_GIOU"]
     detr_args.backbone_strides = [16]
     detr_args.backbone_num_channels = [768]
-    detr_args.enable_softmax_focal_loss = config.get("ENABLE_SOFTMAX_FOCAL_LOSS", False)
+    detr_args.enable_softmax_focal_loss = config["ENABLE_SOFTMAX_FOCAL_LOSS"]
     
     return detr_args
     
@@ -1056,11 +1101,12 @@ def build_deformable_detr_criterion(config: dict):
         weight_dict=weight_dict,
         losses = ['labels', 'boxes', 'cardinality', 'roles', 'jn_holistic', 'digit_head', 'digit_tail'],
         focal_alpha=args.focal_alpha,
-        detr_loss_batch_len=config.get("DETR_CRITERION_BATCH_LEN", 10),
+        detr_loss_batch_len=config["DETR_CRITERION_BATCH_LEN"],
         detection_data_type=config["DETECTION_DATA_TYPE"],
         backbone_type=config["BACKBONE_TYPE"],
-        enable_softmax_focal_loss=config.get("ENABLE_SOFTMAX_FOCAL_LOSS", False),
-        detect_ball=config.get("DETR_DETECT_BALL", False),
+        enable_softmax_focal_loss=config["ENABLE_SOFTMAX_FOCAL_LOSS"],
+        detect_ball=config["DETR_DETECT_BALL"],
+        detect_ball_only=config["DETECT_BALL_ONLY"],
     )
     return detr_criterion
 
@@ -1353,6 +1399,7 @@ class DetectionMetrics(nn.Module):
     def _compute_attribute_accuracy(self, pred, target, pred_idx, gt_idx):
         """
         计算匹配成功的预测的attribute准确度
+        只对person类别计算role、jersey、digit相关的属性准确度
         
         Args:
             pred: 单个样本的预测结果（来自PostProcess，已包含attributes）
@@ -1360,6 +1407,41 @@ class DetectionMetrics(nn.Module):
             pred_idx: 预测框的索引
             gt_idx: 匹配的GT框的索引
         """
+        # 检查当前预测是否为person类别
+        # 在ball-only模式下，球被映射到类别0，但在这种情况下不应该计算person属性
+        # 在mixed模式下，person类别为0，ball类别为1
+        # 在person-only模式下，所有对象都是person（类别0）
+        
+        pred_label = pred['labels'][pred_idx].item()
+        gt_label = target['labels'][gt_idx].item()
+        
+        # 只有当预测和GT都是person时才计算person属性
+        # person的判断逻辑：
+        # - 在person-only模式（class_names=['person']）下：类别0是person
+        # - 在mixed模式（class_names=['person', 'ball']）下：类别0是person，类别1是ball
+        # - 在ball-only模式（class_names=['ball']）下：类别0是ball，不计算person属性
+        
+        is_person_pred = False
+        is_person_gt = False
+        
+        if len(self.class_names) == 1:
+            if self.class_names[0] == 'person':
+                # person-only模式
+                is_person_pred = (pred_label == 0)
+                is_person_gt = (gt_label == 0)
+            else:
+                # ball-only模式，不应该计算person属性
+                is_person_pred = False
+                is_person_gt = False
+        elif len(self.class_names) == 2 and 'person' in self.class_names and 'ball' in self.class_names:
+            # mixed模式：person=0, ball=1
+            is_person_pred = (pred_label == 0)
+            is_person_gt = (gt_label == 0)
+        
+        # 只有当预测和GT都是person时才计算person相关的属性
+        if not (is_person_pred and is_person_gt):
+            return
+        
         # 获取GT的attributes
         gt_roles = target.get('roles', None)
         gt_jersey = target.get('jersey', None)
@@ -1641,8 +1723,11 @@ def build_detection_metrics(config: dict):
     """
     构建detection metrics计算器
     """
-    # Automatically set num_classes based on DETR_DETECT_BALL
-    if config["DETR_DETECT_BALL"]:
+    # Automatically set num_classes based on DETR_DETECT_BALL and DETECT_BALL_ONLY
+    if config["DETECT_BALL_ONLY"]:
+        num_classes = 1  # only ball (0)
+        class_names = ['ball']
+    elif config["DETR_DETECT_BALL"]:
         num_classes = 2  # person (0) and ball (1)
         class_names = ['person', 'ball']
     else:

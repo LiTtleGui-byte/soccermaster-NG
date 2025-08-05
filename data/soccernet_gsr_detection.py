@@ -43,6 +43,7 @@ class SoccerNetGSR_Detection(Dataset):
             num_frames: int = 30,
             image_input_size: int = 512,
             detect_ball: bool = False,
+            detect_ball_only: bool = False,
     ):
         super(SoccerNetGSR_Detection, self).__init__()
         assert split in ['train', 'valid', 'test']
@@ -58,6 +59,11 @@ class SoccerNetGSR_Detection(Dataset):
         self.num_frames = num_frames
         self.image_input_size = image_input_size
         self.detect_ball = detect_ball
+        self.detect_ball_only = detect_ball_only
+        
+        # Validate configuration
+        if self.detect_ball_only and self.detect_ball:
+            print("Warning: Both detect_ball_only and detect_ball are set to True. detect_ball_only takes precedence.")
 
         self.sequence_infos = self._get_sequence_infos()
         self.image_paths = self._get_image_paths()
@@ -168,8 +174,12 @@ class SoccerNetGSR_Detection(Dataset):
             gt = json.load(open(gt_file_path))
             annos = gt['annotations']
             for anno in annos:
-                # Filter based on detect_ball parameter
-                if self.detect_ball:
+                # Filter based on detect_ball and detect_ball_only parameters
+                if self.detect_ball_only:
+                    # Only include ball (exclude person)
+                    if not ((anno['supercategory'] == 'object' and anno['attributes']['role'] == 'ball') or (anno['supercategory']== 'pitch')):
+                        continue
+                elif self.detect_ball:
                     # Include both person and ball
                     if not ((anno['supercategory'] == 'object') or (anno['supercategory']== 'pitch')):
                         continue
@@ -185,11 +195,20 @@ class SoccerNetGSR_Detection(Dataset):
                     bbox = [x, y, w, h]
                     visibility = 1.0
                     
-                    # Set category: 0 for person, 1 for ball
-                    if anno['attributes']['role'] == 'ball':
-                        category = 1
+                    # Set category based on detection mode
+                    if self.detect_ball_only:
+                        # Only ball detection: ball -> 0
+                        if anno['attributes']['role'] == 'ball':
+                            category = 0
+                        else:
+                            # This should not happen due to filtering, but handle it gracefully
+                            continue
                     else:
-                        category = 0
+                        # Normal or ball+person detection: person -> 0, ball -> 1
+                        if anno['attributes']['role'] == 'ball':
+                            category = 1
+                        else:
+                            category = 0
                     
                     # Append to lists instead of using torch.cat
                     annotations[sequence_name][frame_idx]["id"].append(obj_id)
@@ -465,7 +484,8 @@ def build_gsr_detection_dataset(config: dict, split: str):
         backbone_type=config["BACKBONE_TYPE"],
         num_frames=config["NUM_FRAMES"],
         image_input_size=config["AUG_MAX_SIZE"],
-        detect_ball=config.get("DETR_DETECT_BALL", False),
+        detect_ball=config["DETR_DETECT_BALL"],
+        detect_ball_only=config["DETECT_BALL_ONLY"],
     )
     return dataset
 
