@@ -101,7 +101,7 @@ class UniSoccerBackbone(nn.Module):
         x = x + self.temporal_embedding
         x = rearrange(x, 'b n t m -> (b t) n m')
         x = self.timesformer(x, B, T)
-        x2 = self.post_norm(x)
+        x2 = self.post_norm(x) # [B*T, N, D]
         x2 = self.head(x2)
         x = rearrange(x, '(b t) n m -> b t n m', b=B, t=T)
         x2 = rearrange(x2, '(b t) m -> b t m', b=B, t=T)
@@ -123,7 +123,8 @@ class SiglipBackbone(nn.Module):
             self.vision_model = SiglipVisionModel.from_pretrained(ckpt_path, device_map="cpu")
         elif backbone_type == 'video':
             stage_1_backbone_dir = os.path.join(stage_1_ckpt_dir, 'backbone')
-            assert os.path.exists(stage_1_backbone_dir), f"Stage 1 backbone checkpoint not found at {stage_1_backbone_dir}"
+            if not os.path.exists(stage_1_backbone_dir):
+                stage_1_backbone_dir = stage_1_ckpt_dir
             self.vision_model = UniSoccerBackbone(ckpt_path, num_frames, stage_1_backbone_dir)
             
         self.backbone_type = backbone_type

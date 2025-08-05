@@ -1,16 +1,16 @@
 SUPER_CONFIG_PATH: ./configs/default.yaml
 
+SEED: 41
+
 AUG_RESIZE_SCALES: [224]
 AUG_MAX_SIZE: 224
 AUG_RANDOM_RESIZE: [224]
 
 BACKBONE_TYPE: video
-SIGLIP_BACKBONE_TYPE: unisoccer
 DETECTION_DATA_TYPE: video
 CKPT_PATH: ./pretrained_models/google/siglip2-base-patch16-224
 TEXT_ENCODER_CKPT_PATH: ./pretrained_models/google/siglip2-base-patch16-224
 FREEZE_TEXT_ENCODER: False
-STAGE_1_CKPT_DIR: ./pretrained_models/google/siglip2-base-patch16-224
 
 LINES_HEAD_TYPE: default
 
@@ -32,7 +32,7 @@ BACKBONE_USE_TEMPORAL_GATE: True
 SAVE_CHECKPOINT_PER_EPOCH: 1
 
 VIDEO_CAPTION_BATCH_SIZE: 10
-VIDEO_CAPTION_NUM_WORKERS: 60
+VIDEO_CAPTION_NUM_WORKERS: 40
 NUM_FRAMES: 30
 DATASETS_TO_HEADS:
   VideoCaption: [VideoCaption]
