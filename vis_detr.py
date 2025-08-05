@@ -210,7 +210,8 @@ def visualize_engine(config: dict, output_dir: str, num_samples: int = 10, score
     # 从data/SoccerNetGSR_ReID.py中的role_mapping获取
     # class_names = {0: "ball", 1: "goalkeeper", 2: "other", 3: "player", 4: "referee"}
     # class_names = {v: k for k, v in role_mapping.items()}
-    class_names = {0: "person", 1: "other"}
+    # class_names = {0: "person", 1: "other"}
+    class_names = {0: "person", 1: "ball", 2: "other"}
     
     print(f"开始从数据集中抽样...")
     
@@ -239,38 +240,49 @@ def visualize_engine(config: dict, output_dir: str, num_samples: int = 10, score
 def visualize_samples_from_dataloader(model, dataloader, postprocessor, class_names, 
                                    output_dir, split_name, num_samples, score_threshold, accelerator):
     """
-    从数据加载器中抽样并可视化
+    从数据加载器中抽样并可视化 - 优化版，直接选择需要的样本
     """
     device = accelerator.device
     task_name = "SoccerNetGSR_Detection"
     
-    # 随机选择batch索引
-    total_batches = len(dataloader)
-    selected_batch_indices = random.sample(range(total_batches), min(num_samples, total_batches))
+    # 直接获取原始数据集
+    original_dataset = dataloader.dataset
+    total_samples = len(original_dataset)
+    
+    # 随机选择要可视化的样本索引
+    indices = random.sample(range(total_samples), min(num_samples, total_samples))
+    
+    # 创建只包含选定索引的子数据集
+    subset_dataset = torch.utils.data.Subset(original_dataset, indices)
+    
+    # 创建一个新的DataLoader，只加载选定的样本
+    subset_loader = DataLoader(
+        subset_dataset,
+        batch_size=1,  # 每个样本单独作为一个batch
+        shuffle=False,
+        num_workers=dataloader.num_workers,
+        collate_fn=dataloader.collate_fn,
+        pin_memory=dataloader.pin_memory
+    )
+    subset_loader = accelerator.prepare(subset_loader)
     
     sample_count = 0
+    global_indices = indices  # 保存全局索引用于文件名
     
     with torch.no_grad():
-        for batch_idx, batch in enumerate(dataloader):
-            if batch_idx not in selected_batch_indices:
-                continue
-                
-            if sample_count >= num_samples:
-                break
+        # 现在只遍历选定的样本
+        for batch_idx, batch in enumerate(subset_loader):
+            # 获取当前样本的全局索引
+            sample_global_idx = global_indices[batch_idx]
             
+            # 提取单个样本 (batch_size=1)
             images, annotations, metas = batch.values()
-            batch_size = images.size(0)
-            
-            # 随机选择batch中的一个样本
-            sample_idx = random.randint(0, batch_size - 1)
-            
-            # 获取单个样本
-            sample_image = images[sample_idx:sample_idx+1]  # 保持batch维度
+            sample_image = images  # [1, C, H, W]
             sample_annotations = {
-                'boxes': annotations[sample_idx]['boxes'],
-                'labels': annotations[sample_idx]['labels']
+                'boxes': annotations[0]['boxes'],
+                'labels': annotations[0]['labels']
             }
-            sample_metas = metas[sample_idx]
+            sample_metas = metas[0]
             
             # 确保数据在正确的设备上
             sample_image = sample_image.to(device)
@@ -292,7 +304,7 @@ def visualize_samples_from_dataloader(model, dataloader, postprocessor, class_na
             
             # 使用PostProcess处理输出
             predictions = postprocessor(model_outputs, target_sizes)
-            pred_result = predictions[0]  # 获取第一个（也是唯一一个）样本的预测结果
+            pred_result = predictions[0]  # 获取第一个样本的预测结果
             
             # 反归一化图像
             original_image = denormalize_image(sample_image[0])
@@ -304,17 +316,16 @@ def visualize_samples_from_dataloader(model, dataloader, postprocessor, class_na
             )
             
             # 保存图像
-            save_path = os.path.join(output_dir, f"{split_name}_sample_{sample_count:03d}_batch_{batch_idx}_idx_{sample_idx}.png")
+            save_path = os.path.join(output_dir, f"{split_name}_sample_{sample_count:03d}_idx_{sample_global_idx}.png")
             plt.savefig(save_path, dpi=150, bbox_inches='tight', pad_inches=0.1)
             plt.close(fig)
-            
-            print(f"保存 {split_name} 样本 {sample_count + 1}/{num_samples}: {save_path}")
             
             # 打印一些统计信息
             num_pred = len(pred_result['boxes']) if pred_result['boxes'] is not None else 0
             num_gt = len(sample_annotations['boxes'])
             num_pred_valid = torch.sum(pred_result['scores'] > score_threshold).item() if pred_result['scores'] is not None else 0
             
+            print(f"保存 {split_name} 样本 {sample_count + 1}/{num_samples} (索引={sample_global_idx}): {save_path}")
             print(f"  预测框数量: {num_pred} (阈值>{score_threshold}: {num_pred_valid})")
             print(f"  真实框数量: {num_gt}")
             
