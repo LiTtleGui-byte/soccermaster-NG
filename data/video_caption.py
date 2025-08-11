@@ -5,7 +5,7 @@ import json
 import os
 import random
 from einops import rearrange
-from torch.utils.data import Dataset
+from torch.utils.data import Dataset, Sampler
 from decord import VideoReader
 import decord
 decord.bridge.set_bridge("torch")
@@ -13,6 +13,8 @@ import numpy as np
 from PIL import Image
 from torch.utils.data import DataLoader
 from typing import List
+import torch.distributed as dist
+import math
 
 from data.utils import Compose, ToTensor, RandomResize, Normalize
 
@@ -69,6 +71,15 @@ class VideoCaptionDataset(Dataset):
                     else:
                         raise ValueError(f"Invalid dataset: {dataset}")
                 self.data.extend(current_data)
+
+        # 预分组：无文本与有文本（以是否存在text_key且非None判断）
+        self.no_text_indices = []
+        self.has_text_indices = []
+        for idx, item in enumerate(self.data):
+            if (self.text_key in item) and (item[self.text_key] is not None):
+                self.has_text_indices.append(idx)
+            else:
+                self.no_text_indices.append(idx)
 
     def __len__(self):
         return len(self.data)
@@ -224,11 +235,121 @@ def build_video_caption_dataset(config: dict, split: str):
 
 def build_video_caption_dataloader(config: dict, split: str):
     dataset = build_video_caption_dataset(config, split)
-    # shuffle = True if split == "train" else False
-    shuffle = True
     prefetch_factor = config["PREFETCH_FACTOR"] if config["VIDEO_CAPTION_NUM_WORKERS"] > 0 else None
     persistent_workers = config["VIDEO_CAPTION_NUM_WORKERS"] > 0
-    return DataLoader(dataset, batch_size=config["VIDEO_CAPTION_BATCH_SIZE"], shuffle=shuffle, collate_fn=collate_fn, num_workers=config["VIDEO_CAPTION_NUM_WORKERS"], prefetch_factor=prefetch_factor, persistent_workers=persistent_workers)
+
+    if split == "test":
+        # 评测：无文本样本在前，有文本样本在后，两组内部独立shuffle
+        # 使用分布式友好的分组采样器（在__iter__时读取分布式状态，单机也可用）
+        sampler = DistributedGroupedShuffleSampler(dataset)
+        return DataLoader(
+            dataset,
+            batch_size=config["VIDEO_CAPTION_TEST_BATCH_SIZE"],
+            shuffle=False,
+            sampler=sampler,
+            collate_fn=collate_fn,
+            num_workers=config["VIDEO_CAPTION_NUM_WORKERS"],
+            prefetch_factor=prefetch_factor,
+            persistent_workers=persistent_workers,
+        )
+    else:
+        # 训练：保持原先shuffle
+        return DataLoader(
+            dataset,
+            batch_size=config["VIDEO_CAPTION_BATCH_SIZE"],
+            shuffle=True,
+            collate_fn=collate_fn,
+            num_workers=config["VIDEO_CAPTION_NUM_WORKERS"],
+            prefetch_factor=prefetch_factor,
+            persistent_workers=persistent_workers,
+        )
+
+class GroupedShuffleSampler(Sampler[int]):
+    """
+    将索引分两组：无text在前、有text在后；两组内部分别shuffle。
+    """
+    def __init__(self, dataset: VideoCaptionDataset):
+        self.dataset = dataset
+
+    def __iter__(self):
+        device = torch.device("cpu")
+        no_text = torch.tensor(self.dataset.no_text_indices, dtype=torch.long, device=device)
+        has_text = torch.tensor(self.dataset.has_text_indices, dtype=torch.long, device=device)
+
+        if no_text.numel() > 0:
+            perm_nt = torch.randperm(no_text.numel(), device=device)
+            no_text = no_text[perm_nt]
+        if has_text.numel() > 0:
+            perm_ht = torch.randperm(has_text.numel(), device=device)
+            has_text = has_text[perm_ht]
+
+        ordered = torch.cat([no_text, has_text], dim=0).tolist()
+        return iter(ordered)
+
+    def __len__(self):
+        return len(self.dataset)
+
+class DistributedGroupedShuffleSampler(Sampler[int]):
+    """
+    分布式版本：先按“无text组 + 有text组”的顺序构建全局打乱序列，再按rank划分。
+    """
+    def __init__(self, dataset: VideoCaptionDataset, drop_last: bool = False):
+        self.dataset = dataset
+        self.drop_last = drop_last
+        self.epoch = 0
+        # 延迟到迭代时再读取分布式状态
+        self._refresh_dist_params()
+
+    def _refresh_dist_params(self):
+        if dist.is_available() and dist.is_initialized():
+            self.num_replicas = dist.get_world_size()
+            self.rank = dist.get_rank()
+        else:
+            self.num_replicas = 1
+            self.rank = 0
+        if self.drop_last and len(self.dataset) % self.num_replicas != 0:
+            self.num_samples = math.floor(len(self.dataset) / self.num_replicas)
+        else:
+            self.num_samples = math.ceil(len(self.dataset) / self.num_replicas)
+        self.total_size = self.num_samples * self.num_replicas
+
+    def __iter__(self):
+        # 每次迭代前刷新分布式参数，适配加速库在prepare之后初始化进程组的场景
+        self._refresh_dist_params()
+        device = torch.device("cpu")
+        no_text = torch.tensor(self.dataset.no_text_indices, dtype=torch.long, device=device)
+        has_text = torch.tensor(self.dataset.has_text_indices, dtype=torch.long, device=device)
+
+        if no_text.numel() > 0:
+            g_nt = torch.Generator(device=device)
+            g_nt.manual_seed(self.epoch)
+            perm_nt = torch.randperm(no_text.numel(), generator=g_nt, device=device)
+            no_text = no_text[perm_nt]
+        if has_text.numel() > 0:
+            g_ht = torch.Generator(device=device)
+            g_ht.manual_seed(self.epoch + 1024)
+            perm_ht = torch.randperm(has_text.numel(), generator=g_ht, device=device)
+            has_text = has_text[perm_ht]
+
+        indices = torch.cat([no_text, has_text], dim=0).tolist()
+
+        if not self.drop_last:
+            padding_size = self.total_size - len(indices)
+            if padding_size > 0:
+                indices += indices[:padding_size]
+        else:
+            indices = indices[:self.total_size]
+
+        indices = indices[self.rank:self.total_size:self.num_replicas]
+        return iter(indices)
+
+    def __len__(self):
+        # 确保长度与当前分布式配置一致
+        self._refresh_dist_params()
+        return self.num_samples
+
+    def set_epoch(self, epoch: int):
+        self.epoch = int(epoch)
 
 if __name__ == "__main__":
     

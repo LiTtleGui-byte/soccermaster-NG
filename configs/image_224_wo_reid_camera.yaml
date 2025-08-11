@@ -1,9 +1,9 @@
 SUPER_CONFIG_PATH: ./configs/default.yaml
 
 DATASETS_TO_HEADS:
-  SoccerNetGSR_Detection: [SoccerNetGSR_Detection]
+  SoccerNetGSR_Detection: [SoccerNetGSR_Detection, LinesDetection, KeypointsDetection]
 
-BATCH_SIZE: 24
+BATCH_SIZE: 12
 NUM_WORKERS: 12
 
 AUG_RESIZE_SCALES: [224]
@@ -14,4 +14,4 @@ BACKBONE_TYPE: image
 CKPT_PATH: ./pretrained_models/google/siglip2-base-patch16-224
 TEXT_ENCODER_CKPT_PATH: ./pretrained_models/google/siglip2-base-patch16-224
 
-DETECT_BALL_ONLY: True
+LINES_HEAD_TYPE: default

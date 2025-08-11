@@ -720,6 +720,15 @@ def evaluate_one_epoch(
     
     head_sample_counts = {head: 0 for head in all_heads}
     
+    # 在评测开始前，为支持自定义分布式采样器的随机性，按epoch设置采样器状态
+    for _name, _loader in dataloader_dict.items():
+        sampler = getattr(_loader, 'sampler', None)
+        if sampler is not None and hasattr(sampler, 'set_epoch'):
+            try:
+                sampler.set_epoch(epoch)
+            except Exception:
+                pass
+
     # Process each dataset separately
     for dataset_name, dataloader in dataloader_dict.items():
         logger.info(f"Evaluating dataset: {dataset_name}")
