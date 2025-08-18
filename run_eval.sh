@@ -4,18 +4,21 @@
 # 请根据你的实际情况修改以下路径
 
 # 配置文件路径
-CONFIG_PATH="configs/video_224_video_detection_all_strict_align.yaml"
+CONFIG_PATH="configs/video_224_lr_align_open_text_loss_weight_4_unisoccer_eval_retrieval_results.yaml"
 
 # checkpoint路径（可以是文件或目录）
-CHECKPOINT_PATH="outputs/video_224_video_detection_all_strict_align/epoch_5"
+CHECKPOINT_PATH="outputs/video_224_lr_align_open_text_loss_weight_4_unisoccer/epoch_17"
 
 # 日志目录路径（可选）
-LOG_DIR="outputs/video_224_video_detection_all_strict_align/epoch_5/eval_logs"
+LOG_DIR="outputs/video_224_lr_align_open_text_loss_weight_4_unisoccer/epoch_17/eval_logs"
+FAILURE_SAVE_PATH="outputs/video_224_lr_align_open_text_loss_weight_4_unisoccer/epoch_17/eval_logs/video_caption_failures.txt"
 
 # 运行evaluation
-CUDA_VISIBLE_DEVICES=0,1,2,3,4,5,6,7 accelerate launch --num_processes=8 --main_process_port=29521 eval.py \
+CUDA_VISIBLE_DEVICES=0,1,2,3 accelerate launch --num_processes=4 --main_process_port=29521 eval.py \
     --config $CONFIG_PATH \
     --checkpoint $CHECKPOINT_PATH \
-    --log_dir $LOG_DIR
+    --log_dir $LOG_DIR \
+    --save_video_caption_failures \
+    --failure_save_path $FAILURE_SAVE_PATH
 
 echo "Evaluation completed! Check the results in $LOG_DIR" 

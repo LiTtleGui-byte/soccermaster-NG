@@ -682,7 +682,9 @@ def evaluate_one_epoch(
     loss_fn_dict: dict[str, nn.Module],
     metrics_fn_dict: dict[str, nn.Module],
     model,
-    logger: Logger
+    logger: Logger,
+    save_video_caption_failures: bool = False,
+    failure_save_path: str = None
 ):
     """
     Evaluate model on test dataset for one epoch and log results to tensorboard
@@ -749,7 +751,10 @@ def evaluate_one_epoch(
                     # Process each head for this dataset
                     for head_name in datasets_to_heads[dataset_name]:
                         # Compute loss
-                        loss_output = loss_fn_dict[head_name](outputs[head_name], annotations)
+                        if head_name == "VideoCaption":
+                            loss_output = loss_fn_dict[head_name](outputs[head_name], annotations, metas, save_failures=save_video_caption_failures, failure_save_path=failure_save_path)
+                        else:
+                            loss_output = loss_fn_dict[head_name](outputs[head_name], annotations)
                         
                         # Parse loss output based on task type
                         if head_name in ["SoccerNetGSR_Detection"]:
@@ -989,7 +994,10 @@ def train_one_epoch(
                 
                 loss_outputs = {}
                 for head in datasets_to_heads[dataset_name]:
-                    loss_outputs[head] = loss_fn_dict[head](outputs[head], annotations)
+                    if head == "VideoCaption":
+                        loss_outputs[head] = loss_fn_dict[head](outputs[head], annotations, metas)
+                    else:
+                        loss_outputs[head] = loss_fn_dict[head](outputs[head], annotations)
                     
                 # loss_output = loss_fn_dict[dataset_name](outputs[dataset_name], annotations)
                 for head_name in datasets_to_heads[dataset_name]:

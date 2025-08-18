@@ -179,7 +179,7 @@ class TextEncoder(nn.Module):
         
         self.model_name = model_name
         self.model = SiglipTextModel.from_pretrained(model_name, device_map="cpu")
-        self.tokenizer = AutoTokenizer.from_pretrained(model_name, device_map="cpu")
+        self.tokenizer = AutoTokenizer.from_pretrained(model_name, device_map="cpu", use_fast=False)
 
     def forward(self, text):
         # important: make sure to set padding="max_length" as that's how the model was trained

@@ -95,8 +95,8 @@ class VideoCaptionDataset(Dataset):
             self.max_num_frames, self.trimmed30
         )
         
-        metas = {"task": 'MatchVision',
-            # "video": video_path,
+        metas = {"task": 'VideoCaption',
+            "video": video_path,
             # "caption": video_info['caption'],
             # "text": video_info[self.text_key],
             # "size_divisibility": 1,

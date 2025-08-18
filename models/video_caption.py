@@ -151,7 +151,7 @@ class VideoCaptionLoss(nn.Module):
         self.loss_type = loss_type
         self.distributed_gather = distributed_gather
 
-    def forward(self, outputs, targets):
+    def forward(self, outputs, targets, metas=None, save_failures=False, failure_save_path=None):
         # 获取有效text的mask
         valid_text_mask = outputs.get('valid_text_mask', None)
         proc_sim = outputs['processed_similarity_matrix']
@@ -175,8 +175,10 @@ class VideoCaptionLoss(nn.Module):
         
         # 只保留有效的text样本
         global_captions = self._gather_captions_distributed(targets)
+        global_video_paths = self._gather_video_paths_distributed(metas) if metas is not None else None
         valid_indices = torch.where(valid_text_mask)[0]
         valid_captions = [global_captions[i] for i in valid_indices.cpu().tolist()]
+        valid_video_paths = [global_video_paths[i] for i in valid_indices.cpu().tolist()] if global_video_paths is not None else None
         valid_proc_sim = proc_sim[valid_text_mask][:, valid_text_mask]
         valid_base_sim = base_sim[valid_text_mask][:, valid_text_mask]
         
@@ -198,6 +200,11 @@ class VideoCaptionLoss(nn.Module):
             target_label_type = create_label_from_type(valid_captions).to(valid_base_sim.device)
             top_1_acc_type, top_3_acc_type, top_5_acc_type = self.calculate_top_k_accuracy(valid_base_sim, target_label_type)
         
+        # 保存失败例子（只在主进程执行）
+        if save_failures and failure_save_path is not None and valid_video_paths is not None:
+            if not dist.is_initialized() or dist.get_rank() == 0:
+                self._save_failure_cases(valid_base_sim, target_label, valid_captions, valid_video_paths, failure_save_path)
+        
         losses = {
             f'{self.loss_type}': loss,
             'top_1_accuracy': top_1_acc,
@@ -216,6 +223,14 @@ class VideoCaptionLoss(nn.Module):
         else:
             global_captions = local_captions
         return global_captions
+    
+    def _gather_video_paths_distributed(self, metas):
+        local_video_paths = [meta['video'] for meta in metas]
+        if dist.is_initialized() and self.distributed_gather:
+            global_video_paths = self._gather_list_distributed(local_video_paths)
+        else:
+            global_video_paths = local_video_paths
+        return global_video_paths
     
     def _create_global_label(self, targets, device):
         """创建全局标签矩阵，支持DDP模式"""
@@ -246,6 +261,80 @@ class VideoCaptionLoss(nn.Module):
         for data in all_data:
             flat_list.extend(data[0])
         return flat_list
+    
+    def _save_failure_cases(self, similarity_matrix, target_label, captions, video_paths, save_path):
+        """
+        分析并保存retrieval失败的例子
+        
+        Args:
+            similarity_matrix: [N, N] 相似度矩阵
+            target_label: [N, N] 标签矩阵 (1=正样本, -1=负样本)
+            captions: List[str] 对应的caption列表
+            video_paths: List[str] 对应的video路径列表
+            save_path: str 保存失败例子的文件路径
+        """
+        import os
+        batch_size = similarity_matrix.size(0)
+        failure_cases = []
+        
+        # 对每个vision feature分析其retrieval结果
+        for i in range(batch_size):
+            # 获取第i个vision feature对应的所有text相似度
+            vision_to_text_sim = similarity_matrix[i]  # [N]
+            
+            # 获取retrieval排序（从高到低）
+            sorted_indices = torch.argsort(vision_to_text_sim, descending=True)
+            
+            # 找到原本text的位置（正样本位置）
+            positive_mask = target_label[i] > 0  # 找到正样本
+            positive_indices = torch.where(positive_mask)[0]
+            
+            if len(positive_indices) == 0:
+                continue  # 如果没有正样本，跳过
+            
+            # 检查第一个retrieval结果是否是正样本
+            top1_retrieved_idx = sorted_indices[0].item()
+            is_success = top1_retrieved_idx in positive_indices
+            
+            if not is_success:
+                # 这是一个失败案例
+                # 找到原本text在排序中的位置
+                original_text_ranks = []
+                for pos_idx in positive_indices:
+                    rank = torch.where(sorted_indices == pos_idx)[0]
+                    if len(rank) > 0:
+                        original_text_ranks.append(rank[0].item() + 1)  # 转为1-based ranking
+                
+                if original_text_ranks:
+                    min_original_rank = min(original_text_ranks)
+                    # 收集失败信息
+                    failure_info = {
+                        'video_path': video_paths[i],
+                        'original_text': captions[i],
+                        'retrieved_top1_text': captions[top1_retrieved_idx],
+                        'original_text_rank': min_original_rank,
+                        'similarity_to_top1': vision_to_text_sim[top1_retrieved_idx].item(),
+                        'similarity_to_original': max([vision_to_text_sim[pos_idx].item() for pos_idx in positive_indices])
+                    }
+                    failure_cases.append(failure_info)
+        
+        # 保存失败例子到文件
+        if failure_cases:
+            save_dir = os.path.dirname(save_path)
+            if save_dir:  # 只有当目录不为空时才创建
+                os.makedirs(save_dir, exist_ok=True)
+            with open(save_path, 'a', encoding='utf-8') as f:
+                for case in failure_cases:
+                    f.write(f"=== Failure Case ===\n")
+                    f.write(f"Video Path: {case['video_path']}\n")
+                    f.write(f"Original Text: {case['original_text']}\n")
+                    f.write(f"Retrieved Top1 Text: {case['retrieved_top1_text']}\n")
+                    f.write(f"Original Text Rank: {case['original_text_rank']}\n")
+                    f.write(f"Similarity to Top1: {case['similarity_to_top1']:.4f}\n")
+                    f.write(f"Similarity to Original: {case['similarity_to_original']:.4f}\n")
+                    f.write(f"\n")
+            
+            print(f"Saved {len(failure_cases)} failure cases to {save_path}")
 
     def compute_siglip_loss(self, logits, target_label):
         """

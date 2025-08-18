@@ -115,7 +115,8 @@ def save_results_with_logger(eval_results: dict, logger: Logger):
     
     logger.info("=== End of Evaluation Results ===")
 
-def evaluation_engine(config: dict, checkpoint_path: str, log_dir: str = None):
+def evaluation_engine(config: dict, checkpoint_path: str, log_dir: str = None, 
+                     save_video_caption_failures: bool = False, failure_save_path: str = None):
     """
     主要的evaluation引擎
     """
@@ -189,11 +190,11 @@ def evaluation_engine(config: dict, checkpoint_path: str, log_dir: str = None):
     total_head_params = 0
     total_head_trainable_params = 0
     
-    for task_name, head in original_model.multi_task_head.items():
+    for head_name, head in original_model.multi_task_head.items():
         head_total = sum(p.numel() for p in head.parameters())
         head_train = sum(p.numel() for p in head.parameters() if p.requires_grad)
-        head_params[task_name] = head_total
-        head_trainable_params[task_name] = head_train
+        head_params[head_name] = head_total
+        head_trainable_params[head_name] = head_train
         total_head_params += head_total
         total_head_trainable_params += head_train
     
@@ -209,9 +210,9 @@ def evaluation_engine(config: dict, checkpoint_path: str, log_dir: str = None):
     logger.info(f"Total Head parameters: {total_head_params/1e6:.2f}M")
     logger.info(f"Total Head trainable: {total_head_trainable_params/1e6:.2f}M ({total_head_trainable_params/total_head_params*100:.2f}%)")
     logger.info(f"")
-    for task_name in head_params:
-        logger.info(f"{task_name} Head parameters: {head_params[task_name]/1e6:.2f}M")
-        logger.info(f"{task_name} Head trainable: {head_trainable_params[task_name]/1e6:.2f}M ({head_trainable_params[task_name]/head_params[task_name]*100:.2f}%)")
+    for head_name in head_params:
+        logger.info(f"{head_name} Head parameters: {head_params[head_name]/1e6:.2f}M")
+        logger.info(f"{head_name} Head trainable: {head_trainable_params[head_name]/1e6:.2f}M ({head_trainable_params[head_name]/head_params[head_name]*100:.2f}%)")
     logger.info(f"============================================")
     
     # Run evaluation
@@ -224,7 +225,9 @@ def evaluation_engine(config: dict, checkpoint_path: str, log_dir: str = None):
         loss_fn_dict=loss_fn_dict,
         metrics_fn_dict=metrics_fn_dict,
         model=model,
-        logger=logger  # 传入logger用于记录evaluation过程
+        logger=logger,  # 传入logger用于记录evaluation过程
+        save_video_caption_failures=save_video_caption_failures,
+        failure_save_path=failure_save_path
     )
     logger.info("Evaluation completed!")
     
@@ -252,6 +255,10 @@ def parse_args():
                        help='Log directory path for results (default: auto-generated)')
     parser.add_argument('--super_config', type=str, default=None,
                        help='Path to super config file')
+    parser.add_argument('--save_video_caption_failures', action='store_true',
+                       help='Save video caption failure cases to file')
+    parser.add_argument('--failure_save_path', type=str, default=None,
+                       help='Path to save video caption failure cases (required if --save_video_caption_failures is used)')
     
     return parser.parse_args()
 
@@ -277,14 +284,24 @@ if __name__ == '__main__':
     if args.log_dir:
         cfg["LOG_DIR"] = args.log_dir
     
+    # Set failure save path
+    failure_save_path = args.failure_save_path
+    if args.save_video_caption_failures and failure_save_path is None:
+        failure_save_path = f"video_caption_failures_{os.path.basename(args.checkpoint)}.txt"
+    
     # Run evaluation
     try:
         eval_results = evaluation_engine(
             config=cfg,
             checkpoint_path=args.checkpoint,
-            log_dir=args.log_dir
+            log_dir=args.log_dir,
+            save_video_caption_failures=args.save_video_caption_failures,
+            failure_save_path=failure_save_path
         )
         print("\n✅ Evaluation completed successfully!")
+        
+        if args.save_video_caption_failures:
+            print(f"📝 Video caption failure cases saved to: {failure_save_path}")
         
     except Exception as e:
         print(f"\n❌ Evaluation failed with error: {str(e)}")
