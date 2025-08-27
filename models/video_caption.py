@@ -175,10 +175,8 @@ class VideoCaptionLoss(nn.Module):
         
         # 只保留有效的text样本
         global_captions = self._gather_captions_distributed(targets)
-        global_video_paths = self._gather_video_paths_distributed(metas) if metas is not None else None
         valid_indices = torch.where(valid_text_mask)[0]
         valid_captions = [global_captions[i] for i in valid_indices.cpu().tolist()]
-        valid_video_paths = [global_video_paths[i] for i in valid_indices.cpu().tolist()] if global_video_paths is not None else None
         valid_proc_sim = proc_sim[valid_text_mask][:, valid_text_mask]
         valid_base_sim = base_sim[valid_text_mask][:, valid_text_mask]
         
@@ -201,9 +199,13 @@ class VideoCaptionLoss(nn.Module):
             top_1_acc_type, top_3_acc_type, top_5_acc_type = self.calculate_top_k_accuracy(valid_base_sim, target_label_type)
         
         # 保存失败例子（只在主进程执行）
-        if save_failures and failure_save_path is not None and valid_video_paths is not None:
+        if save_failures and failure_save_path is not None:
+            global_video_paths = self._gather_video_paths_distributed(metas) if metas is not None else None
+            valid_video_paths = [global_video_paths[i] for i in valid_indices.cpu().tolist()] if global_video_paths is not None else None
+            global_texts = self._gather_texts_distributed(targets) if targets is not None else None
+            valid_texts = [global_texts[i] for i in valid_indices.cpu().tolist()] if global_texts is not None else None
             if not dist.is_initialized() or dist.get_rank() == 0:
-                self._save_failure_cases(valid_base_sim, target_label, valid_captions, valid_video_paths, failure_save_path)
+                self._save_failure_cases(valid_base_sim, target_label, valid_captions, valid_texts, valid_video_paths, failure_save_path)
         
         losses = {
             f'{self.loss_type}': loss,
@@ -223,6 +225,14 @@ class VideoCaptionLoss(nn.Module):
         else:
             global_captions = local_captions
         return global_captions
+    
+    def _gather_texts_distributed(self, targets):
+        local_texts = [t['text'] for t in targets]
+        if dist.is_initialized() and self.distributed_gather:
+            global_texts = self._gather_list_distributed(local_texts)
+        else:
+            global_texts = local_texts
+        return global_texts
     
     def _gather_video_paths_distributed(self, metas):
         local_video_paths = [meta['video'] for meta in metas]
@@ -262,7 +272,7 @@ class VideoCaptionLoss(nn.Module):
             flat_list.extend(data[0])
         return flat_list
     
-    def _save_failure_cases(self, similarity_matrix, target_label, captions, video_paths, save_path):
+    def _save_failure_cases(self, similarity_matrix, target_label, captions, texts, video_paths, save_path):
         """
         分析并保存retrieval失败的例子
         
@@ -270,6 +280,7 @@ class VideoCaptionLoss(nn.Module):
             similarity_matrix: [N, N] 相似度矩阵
             target_label: [N, N] 标签矩阵 (1=正样本, -1=负样本)
             captions: List[str] 对应的caption列表
+            texts: List[str] 对应的text列表
             video_paths: List[str] 对应的video路径列表
             save_path: str 保存失败例子的文件路径
         """
@@ -310,13 +321,19 @@ class VideoCaptionLoss(nn.Module):
                     # 收集失败信息
                     failure_info = {
                         'video_path': video_paths[i],
-                        'original_text': captions[i],
-                        'retrieved_top1_text': captions[top1_retrieved_idx],
+                        'original_text_type': captions[i],
+                        'original_text': texts[i],
+                        'retrieved_top1_text_type': captions[top1_retrieved_idx],
+                        'retrieved_top1_text': texts[top1_retrieved_idx],
                         'original_text_rank': min_original_rank,
                         'similarity_to_top1': vision_to_text_sim[top1_retrieved_idx].item(),
                         'similarity_to_original': max([vision_to_text_sim[pos_idx].item() for pos_idx in positive_indices])
                     }
                     failure_cases.append(failure_info)
+
+            save_success_path = save_path.replace('.txt', '_success.txt')
+            with open(save_success_path, 'a', encoding='utf-8') as f:
+                f.write(f"{captions[i]} {is_success}\n")
         
         # 保存失败例子到文件
         if failure_cases:
@@ -327,7 +344,9 @@ class VideoCaptionLoss(nn.Module):
                 for case in failure_cases:
                     f.write(f"=== Failure Case ===\n")
                     f.write(f"Video Path: {case['video_path']}\n")
+                    f.write(f"Original Text Type: {case['original_text_type']}\n")
                     f.write(f"Original Text: {case['original_text']}\n")
+                    f.write(f"Retrieved Top1 Text Type: {case['retrieved_top1_text_type']}\n")
                     f.write(f"Retrieved Top1 Text: {case['retrieved_top1_text']}\n")
                     f.write(f"Original Text Rank: {case['original_text_rank']}\n")
                     f.write(f"Similarity to Top1: {case['similarity_to_top1']:.4f}\n")
