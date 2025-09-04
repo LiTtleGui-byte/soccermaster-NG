@@ -43,7 +43,8 @@ def _get_clones(module, N):
 class DeformableDetrHead(nn.Module):
     """ This is the Deformable DETR module that performs object detection """
     def __init__(self, position_encoding, transformer, num_classes, num_queries, num_feature_levels, backbone_strides, backbone_num_channels,
-                 aux_loss=True, with_box_refine=False, two_stage=False, detection_data_type = "image", backbone_type='image'):
+                 aux_loss=True, with_box_refine=False, two_stage=False, detection_data_type = "image", backbone_type='image',
+                 enable_role_classification=True, enable_jn_classification=True):
         """ Initializes the model.
         Parameters:
             backbone: torch module of the backbone to be used. See backbone.py
@@ -60,17 +61,31 @@ class DeformableDetrHead(nn.Module):
         self.position_encoding = position_encoding
         self.num_queries = num_queries
         self.transformer = transformer
+        self.enable_role_classification = enable_role_classification
+        self.enable_jn_classification = enable_jn_classification
         hidden_dim = transformer.d_model
         self.class_embed = nn.Linear(hidden_dim, num_classes)
         self.bbox_embed = MLP(hidden_dim, hidden_dim, 4, 3)
-        num_role_classes = len(role_mapping)
-        num_jn_classes = len(jn_mapping)
-        num_digit_head_classes = len(digit_head_mapping)
-        num_digit_tail_classes = len(digit_tail_mapping)
-        self.role_embed = nn.Linear(hidden_dim, num_role_classes)
-        self.jn_holistic_embed = nn.Linear(hidden_dim, num_jn_classes)
-        self.digit_head_embed = nn.Linear(hidden_dim, num_digit_head_classes)
-        self.digit_tail_embed = nn.Linear(hidden_dim, num_digit_tail_classes)
+        
+        # Create role classification head only if enabled
+        if self.enable_role_classification:
+            num_role_classes = len(role_mapping)
+            self.role_embed = nn.Linear(hidden_dim, num_role_classes)
+        else:
+            self.role_embed = None
+            
+        # Create jersey number classification heads only if enabled
+        if self.enable_jn_classification:
+            num_jn_classes = len(jn_mapping)
+            num_digit_head_classes = len(digit_head_mapping)
+            num_digit_tail_classes = len(digit_tail_mapping)
+            self.jn_holistic_embed = nn.Linear(hidden_dim, num_jn_classes)
+            self.digit_head_embed = nn.Linear(hidden_dim, num_digit_head_classes)
+            self.digit_tail_embed = nn.Linear(hidden_dim, num_digit_tail_classes)
+        else:
+            self.jn_holistic_embed = None
+            self.digit_head_embed = None
+            self.digit_tail_embed = None
         self.num_feature_levels = num_feature_levels
         if not two_stage:
             self.query_embed = nn.Embedding(num_queries, hidden_dim*2)
@@ -105,10 +120,18 @@ class DeformableDetrHead(nn.Module):
         prior_prob = 0.01
         bias_value = -math.log((1 - prior_prob) / prior_prob)
         self.class_embed.bias.data = torch.ones(num_classes) * bias_value
-        self.role_embed.bias.data = torch.ones(num_role_classes) * bias_value
-        self.jn_holistic_embed.bias.data = torch.ones(num_jn_classes) * bias_value
-        self.digit_head_embed.bias.data = torch.ones(num_digit_head_classes) * bias_value
-        self.digit_tail_embed.bias.data = torch.ones(num_digit_tail_classes) * bias_value
+        
+        if self.enable_role_classification:
+            num_role_classes = len(role_mapping)
+            self.role_embed.bias.data = torch.ones(num_role_classes) * bias_value
+            
+        if self.enable_jn_classification:
+            num_jn_classes = len(jn_mapping)
+            num_digit_head_classes = len(digit_head_mapping)
+            num_digit_tail_classes = len(digit_tail_mapping)
+            self.jn_holistic_embed.bias.data = torch.ones(num_jn_classes) * bias_value
+            self.digit_head_embed.bias.data = torch.ones(num_digit_head_classes) * bias_value
+            self.digit_tail_embed.bias.data = torch.ones(num_digit_tail_classes) * bias_value
         nn.init.constant_(self.bbox_embed.layers[-1].weight.data, 0)
         nn.init.constant_(self.bbox_embed.layers[-1].bias.data, 0)
         for proj in self.input_proj:
@@ -120,10 +143,12 @@ class DeformableDetrHead(nn.Module):
         if with_box_refine:
             self.class_embed = _get_clones(self.class_embed, num_pred)
             self.bbox_embed = _get_clones(self.bbox_embed, num_pred)
-            self.role_embed = _get_clones(self.role_embed, num_pred)
-            self.jn_holistic_embed = _get_clones(self.jn_holistic_embed, num_pred)
-            self.digit_head_embed = _get_clones(self.digit_head_embed, num_pred)
-            self.digit_tail_embed = _get_clones(self.digit_tail_embed, num_pred)
+            if self.enable_role_classification:
+                self.role_embed = _get_clones(self.role_embed, num_pred)
+            if self.enable_jn_classification:
+                self.jn_holistic_embed = _get_clones(self.jn_holistic_embed, num_pred)
+                self.digit_head_embed = _get_clones(self.digit_head_embed, num_pred)
+                self.digit_tail_embed = _get_clones(self.digit_tail_embed, num_pred)
             nn.init.constant_(self.bbox_embed[0].layers[-1].bias.data[2:], -2.0)
             # hack implementation for iterative bounding box refinement
             self.transformer.decoder.bbox_embed = self.bbox_embed
@@ -131,10 +156,12 @@ class DeformableDetrHead(nn.Module):
             nn.init.constant_(self.bbox_embed.layers[-1].bias.data[2:], -2.0)
             self.class_embed = nn.ModuleList([self.class_embed for _ in range(num_pred)])
             self.bbox_embed = nn.ModuleList([self.bbox_embed for _ in range(num_pred)])
-            self.role_embed = nn.ModuleList([self.role_embed for _ in range(num_pred)])
-            self.jn_holistic_embed = nn.ModuleList([self.jn_holistic_embed for _ in range(num_pred)])
-            self.digit_head_embed = nn.ModuleList([self.digit_head_embed for _ in range(num_pred)])
-            self.digit_tail_embed = nn.ModuleList([self.digit_tail_embed for _ in range(num_pred)])
+            if self.enable_role_classification:
+                self.role_embed = nn.ModuleList([self.role_embed for _ in range(num_pred)])
+            if self.enable_jn_classification:
+                self.jn_holistic_embed = nn.ModuleList([self.jn_holistic_embed for _ in range(num_pred)])
+                self.digit_head_embed = nn.ModuleList([self.digit_head_embed for _ in range(num_pred)])
+                self.digit_tail_embed = nn.ModuleList([self.digit_tail_embed for _ in range(num_pred)])
             self.transformer.decoder.bbox_embed = None
         if two_stage:
             # hack implementation for two-stage
@@ -206,10 +233,10 @@ class DeformableDetrHead(nn.Module):
 
         outputs_classes = []
         outputs_coords = []
-        outputs_roles = []
-        outputs_jn_holistic = []
-        outputs_digit_head = []
-        outputs_digit_tail = []
+        outputs_roles = [] if self.enable_role_classification else None
+        outputs_jn_holistic = [] if self.enable_jn_classification else None
+        outputs_digit_head = [] if self.enable_jn_classification else None
+        outputs_digit_tail = [] if self.enable_jn_classification else None
         for lvl in range(hs.shape[0]):
             if lvl == 0:
                 reference = init_reference
@@ -217,10 +244,16 @@ class DeformableDetrHead(nn.Module):
                 reference = inter_references[lvl - 1]
             reference = inverse_sigmoid(reference)
             outputs_class = self.class_embed[lvl](hs[lvl])
-            outputs_role = self.role_embed[lvl](hs[lvl])
-            outputs_jn = self.jn_holistic_embed[lvl](hs[lvl])
-            outputs_digit_h = self.digit_head_embed[lvl](hs[lvl])
-            outputs_digit_t = self.digit_tail_embed[lvl](hs[lvl])
+            
+            # Only compute role outputs if enabled
+            if self.enable_role_classification:
+                outputs_role = self.role_embed[lvl](hs[lvl])
+            
+            # Only compute jersey number outputs if enabled
+            if self.enable_jn_classification:
+                outputs_jn = self.jn_holistic_embed[lvl](hs[lvl])
+                outputs_digit_h = self.digit_head_embed[lvl](hs[lvl])
+                outputs_digit_t = self.digit_tail_embed[lvl](hs[lvl])
             
             tmp = self.bbox_embed[lvl](hs[lvl])
             if reference.shape[-1] == 4:
@@ -233,27 +266,48 @@ class DeformableDetrHead(nn.Module):
             if self.backbone_type == 'video':
                 outputs_class = outputs_class.reshape(bs, num_frames, *outputs_class.shape[1:])
                 outputs_coord = outputs_coord.reshape(bs, num_frames, *outputs_coord.shape[1:])
-                outputs_role = outputs_role.reshape(bs, num_frames, *outputs_role.shape[1:])
-                outputs_jn = outputs_jn.reshape(bs, num_frames, *outputs_jn.shape[1:])
-                outputs_digit_h = outputs_digit_h.reshape(bs, num_frames, *outputs_digit_h.shape[1:])
-                outputs_digit_t = outputs_digit_t.reshape(bs, num_frames, *outputs_digit_t.shape[1:])
+                if self.enable_role_classification:
+                    outputs_role = outputs_role.reshape(bs, num_frames, *outputs_role.shape[1:])
+                if self.enable_jn_classification:
+                    outputs_jn = outputs_jn.reshape(bs, num_frames, *outputs_jn.shape[1:])
+                    outputs_digit_h = outputs_digit_h.reshape(bs, num_frames, *outputs_digit_h.shape[1:])
+                    outputs_digit_t = outputs_digit_t.reshape(bs, num_frames, *outputs_digit_t.shape[1:])
             
             outputs_classes.append(outputs_class)
             outputs_coords.append(outputs_coord)
-            outputs_roles.append(outputs_role)
-            outputs_jn_holistic.append(outputs_jn)
-            outputs_digit_head.append(outputs_digit_h)
-            outputs_digit_tail.append(outputs_digit_t)
+            if self.enable_role_classification:
+                outputs_roles.append(outputs_role)
+            if self.enable_jn_classification:
+                outputs_jn_holistic.append(outputs_jn)
+                outputs_digit_head.append(outputs_digit_h)
+                outputs_digit_tail.append(outputs_digit_t)
         outputs_class = torch.stack(outputs_classes)
         outputs_coord = torch.stack(outputs_coords)
-        outputs_role = torch.stack(outputs_roles)
-        outputs_jn_holistic = torch.stack(outputs_jn_holistic)
-        outputs_digit_head = torch.stack(outputs_digit_head)
-        outputs_digit_tail = torch.stack(outputs_digit_tail)
+        
+        # Only stack outputs if the features are enabled
+        if self.enable_role_classification:
+            outputs_role = torch.stack(outputs_roles)
+        if self.enable_jn_classification:
+            outputs_jn_holistic = torch.stack(outputs_jn_holistic)
+            outputs_digit_head = torch.stack(outputs_digit_head)
+            outputs_digit_tail = torch.stack(outputs_digit_tail)
 
-        out = {'pred_logits': outputs_class[-1], 'pred_boxes': outputs_coord[-1], 'pred_roles': outputs_role[-1], 'pred_jn_holistic': outputs_jn_holistic[-1], 'pred_digit_head': outputs_digit_head[-1], 'pred_digit_tail': outputs_digit_tail[-1]}
+        out = {'pred_logits': outputs_class[-1], 'pred_boxes': outputs_coord[-1]}
+        if self.enable_role_classification:
+            out['pred_roles'] = outputs_role[-1]
+        if self.enable_jn_classification:
+            out['pred_jn_holistic'] = outputs_jn_holistic[-1]
+            out['pred_digit_head'] = outputs_digit_head[-1]
+            out['pred_digit_tail'] = outputs_digit_tail[-1]
+            
         if self.aux_loss:
-            out['aux_outputs'] = self._set_aux_loss(outputs_class, outputs_coord, outputs_role, outputs_jn_holistic, outputs_digit_head, outputs_digit_tail)
+            out['aux_outputs'] = self._set_aux_loss(
+                outputs_class, outputs_coord, 
+                outputs_role if self.enable_role_classification else None, 
+                outputs_jn_holistic if self.enable_jn_classification else None, 
+                outputs_digit_head if self.enable_jn_classification else None, 
+                outputs_digit_tail if self.enable_jn_classification else None
+            )
 
         if self.two_stage:
             enc_outputs_coord = enc_outputs_coord_unact.sigmoid()
@@ -270,8 +324,22 @@ class DeformableDetrHead(nn.Module):
         # this is a workaround to make torchscript happy, as torchscript
         # doesn't support dictionary with non-homogeneous values, such
         # as a dict having both a Tensor and a list.
-        return [{'pred_logits': a, 'pred_boxes': b, 'pred_roles': c, 'pred_jn_holistic': d, 'pred_digit_head': e, 'pred_digit_tail': f}
-                for a, b, c, d, e, f in zip(outputs_class[:-1], outputs_coord[:-1], outputs_role[:-1], outputs_jn_holistic[:-1], outputs_digit_head[:-1], outputs_digit_tail[:-1])]
+        aux_outputs = []
+        for i in range(len(outputs_class) - 1):  # exclude the last layer
+            aux_out = {
+                'pred_logits': outputs_class[i], 
+                'pred_boxes': outputs_coord[i]
+            }
+            if outputs_role is not None:
+                aux_out['pred_roles'] = outputs_role[i]
+            if outputs_jn_holistic is not None:
+                aux_out['pred_jn_holistic'] = outputs_jn_holistic[i]
+            if outputs_digit_head is not None:
+                aux_out['pred_digit_head'] = outputs_digit_head[i]
+            if outputs_digit_tail is not None:
+                aux_out['pred_digit_tail'] = outputs_digit_tail[i]
+            aux_outputs.append(aux_out)
+        return aux_outputs
 
 def softmax_focal_loss(inputs, targets, num_boxes, alpha: float = 0.25, gamma: float = 2.0):
     """
@@ -314,7 +382,7 @@ class SetCriterion(nn.Module):
         1) we compute hungarian assignment between ground truth boxes and the outputs of the model
         2) we supervise each pair of matched ground-truth / prediction (supervise class and box)
     """
-    def __init__(self, num_classes, matcher, weight_dict, losses, focal_alpha=0.25, detr_loss_batch_len=10, detection_data_type='image', backbone_type='image', enable_softmax_focal_loss=False, detect_ball=False, detect_ball_only=False):
+    def __init__(self, num_classes, matcher, weight_dict, losses, focal_alpha=0.25, detr_loss_batch_len=10, detection_data_type='image', backbone_type='image', enable_softmax_focal_loss=False, detect_ball=False, detect_ball_only=False, enable_role_classification=True, enable_jn_classification=True):
         """ Create the criterion.
         Parameters:
             num_classes: number of object categories, omitting the special no-object category
@@ -328,10 +396,16 @@ class SetCriterion(nn.Module):
         """
         super().__init__()
         self.num_classes = num_classes
-        self.num_role_classes = len(role_mapping)
-        self.num_jn_classes = len(jn_mapping)
-        self.num_digit_head_classes = len(digit_head_mapping)
-        self.num_digit_tail_classes = len(digit_tail_mapping)
+        self.enable_role_classification = enable_role_classification
+        self.enable_jn_classification = enable_jn_classification
+        
+        if self.enable_role_classification:
+            self.num_role_classes = len(role_mapping)
+        if self.enable_jn_classification:
+            self.num_jn_classes = len(jn_mapping)
+            self.num_digit_head_classes = len(digit_head_mapping)
+            self.num_digit_tail_classes = len(digit_tail_mapping)
+            
         self.matcher = matcher
         self.weight_dict = weight_dict
         self.losses = losses
@@ -373,6 +447,15 @@ class SetCriterion(nn.Module):
         """Role classification loss (NLL)
         targets dicts must contain the key "roles" containing a tensor of dim [nb_target_boxes]
         """
+        # Skip if role classification is disabled
+        if not self.enable_role_classification:
+            device = next(iter(outputs.values())).device
+            loss_role = torch.tensor(0.0, device=device, requires_grad=True)
+            losses = {'loss_role': loss_role}
+            if log:
+                losses['role_error'] = torch.tensor(0.0, device=device)
+            return losses
+            
         assert 'pred_roles' in outputs
         src_logits = outputs['pred_roles']
 
@@ -428,6 +511,15 @@ class SetCriterion(nn.Module):
         """Jersey number holistic classification loss (NLL)
         targets dicts must contain the key "jn_holistic" containing a tensor of dim [nb_target_boxes]
         """
+        # Skip if jersey number classification is disabled
+        if not self.enable_jn_classification:
+            device = next(iter(outputs.values())).device
+            loss_jn_holistic = torch.tensor(0.0, device=device, requires_grad=True)
+            losses = {'loss_jn_holistic': loss_jn_holistic}
+            if log:
+                losses['jn_holistic_error'] = torch.tensor(0.0, device=device)
+            return losses
+            
         assert 'pred_jn_holistic' in outputs
         src_logits = outputs['pred_jn_holistic']
 
@@ -483,6 +575,15 @@ class SetCriterion(nn.Module):
         """Digit head classification loss (NLL)
         targets dicts must contain the key "digit_head" containing a tensor of dim [nb_target_boxes]
         """
+        # Skip if jersey number classification is disabled
+        if not self.enable_jn_classification:
+            device = next(iter(outputs.values())).device
+            loss_digit_head = torch.tensor(0.0, device=device, requires_grad=True)
+            losses = {'loss_digit_head': loss_digit_head}
+            if log:
+                losses['digit_head_error'] = torch.tensor(0.0, device=device)
+            return losses
+            
         assert 'pred_digit_head' in outputs
         src_logits = outputs['pred_digit_head']
 
@@ -538,6 +639,15 @@ class SetCriterion(nn.Module):
         """Digit tail classification loss (NLL)
         targets dicts must contain the key "digit_tail" containing a tensor of dim [nb_target_boxes]
         """
+        # Skip if jersey number classification is disabled
+        if not self.enable_jn_classification:
+            device = next(iter(outputs.values())).device
+            loss_digit_tail = torch.tensor(0.0, device=device, requires_grad=True)
+            losses = {'loss_digit_tail': loss_digit_tail}
+            if log:
+                losses['digit_tail_error'] = torch.tensor(0.0, device=device)
+            return losses
+            
         assert 'pred_digit_tail' in outputs
         src_logits = outputs['pred_digit_tail']
 
@@ -880,7 +990,7 @@ class PostProcess(nn.Module):
         for batch_idx, (s, l, b) in enumerate(zip(scores, labels, boxes)):
             result = {'scores': s, 'labels': l, 'boxes': b, 'topk_boxes': topk_boxes[batch_idx]}
             
-            # 添加attributes
+            # 添加attributes（只有在相应功能启用时才处理）
             if 'pred_roles' in outputs:
                 pred_roles = outputs['pred_roles'][batch_idx]  # [num_queries, num_role_classes]
                 roles = torch.argmax(pred_roles, dim=-1)  # [num_queries]
@@ -1071,6 +1181,8 @@ def build_deformable_detr_head(config: dict):
         two_stage=args.two_stage,
         detection_data_type=config["DETECTION_DATA_TYPE"],
         backbone_type=config["BACKBONE_TYPE"],
+        enable_role_classification=config["DETR_ENABLE_ROLE_CLASSIFICATION"],
+        enable_jn_classification=config["DETR_ENABLE_JN_CLASSIFICATION"],
     )
     return head
 
@@ -1078,10 +1190,14 @@ def build_deformable_detr_criterion(config: dict):
     args = cvt_config_to_args(config)
     
     weight_dict = {'loss_ce': args.cls_loss_coef, 'loss_bbox': args.bbox_loss_coef, 'loss_giou': args.giou_loss_coef}
-    weight_dict['loss_role'] = args.role_loss_coef
-    weight_dict['loss_jn_holistic'] = args.jn_loss_coef
-    weight_dict['loss_digit_head'] = args.digit_head_loss_coef
-    weight_dict['loss_digit_tail'] = args.digit_tail_loss_coef
+    
+    # Only add role and jersey number loss weights if the corresponding features are enabled
+    if config["DETR_ENABLE_ROLE_CLASSIFICATION"]:
+        weight_dict['loss_role'] = args.role_loss_coef
+    if config["DETR_ENABLE_JN_CLASSIFICATION"]:
+        weight_dict['loss_jn_holistic'] = args.jn_loss_coef
+        weight_dict['loss_digit_head'] = args.digit_head_loss_coef
+        weight_dict['loss_digit_tail'] = args.digit_tail_loss_coef
     
     assert args.masks is False, "MASKS is not supported yet."
     if args.masks:
@@ -1096,7 +1212,12 @@ def build_deformable_detr_criterion(config: dict):
         weight_dict.update(aux_weight_dict)
     
     if config["MODEL_ARCH"] == "multitask":
-        losses = ['labels', 'boxes', 'cardinality', 'roles', 'jn_holistic', 'digit_head', 'digit_tail']
+        losses = ['labels', 'boxes', 'cardinality']
+        # Only add role and jersey number losses if the corresponding features are enabled
+        if config["DETR_ENABLE_ROLE_CLASSIFICATION"]:
+            losses.append('roles')
+        if config["DETR_ENABLE_JN_CLASSIFICATION"]:
+            losses.extend(['jn_holistic', 'digit_head', 'digit_tail'])
     elif config["MODEL_ARCH"] == "yolo":
         losses = ['labels', 'boxes', 'cardinality']
 
@@ -1112,6 +1233,8 @@ def build_deformable_detr_criterion(config: dict):
         enable_softmax_focal_loss=config["ENABLE_SOFTMAX_FOCAL_LOSS"],
         detect_ball=config["DETR_DETECT_BALL"],
         detect_ball_only=config["DETECT_BALL_ONLY"],
+        enable_role_classification=config["DETR_ENABLE_ROLE_CLASSIFICATION"],
+        enable_jn_classification=config["DETR_ENABLE_JN_CLASSIFICATION"],
     )
     return detr_criterion
 
@@ -1145,12 +1268,14 @@ class DetectionMetrics(nn.Module):
     支持多进程聚合和整个数据集上的AP计算
     支持分类别计算metrics（人和球分别计算）
     """
-    def __init__(self, num_classes, iou_thresholds=None, score_threshold=0.5, backbone_type='image', class_names=None):
+    def __init__(self, num_classes, iou_thresholds=None, score_threshold=0.5, backbone_type='image', class_names=None, enable_role_classification=True, enable_jn_classification=True):
         super().__init__()
         self.num_classes = num_classes
         self.iou_thresholds = iou_thresholds if iou_thresholds is not None else [0.5, 0.55, 0.6, 0.65, 0.7, 0.75, 0.8, 0.85, 0.9, 0.95]
         self.score_threshold = score_threshold
         self.backbone_type = backbone_type
+        self.enable_role_classification = enable_role_classification
+        self.enable_jn_classification = enable_jn_classification
         self.postprocess = PostProcess()
         
         # 设置类别名称，用于分类别metrics
@@ -1182,12 +1307,14 @@ class DetectionMetrics(nn.Module):
             }
             self.total_gt_count_per_class[class_name] = 0
         
-        self.attribute_matches = {
-            'role': {'correct': [], 'total': []},
-            'jersey': {'correct': [], 'total': []}, 
-            'digit_head': {'correct': [], 'total': []},
-            'digit_tail': {'correct': [], 'total': []}
-        }
+        # Only initialize attribute tracking if the corresponding features are enabled
+        self.attribute_matches = {}
+        if self.enable_role_classification:
+            self.attribute_matches['role'] = {'correct': [], 'total': []}
+        if self.enable_jn_classification:
+            self.attribute_matches['jersey'] = {'correct': [], 'total': []}
+            self.attribute_matches['digit_head'] = {'correct': [], 'total': []}
+            self.attribute_matches['digit_tail'] = {'correct': [], 'total': []}
         
     def box_iou(self, boxes1, boxes2):
         """
@@ -1453,29 +1580,33 @@ class DetectionMetrics(nn.Module):
         gt_digit_head = target.get('digit_head', None) 
         gt_digit_tail = target.get('digit_tail', None)
         
-        # 计算role准确度
-        if 'roles' in pred and gt_roles is not None and gt_idx < len(gt_roles):
+        # 计算role准确度（只有在启用时才计算）
+        if (self.enable_role_classification and 'roles' in pred and 
+            gt_roles is not None and gt_idx < len(gt_roles)):
             pred_role = pred['roles'][pred_idx].item()
             gt_role = gt_roles[gt_idx].item() if isinstance(gt_roles[gt_idx], torch.Tensor) else gt_roles[gt_idx]
             self.attribute_matches['role']['correct'].append(1 if pred_role == gt_role else 0)
             self.attribute_matches['role']['total'].append(1)
         
-        # 计算jersey准确度
-        if 'jersey' in pred and gt_jersey is not None and gt_idx < len(gt_jersey):
+        # 计算jersey准确度（只有在启用时才计算）
+        if (self.enable_jn_classification and 'jersey' in pred and 
+            gt_jersey is not None and gt_idx < len(gt_jersey)):
             pred_jn = pred['jersey'][pred_idx].item()
             gt_jn = gt_jersey[gt_idx].item() if isinstance(gt_jersey[gt_idx], torch.Tensor) else gt_jersey[gt_idx]
             self.attribute_matches['jersey']['correct'].append(1 if pred_jn == gt_jn else 0)
             self.attribute_matches['jersey']['total'].append(1)
         
-        # 计算digit_head准确度
-        if 'digit_head' in pred and gt_digit_head is not None and gt_idx < len(gt_digit_head):
+        # 计算digit_head准确度（只有在启用时才计算）
+        if (self.enable_jn_classification and 'digit_head' in pred and 
+            gt_digit_head is not None and gt_idx < len(gt_digit_head)):
             pred_dh = pred['digit_head'][pred_idx].item()
             gt_dh = gt_digit_head[gt_idx].item() if isinstance(gt_digit_head[gt_idx], torch.Tensor) else gt_digit_head[gt_idx]
             self.attribute_matches['digit_head']['correct'].append(1 if pred_dh == gt_dh else 0)
             self.attribute_matches['digit_head']['total'].append(1)
         
-        # 计算digit_tail准确度
-        if 'digit_tail' in pred and gt_digit_tail is not None and gt_idx < len(gt_digit_tail):
+        # 计算digit_tail准确度（只有在启用时才计算）
+        if (self.enable_jn_classification and 'digit_tail' in pred and 
+            gt_digit_tail is not None and gt_idx < len(gt_digit_tail)):
             pred_dt = pred['digit_tail'][pred_idx].item()
             gt_dt = gt_digit_tail[gt_idx].item() if isinstance(gt_digit_tail[gt_idx], torch.Tensor) else gt_digit_tail[gt_idx]
             self.attribute_matches['digit_tail']['correct'].append(1 if pred_dt == gt_dt else 0)
@@ -1519,11 +1650,10 @@ class DetectionMetrics(nn.Module):
         for class_name in self.class_names:
             gathered_gt_count_per_class[class_name] = gather_object([self.total_gt_count_per_class[class_name]])
         
-        # 聚合attribute匹配结果
-        attr_name_list = ['role', 'jersey', 'digit_head', 'digit_tail']
+        # 聚合attribute匹配结果（只聚合启用的attributes）
         key_list_attr = ['correct', 'total']
         gathered_attribute_matches = {}
-        for attr_name in attr_name_list:
+        for attr_name in self.attribute_matches.keys():
             gathered_attribute_matches[attr_name] = {}
             for key in key_list_attr:
                 gathered_attribute_matches[attr_name][key] = gather_object(self.attribute_matches[attr_name][key])
@@ -1607,8 +1737,8 @@ class DetectionMetrics(nn.Module):
         metrics['mAP@0.5'] = metrics.get('AP@0.50', 0.0)
         metrics['mAP@0.75'] = metrics.get('AP@0.75', 0.0)
         
-        # 计算attribute准确度
-        for attr_name in ['role', 'jersey', 'digit_head', 'digit_tail']:
+        # 计算attribute准确度（只计算启用的attributes）
+        for attr_name in gathered_attribute_matches.keys():
             attr_data = gathered_attribute_matches[attr_name]
             
             # 展平所有进程的数据
@@ -1744,7 +1874,9 @@ def build_detection_metrics(config: dict):
         iou_thresholds=[0.5, 0.55, 0.6, 0.65, 0.7, 0.75, 0.8, 0.85, 0.9, 0.95],
         score_threshold=config["EVAL_SCORE_THRESHOLD"],
         backbone_type=config["BACKBONE_TYPE"],
-        class_names=class_names
+        class_names=class_names,
+        enable_role_classification=config["DETR_ENABLE_ROLE_CLASSIFICATION"],
+        enable_jn_classification=config["DETR_ENABLE_JN_CLASSIFICATION"],
     )
     
     return metrics

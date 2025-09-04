@@ -126,6 +126,8 @@ BACKBONE_USE_TEMPORAL_GATE: True  # 是否使用temporal embedding gate机制
 NUM_CLASSES: 1 # person
 DETR_DETECT_BALL: False # whether to also detect ball (if True, NUM_CLASSES will be automatically set to 2)
 DETECT_BALL_ONLY: False # whether to only detect ball and exclude person (if True, only ball will be detected)
+DETR_ENABLE_ROLE_CLASSIFICATION: True # whether to enable role classification head
+DETR_ENABLE_JN_CLASSIFICATION: True # whether to enable jersey number classification heads (jn_holistic, digit_head, digit_tail)
 DILATION: False
 DETR_NUM_QUERIES: 300
 DETR_NUM_FEATURE_LEVELS: 1
