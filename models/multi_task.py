@@ -50,7 +50,8 @@ class MultiTaskingSigLIP(nn.Module):
             config['TRAIN_BACKBONE'], 
             False, 
             config['BACKBONE_USE_TEMPORAL_GATE'], 
-            config['FREEZE_TEXT_ENCODER']
+            config['FREEZE_TEXT_ENCODER'],
+            config['BACKBONE_HIDDEN_DIM']
         )
         if logger is not None:
             logger.info(f"Using SiglipBackbone type: {siglip_backbone_type}")
@@ -151,7 +152,7 @@ class MultiTaskingSigLIP(nn.Module):
             else:
                 print(f"Saved {head_name} head to: {head_path}")
     
-    def load_checkpoint(self, checkpoint_dir: str, logger=None):
+    def load_checkpoint(self, checkpoint_dir: str, logger=None, load_heads: bool = True):
         """
         Load model checkpoint including backbone, text encoder, and task heads
         
@@ -159,38 +160,61 @@ class MultiTaskingSigLIP(nn.Module):
             checkpoint_dir: Directory to load checkpoint from
             logger: Logger instance for logging messages
         """
-        # 判断vision_model的类型来决定加载方式
-        if isinstance(self.backbone.vision_model, SiglipPreTrainedModel):
-            # 对于标准的SiglipVisionModel，从safetensors文件加载
-            backbone_ckpt_path = os.path.join(checkpoint_dir, "backbone", "model.safetensors")
-            if os.path.exists(backbone_ckpt_path):
-                with safe_open(backbone_ckpt_path, framework="pt") as f:
-                    state_dict = {k: f.get_tensor(k) for k in f.keys()}
-                    self.backbone.vision_model.load_state_dict(state_dict, strict=False)
-                    if logger is not None:
-                        logger.info(f"Loaded SiglipPreTrainedModel backbone weights from: {backbone_ckpt_path}")
-                    else:
-                        print(f"Loaded SiglipPreTrainedModel backbone weights from: {backbone_ckpt_path}")
-            else:
-                if logger is not None:
-                    logger.warning(f"Warning: SiglipPreTrainedModel backbone checkpoint not found at {backbone_ckpt_path}")
-                else:
-                    print(f"Warning: SiglipPreTrainedModel backbone checkpoint not found at {backbone_ckpt_path}")
-        else:
-            # 对于自定义的UniSoccerBackbone，从.pt文件加载
-            backbone_ckpt_path = os.path.join(checkpoint_dir, "backbone.pt")
-            if os.path.exists(backbone_ckpt_path):
-                backbone_state_dict = torch.load(backbone_ckpt_path, map_location="cpu")
+        # # 判断vision_model的类型来决定加载方式
+        # if isinstance(self.backbone.vision_model, SiglipPreTrainedModel):
+        #     # 对于标准的SiglipVisionModel，从safetensors文件加载
+        #     backbone_ckpt_path = os.path.join(checkpoint_dir, "backbone", "model.safetensors")
+        #     if os.path.exists(backbone_ckpt_path):
+        #         with safe_open(backbone_ckpt_path, framework="pt") as f:
+        #             state_dict = {k: f.get_tensor(k) for k in f.keys()}
+        #             self.backbone.vision_model.load_state_dict(state_dict, strict=False)
+        #             if logger is not None:
+        #                 logger.info(f"Loaded SiglipPreTrainedModel backbone weights from: {backbone_ckpt_path}")
+        #             else:
+        #                 print(f"Loaded SiglipPreTrainedModel backbone weights from: {backbone_ckpt_path}")
+        #     else:
+        #         if logger is not None:
+        #             logger.warning(f"Warning: SiglipPreTrainedModel backbone checkpoint not found at {backbone_ckpt_path}")
+        #         else:
+        #             print(f"Warning: SiglipPreTrainedModel backbone checkpoint not found at {backbone_ckpt_path}")
+        # else:
+        #     # 对于自定义的UniSoccerBackbone，从.pt文件加载
+        #     backbone_ckpt_path = os.path.join(checkpoint_dir, "backbone.pt")
+        #     if os.path.exists(backbone_ckpt_path):
+        #         backbone_state_dict = torch.load(backbone_ckpt_path, map_location="cpu")
+        #         self.backbone.vision_model.load_state_dict(backbone_state_dict, strict=False)
+        #         if logger is not None:
+        #             logger.info(f"Loaded custom backbone weights from: {backbone_ckpt_path}")
+        #         else:
+        #             print(f"Loaded custom backbone weights from: {backbone_ckpt_path}")
+        #     else:
+        #         if logger is not None:
+        #             logger.warning(f"Warning: custom backbone checkpoint not found at {backbone_ckpt_path}")
+        #         else:
+        #             print(f"Warning: custom backbone checkpoint not found at {backbone_ckpt_path}")
+        backbone_ckpt_path_hf = os.path.join(checkpoint_dir, "backbone", "model.safetensors")
+        backbone_ckpt_path_unisoccer = os.path.join(checkpoint_dir, "backbone.pt")
+        if os.path.exists(backbone_ckpt_path_hf):
+            with safe_open(backbone_ckpt_path_hf, framework="pt") as f:
+                backbone_state_dict = {k: f.get_tensor(k) for k in f.keys()}
                 self.backbone.vision_model.load_state_dict(backbone_state_dict, strict=False)
                 if logger is not None:
-                    logger.info(f"Loaded custom backbone weights from: {backbone_ckpt_path}")
+                    logger.info(f"Loaded backbone weights from: {backbone_ckpt_path_hf}")
                 else:
-                    print(f"Loaded custom backbone weights from: {backbone_ckpt_path}")
+                    print(f"Loaded backbone weights from: {backbone_ckpt_path_hf}")
+        elif os.path.exists(backbone_ckpt_path_unisoccer):
+            backbone_state_dict = torch.load(backbone_ckpt_path_unisoccer, map_location="cpu")
+            self.backbone.vision_model.load_state_dict(backbone_state_dict, strict=False)
+            if logger is not None:
+                logger.info(f"Loaded backbone weights from: {backbone_ckpt_path_unisoccer}")
             else:
-                if logger is not None:
-                    logger.warning(f"Warning: custom backbone checkpoint not found at {backbone_ckpt_path}")
-                else:
-                    print(f"Warning: custom backbone checkpoint not found at {backbone_ckpt_path}")
+                print(f"Loaded backbone weights from: {backbone_ckpt_path_unisoccer}")
+        else:
+            if logger is not None:
+                logger.warning(f"Warning: backbone checkpoint not found at {backbone_ckpt_path_hf} or {backbone_ckpt_path_unisoccer}")
+            else:
+                print(f"Warning: backbone checkpoint not found at {backbone_ckpt_path_hf} or {backbone_ckpt_path_unisoccer}")
+
         
         # Load text encoder weights
         text_model_ckpt_path = os.path.join(checkpoint_dir, "text_model", "model.safetensors")
@@ -209,17 +233,23 @@ class MultiTaskingSigLIP(nn.Module):
                 print(f"Warning: text encoder checkpoint not found at {text_model_ckpt_path}")
         
         # Load task heads
-        for head in self.multi_task_head:
-            head_ckpt_path = os.path.join(checkpoint_dir, f"{head}.pt")
-            if os.path.exists(head_ckpt_path):
-                if logger is not None:
-                    logger.info(f"Loading {head} head from: {head_ckpt_path}")
+        if load_heads:
+            for head in self.multi_task_head:
+                head_ckpt_path = os.path.join(checkpoint_dir, f"{head}.pt")
+                if os.path.exists(head_ckpt_path):
+                    if logger is not None:
+                        logger.info(f"Loading {head} head from: {head_ckpt_path}")
+                    else:
+                        print(f"Loading {head} head from: {head_ckpt_path}")
+                    head_state_dict = torch.load(head_ckpt_path, map_location="cpu")
+                    self.multi_task_head[head].load_state_dict(head_state_dict)
                 else:
-                    print(f"Loading {head} head from: {head_ckpt_path}")
-                head_state_dict = torch.load(head_ckpt_path, map_location="cpu")
-                self.multi_task_head[head].load_state_dict(head_state_dict)
+                    if logger is not None:
+                        logger.warning(f"Warning: {head} head checkpoint not found at {head_ckpt_path}")
+                    else:
+                        print(f"Warning: {head} head checkpoint not found at {head_ckpt_path}")
+        else:
+            if logger is not None:
+                logger.info(f"Skipping loading task heads from: {checkpoint_dir}")
             else:
-                if logger is not None:
-                    logger.warning(f"Warning: {head} head checkpoint not found at {head_ckpt_path}")
-                else:
-                    print(f"Warning: {head} head checkpoint not found at {head_ckpt_path}")
+                print(f"Skipping loading task heads from: {checkpoint_dir}")

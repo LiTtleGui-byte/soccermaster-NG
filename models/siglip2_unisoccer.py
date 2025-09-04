@@ -82,16 +82,17 @@ class Timesformer(nn.Module):
         return x
     
 class UniSoccerBackbone(nn.Module):
-    def __init__(self, ckpt_path: str, num_frames: int, stage_1_backbone_dir: str):
+    def __init__(self, ckpt_path: str, num_frames: int, stage_1_backbone_dir: str, hidden_dim: int = 768):
         super().__init__()
 
-        model = SiglipVisionModel.from_pretrained(stage_1_backbone_dir, device_map="cpu")
+        model = SiglipVisionModel.from_pretrained(ckpt_path, device_map="cpu")
         siglip_vision_model = model.vision_model
         self.vision_model_embedding = siglip_vision_model.embeddings
-        self.timesformer = Timesformer(width=768, layers=12, heads=12, model_name=stage_1_backbone_dir, drop_path=0., checkpoint_num=0, dropout=0.)
+        config = SiglipVisionConfig.from_pretrained(ckpt_path)
+        self.timesformer = Timesformer(width=hidden_dim, layers=config.num_hidden_layers, heads=config.num_attention_heads, model_name=ckpt_path, drop_path=0., checkpoint_num=0, dropout=0.)
         self.post_norm = siglip_vision_model.post_layernorm
         self.head = siglip_vision_model.head
-        self.temporal_embedding = nn.Parameter(torch.zeros(1, num_frames, 768))
+        self.temporal_embedding = nn.Parameter(torch.zeros(1, num_frames, hidden_dim))
         
     def forward(self, images: torch.Tensor, temporal_attention_mask: Optional[torch.Tensor] = None, text: Optional[List[str]] = None):
         B, T, _, _, _ = images.shape
@@ -116,7 +117,8 @@ class SiglipBackbone(nn.Module):
                  train_backbone: bool,
                  use_lora: bool,
                  use_temporal_gate: bool,
-                 freeze_text_encoder: bool = True):
+                 freeze_text_encoder: bool = True,
+                 hidden_dim: int = 768):
         super().__init__()
         assert backbone_type in ['image', 'video']
         if backbone_type == 'image':
@@ -125,9 +127,10 @@ class SiglipBackbone(nn.Module):
             stage_1_backbone_dir = os.path.join(stage_1_ckpt_dir, 'backbone')
             if not os.path.exists(stage_1_backbone_dir):
                 stage_1_backbone_dir = stage_1_ckpt_dir
-            self.vision_model = UniSoccerBackbone(ckpt_path, num_frames, stage_1_backbone_dir)
+            self.vision_model = UniSoccerBackbone(ckpt_path, num_frames, stage_1_backbone_dir, hidden_dim)
             
         self.backbone_type = backbone_type
+        self.hidden_dim = hidden_dim
                 
         self.text_model = TextEncoder(text_encoder_ckpt_path)
         if freeze_text_encoder:
@@ -157,13 +160,14 @@ class SiglipBackbone(nn.Module):
             
             # 创建和原始batch_size匹配的tensor，None位置用零向量填充
             batch_size = len(text)
-            text_dim = 768
+            text_dim = self.hidden_dim
             text_pooled_output = torch.zeros(batch_size, text_dim, device=images.device, dtype=images.dtype)
             
             # 如果valid_texts为空，则返回全0，不要返回None
             if valid_texts:
                 # 对有效的text进行编码
                 text_pooled_output_valid = self.text_model(valid_texts)[0] # only get the pooled output
+
                 # 填充有效text的特征到对应位置
                 for valid_idx, original_idx in enumerate(valid_indices):
                     text_pooled_output[original_idx] = text_pooled_output_valid[valid_idx]

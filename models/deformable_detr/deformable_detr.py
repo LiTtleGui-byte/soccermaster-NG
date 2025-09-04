@@ -1048,7 +1048,7 @@ def cvt_config_to_args(config: dict):
     detr_args.set_cost_bbox = config["DETR_SET_COST_BBOX"]
     detr_args.set_cost_giou = config["DETR_SET_COST_GIOU"]
     detr_args.backbone_strides = [16]
-    detr_args.backbone_num_channels = [768]
+    detr_args.backbone_num_channels = [config["BACKBONE_HIDDEN_DIM"]]
     detr_args.enable_softmax_focal_loss = config["ENABLE_SOFTMAX_FOCAL_LOSS"]
     
     return detr_args
@@ -1095,11 +1095,16 @@ def build_deformable_detr_criterion(config: dict):
         aux_weight_dict.update({k + f'_enc': v for k, v in weight_dict.items()})
         weight_dict.update(aux_weight_dict)
     
+    if config["MODEL_ARCH"] == "multitask":
+        losses = ['labels', 'boxes', 'cardinality', 'roles', 'jn_holistic', 'digit_head', 'digit_tail']
+    elif config["MODEL_ARCH"] == "yolo":
+        losses = ['labels', 'boxes', 'cardinality']
+
     detr_criterion = SetCriterion(
         num_classes=args.num_classes,
         matcher=build_matcher(args),
         weight_dict=weight_dict,
-        losses = ['labels', 'boxes', 'cardinality', 'roles', 'jn_holistic', 'digit_head', 'digit_tail'],
+        losses = losses,
         focal_alpha=args.focal_alpha,
         detr_loss_batch_len=config["DETR_CRITERION_BATCH_LEN"],
         detection_data_type=config["DETECTION_DATA_TYPE"],

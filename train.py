@@ -26,6 +26,7 @@ import glob
 from data.build import build_dataloader
 from utils.logger import Logger, MetricsTracker, TPS, Metrics
 from models.multi_task import MultiTaskingSigLIP
+from models.yolo import YOLOModel
 from runtime_option import runtime_option
 from utils.misc import is_distributed, set_seed
 from configs.util import load_super_config, update_config, yaml_to_dict
@@ -476,9 +477,15 @@ def train_engine(config: dict):
     # Build metrics functions:
     metrics_fn_dict = build_metrics_fn(config=config)
     
-    model = MultiTaskingSigLIP(config=config, logger=logger)
+    if config["MODEL_ARCH"] == "multitask":
+        model = MultiTaskingSigLIP(config=config, logger=logger)
+    elif config["MODEL_ARCH"] == "yolo":
+        model = YOLOModel(config=config, logger=logger)
+    else:
+        raise ValueError(f"Invalid model architecture: {config['MODEL_ARCH']}")
+    
     if config["LOAD_CHECKPOINTS"]:
-        model.load_checkpoint(config["STAGE_1_CKPT_DIR"], logger)
+        model.load_checkpoint(config["STAGE_1_CKPT_DIR"], logger, load_heads=config["LOAD_HEADS"])
     if config['USE_GRADIENT_CHECKPOINTING']:
         model.backbone.vision_model.gradient_checkpointing_enable()
     
@@ -704,6 +711,10 @@ def evaluate_one_epoch(
     """
     model.eval()
     device = accelerator.device
+    # if config["MODEL_ARCH"] == "yolo":
+    #     original_model = model.module if hasattr(model, 'module') else model
+    #     original_model.model.to(device)
+    #     print('train', original_model.model.device, device)
     
     # Get dataset to heads mapping
     datasets_to_heads = config["DATASETS_TO_HEADS"]
@@ -738,7 +749,13 @@ def evaluate_one_epoch(
         with torch.no_grad():
             for batch_idx, batch in enumerate(dataloader):
                 images, annotations, metas = batch.values()
-                batch_size = images.size(0)
+                if type(images) == torch.Tensor:
+                    batch_size = images.size(0)
+                elif type(images) == list or type(images) == tuple:
+                    batch_size = len(images)
+                else:
+                    raise ValueError(f"Unknown image type: {type(images)}")
+                
                 if dataset_name in ["VideoCaption"]:
                     text = [annotation['text'] for annotation in annotations]
                 else:
@@ -746,7 +763,10 @@ def evaluate_one_epoch(
                 
                 # Forward pass
                 with accelerator.autocast():
-                    outputs = model(images, dataset_name, metas, text)
+                    if config["MODEL_ARCH"] == "yolo":
+                        outputs = model(images, dataset_name, metas, text, accelerator)
+                    else:
+                        outputs = model(images, dataset_name, metas, text)
                     
                     # Process each head for this dataset
                     for head_name in datasets_to_heads[dataset_name]:

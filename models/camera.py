@@ -527,7 +527,7 @@ class CameraMetrics(nn.Module):
 def build_camera_head(config: dict):
     """构建Camera检测头"""
     return Camera(
-        backbone_num_channels=[768],
+        backbone_num_channels=[config["BACKBONE_HIDDEN_DIM"]],
         backbone_type=config["BACKBONE_TYPE"]
     )
 

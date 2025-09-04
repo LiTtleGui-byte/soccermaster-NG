@@ -16,6 +16,7 @@ from accelerate.utils import DistributedDataParallelKwargs
 from data.build import build_dataloader
 from utils.logger import Logger, MetricsTracker
 from models.multi_task import MultiTaskingSigLIP
+from models.yolo import YOLOModel
 from utils.misc import set_seed
 from configs.util import load_super_config, update_config, yaml_to_dict
 from models.build import build_loss_fn, build_metrics_fn
@@ -164,56 +165,63 @@ def evaluation_engine(config: dict, checkpoint_path: str, log_dir: str = None,
     metrics_fn_dict = build_metrics_fn(config=config)
     
     # Build model
-    model = MultiTaskingSigLIP(config=config)
+    if config["MODEL_ARCH"] == "multitask":
+        model = MultiTaskingSigLIP(config=config, logger=logger)
+    elif config["MODEL_ARCH"] == "yolo":
+        model = YOLOModel(config=config, logger=logger)
+    else:
+        raise ValueError(f"Invalid model architecture: {config['MODEL_ARCH']}")
     
     # Load checkpoint
-    model.load_checkpoint(checkpoint_path)
+    if config["MODEL_ARCH"] == "multitask":
+        model.load_checkpoint(checkpoint_path)
     
     # Prepare model and dataloaders
     model = accelerator.prepare(model)
     dataloader_test_dict = {task: accelerator.prepare(dataloader) for task, dataloader in dataloader_test_dict.items()}
     
-    total_params = sum(p.numel() for p in model.parameters())
-    trainable_params = sum(p.numel() for p in model.parameters() if p.requires_grad)
-    trainable_percentage = (trainable_params / total_params) * 100
-    
-    # Get original model (handle DDP wrapper)
-    original_model = model.module if hasattr(model, 'module') else model
-    
-    # Calculate vision_model parameters
-    vision_params = sum(p.numel() for p in original_model.backbone.vision_model.parameters())
-    vision_trainable_params = sum(p.numel() for p in original_model.backbone.vision_model.parameters() if p.requires_grad)
-    
-    # Calculate each head parameters
-    head_params = {}
-    head_trainable_params = {}
-    total_head_params = 0
-    total_head_trainable_params = 0
-    
-    for head_name, head in original_model.multi_task_head.items():
-        head_total = sum(p.numel() for p in head.parameters())
-        head_train = sum(p.numel() for p in head.parameters() if p.requires_grad)
-        head_params[head_name] = head_total
-        head_trainable_params[head_name] = head_train
-        total_head_params += head_total
-        total_head_trainable_params += head_train
-    
-    # Log parameter statistics (in millions)
-    logger.info(f"=== Model Parameter Statistics (Unit: M) ===")
-    logger.info(f"Total parameters: {total_params/1e6:.2f}M")
-    logger.info(f"Trainable parameters: {trainable_params/1e6:.2f}M ({trainable_percentage:.2f}%)")
-    logger.info(f"Non-trainable parameters: {(total_params - trainable_params)/1e6:.2f}M ({100 - trainable_percentage:.2f}%)")
-    logger.info(f"")
-    logger.info(f"Vision Model parameters: {vision_params/1e6:.2f}M")
-    logger.info(f"Vision Model trainable: {vision_trainable_params/1e6:.2f}M ({vision_trainable_params/vision_params*100:.2f}%)")
-    logger.info(f"")
-    logger.info(f"Total Head parameters: {total_head_params/1e6:.2f}M")
-    logger.info(f"Total Head trainable: {total_head_trainable_params/1e6:.2f}M ({total_head_trainable_params/total_head_params*100:.2f}%)")
-    logger.info(f"")
-    for head_name in head_params:
-        logger.info(f"{head_name} Head parameters: {head_params[head_name]/1e6:.2f}M")
-        logger.info(f"{head_name} Head trainable: {head_trainable_params[head_name]/1e6:.2f}M ({head_trainable_params[head_name]/head_params[head_name]*100:.2f}%)")
-    logger.info(f"============================================")
+    if config["MODEL_ARCH"] == "multitask":
+        total_params = sum(p.numel() for p in model.parameters())
+        trainable_params = sum(p.numel() for p in model.parameters() if p.requires_grad)
+        trainable_percentage = (trainable_params / total_params) * 100
+        
+        # Get original model (handle DDP wrapper)
+        original_model = model.module if hasattr(model, 'module') else model
+        
+        # Calculate vision_model parameters
+        vision_params = sum(p.numel() for p in original_model.backbone.vision_model.parameters())
+        vision_trainable_params = sum(p.numel() for p in original_model.backbone.vision_model.parameters() if p.requires_grad)
+        
+        # Calculate each head parameters
+        head_params = {}
+        head_trainable_params = {}
+        total_head_params = 0
+        total_head_trainable_params = 0
+        
+        for head_name, head in original_model.multi_task_head.items():
+            head_total = sum(p.numel() for p in head.parameters())
+            head_train = sum(p.numel() for p in head.parameters() if p.requires_grad)
+            head_params[head_name] = head_total
+            head_trainable_params[head_name] = head_train
+            total_head_params += head_total
+            total_head_trainable_params += head_train
+        
+        # Log parameter statistics (in millions)
+        logger.info(f"=== Model Parameter Statistics (Unit: M) ===")
+        logger.info(f"Total parameters: {total_params/1e6:.2f}M")
+        logger.info(f"Trainable parameters: {trainable_params/1e6:.2f}M ({trainable_percentage:.2f}%)")
+        logger.info(f"Non-trainable parameters: {(total_params - trainable_params)/1e6:.2f}M ({100 - trainable_percentage:.2f}%)")
+        logger.info(f"")
+        logger.info(f"Vision Model parameters: {vision_params/1e6:.2f}M")
+        logger.info(f"Vision Model trainable: {vision_trainable_params/1e6:.2f}M ({vision_trainable_params/vision_params*100:.2f}%)")
+        logger.info(f"")
+        logger.info(f"Total Head parameters: {total_head_params/1e6:.2f}M")
+        logger.info(f"Total Head trainable: {total_head_trainable_params/1e6:.2f}M ({total_head_trainable_params/total_head_params*100:.2f}%)")
+        logger.info(f"")
+        for head_name in head_params:
+            logger.info(f"{head_name} Head parameters: {head_params[head_name]/1e6:.2f}M")
+            logger.info(f"{head_name} Head trainable: {head_trainable_params[head_name]/1e6:.2f}M ({head_trainable_params[head_name]/head_params[head_name]*100:.2f}%)")
+        logger.info(f"============================================")
     
     # Run evaluation
     logger.info("Starting evaluation...")

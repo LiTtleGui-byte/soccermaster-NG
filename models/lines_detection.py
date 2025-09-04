@@ -601,7 +601,7 @@ def build_lines_detection_head(config: dict):
     构建SoccerNetGSR Lines任务的head
     """
     # 获取backbone输出通道数
-    backbone_num_channels = [768]  # 根据SigLIP backbone的输出通道数
+    backbone_num_channels = [config["BACKBONE_HIDDEN_DIM"]]  # 根据SigLIP backbone的输出通道数
     num_lines = config["NUM_LINES"]
     backbone_type = config["BACKBONE_TYPE"]
     head_type = config["LINES_HEAD_TYPE"]  # 默认使用原来的LinesHead

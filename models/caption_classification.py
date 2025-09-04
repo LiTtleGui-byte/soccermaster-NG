@@ -12,7 +12,7 @@ from accelerate.utils.operations import gather_object
 
 class CaptionClassificationHead(nn.Module):
     def __init__(self, input_dim=768, backbone_type='image', dropout_rate=0.1, use_attn_pool=False, 
-                 use_transformers=False, num_transformer_encoder=2, use_mlp=True, use_layer_norm=False):
+                 use_transformers=False, num_transformer_encoder=2, nhead=12, use_mlp=True, use_layer_norm=False):
         """
         Args:
             input_dim: 输入特征维度
@@ -38,7 +38,7 @@ class CaptionClassificationHead(nn.Module):
         if self.use_transformers:
             transformer_encoder_layer = nn.TransformerEncoderLayer(
                 d_model=input_dim,
-                nhead=12,
+                nhead=nhead,
                 dim_feedforward=input_dim * 4,
                 dropout=dropout_rate,
                 activation='relu',
@@ -54,7 +54,7 @@ class CaptionClassificationHead(nn.Module):
             # Multi-head attention for pooling
             self.attn_pool = nn.MultiheadAttention(
                 embed_dim=input_dim,
-                num_heads=12,
+                num_heads=nhead,
                 dropout=dropout_rate,
                 batch_first=True
             )
@@ -397,14 +397,15 @@ class CaptionClassificationMetrics(nn.Module):
 def build_caption_classification_head(config: dict):
     """构建Caption分类头"""
     return CaptionClassificationHead(
-        input_dim=768,
+        input_dim=config["BACKBONE_HIDDEN_DIM"],
         backbone_type=config["BACKBONE_TYPE"],
         dropout_rate=config["CAPTION_CLASSIFICATION_DROPOUT_RATE"],
         use_attn_pool=config["CAPTION_CLASSIFICATION_USE_ATTN_POOL"],
         use_transformers=config["CAPTION_CLASSIFICATION_USE_TRANSFORMERS"],
         num_transformer_encoder=config["CAPTION_CLASSIFICATION_NUM_TRANSFORMER_ENCODER"],
         use_mlp=config["CAPTION_CLASSIFICATION_USE_MLP"],
-        use_layer_norm=config["CAPTION_CLASSIFICATION_USE_LAYER_NORM"]
+        use_layer_norm=config["CAPTION_CLASSIFICATION_USE_LAYER_NORM"],
+        nhead=config["BACKBONE_HIDDEN_DIM"] // 64
     )
 
 

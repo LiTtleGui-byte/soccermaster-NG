@@ -30,7 +30,8 @@ class SiglipBackbone(nn.Module):
                  train_backbone: bool,
                  use_lora: bool,
                  use_temporal_gate: bool,
-                 freeze_text_encoder: bool = True):
+                 freeze_text_encoder: bool = True,
+                 hidden_dim: int = 768):
         super().__init__()
         assert backbone_type in ['image', 'video']
         if backbone_type == 'image':

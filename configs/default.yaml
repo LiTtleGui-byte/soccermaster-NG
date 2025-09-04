@@ -104,6 +104,7 @@ AUG_MEAN: [0.5, 0.5, 0.5]
 AUG_STD: [0.5, 0.5, 0.5]
 
 # BACKBONE:
+MODEL_ARCH: multitask
 BACKBONE_TYPE: image
 # SIGLIP_BACKBONE_TYPE: 选择使用哪种SiglipBackbone实现
 # - 'standard': 使用 models/siglip2.py 中的标准SiglipBackbone (默认)
@@ -112,8 +113,11 @@ SIGLIP_BACKBONE_TYPE: standard
 NUM_FRAMES: 30
 CKPT_PATH: ./pretrained_models/google/siglip2-base-patch16-512
 LOAD_CHECKPOINTS: False
+LOAD_HEADS: True
 STAGE_1_CKPT_DIR: ./pretrained_models/google/siglip2-base-patch16-512
 TEXT_ENCODER_CKPT_PATH: ./pretrained_models/google/siglip2-base-patch16-512
+BACKBONE_HIDDEN_DIM: 768
+YOLO_MODEL_PATH: ./pretrained_models/yolo/yolo_v8x6_person_lr_default_best.pt
 TRAIN_BACKBONE: True
 FREEZE_TEXT_ENCODER: True  # 是否冻结文本编码器，默认为True不训练
 BACKBONE_USE_TEMPORAL_GATE: True  # 是否使用temporal embedding gate机制

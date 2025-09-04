@@ -635,7 +635,7 @@ class KeypointsDetectionMetrics(nn.Module):
 
 def build_keypoints_detection_head(config: dict):
     """构建KeypointsDetection头"""
-    backbone_num_channels = [config['BACKBONE_NUM_CHANNELS'] if 'BACKBONE_NUM_CHANNELS' in config else 768]
+    backbone_num_channels = [config['BACKBONE_HIDDEN_DIM']]
     num_keypoints = config['NUM_KEYPOINTS']
     backbone_type = config['BACKBONE_TYPE']
     
