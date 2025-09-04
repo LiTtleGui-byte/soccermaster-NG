@@ -10,6 +10,8 @@ class Compose:
 
     def __call__(self, image, annotation, metas):
         for transform in self.transforms:
+            if transform is None:
+                continue
             image, annotation, metas = transform(image, annotation, metas)
         return image, annotation, metas
     

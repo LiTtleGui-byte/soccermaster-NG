@@ -11,10 +11,8 @@ import json
 import torch
 import numpy as np
 from PIL import Image
-from torchvision.transforms import v2
 from collections import defaultdict
 from torch.utils.data import Dataset
-import random
 import math
 from math import floor
 from torch.utils.data import DataLoader
@@ -25,6 +23,8 @@ from data.soccernet_gsr_reid import role_mapping, jn_mapping, digit_head_mapping
 from data.pnlcalib_utils.utils_keypoints import KeypointsDB
 from data.pnlcalib_utils.utils_lines import LineKeypointsDB
 import copy
+import zipfile
+import pickle
 
 from sn_calibration.src.evaluate_extremities import mirror_labels
 
@@ -34,7 +34,6 @@ class SoccerNetGSR_Detection(Dataset):
             data_root: str = "./datasets/",
             sub_dir: str = "SN-GSR-2024",
             split: str = "train",
-            load_annotation: bool = True,
             transforms=None,
             num_keypoints: int = 58,
             num_lines: int = 24,
@@ -44,13 +43,17 @@ class SoccerNetGSR_Detection(Dataset):
             image_input_size: int = 512,
             detect_ball: bool = False,
             detect_ball_only: bool = False,
+            use_extra_data: bool = False,
+            extra_data_path: str = "",
+            extra_data_only: bool = False,
+            train_keypoints_or_lines_detection: bool = True,
+            train_camera_regression: bool = True,
     ):
         super(SoccerNetGSR_Detection, self).__init__()
         assert split in ['train', 'valid', 'test']
         
         self.data_dir = os.path.join(data_root, sub_dir)
         self.split = split
-        self.load_annotation = load_annotation
         self.transforms = transforms
         self.num_keypoints = num_keypoints
         self.num_lines = num_lines
@@ -60,6 +63,8 @@ class SoccerNetGSR_Detection(Dataset):
         self.image_input_size = image_input_size
         self.detect_ball = detect_ball
         self.detect_ball_only = detect_ball_only
+        self.train_keypoints_or_lines_detection = train_keypoints_or_lines_detection
+        self.train_camera_regression = train_camera_regression
         
         # Validate configuration
         if self.detect_ball_only and self.detect_ball:
@@ -68,12 +73,15 @@ class SoccerNetGSR_Detection(Dataset):
         self.sequence_infos = self._get_sequence_infos()
         self.image_paths = self._get_image_paths()
         
-        assert self.load_annotation, "For SoccerNetGSR_Detection, annotations are required."
-        
-        if self.load_annotation:
-            self.annotations = self._get_annotations()
-            self.ann_is_legals = self._decouple_is_legal()
-            self.set_sample_position()
+        self.annotations = dict()
+        if not (extra_data_only and self.split == 'train'):
+            annotations = self._get_annotations()
+            self.annotations.update(annotations)
+        if use_extra_data and self.split == 'train':
+            extra_data_annotations = self._get_extra_data_annotations()
+            self.annotations.update(extra_data_annotations)
+        # self.ann_is_legals = self._decouple_is_legal()
+        self.set_sample_position()
             
         return
 
@@ -82,12 +90,6 @@ class SoccerNetGSR_Detection(Dataset):
 
     def get_image_paths(self):
         return self.image_paths
-
-    def get_annotations(self):
-        if self.load_annotation:
-            return self.annotations
-        else:
-            raise ValueError("Annotations are not loaded.")
 
     def _get_sequence_names(self):
         sequence_names = os.listdir(os.path.join(self.data_dir, 'SoccerNetGS', self.split))
@@ -131,11 +133,17 @@ class SoccerNetGSR_Detection(Dataset):
     def _get_image_path(sequence_dir, frame_idx):
         return str(os.path.join(sequence_dir, "img1", f"{frame_idx+1:06d}.jpg"))    # the image name is 1-indexed
             
-    def _init_annotations(self, sequence_names):
+    def _init_annotations(self, sequence_names, extra_data=False):
         annotations = dict()
         for sequence_name in sequence_names:
             annotations[sequence_name] = []
-            for i in range(self.sequence_infos[sequence_name]["length"]):
+            if not extra_data:
+                num_frames = self.sequence_infos[sequence_name]["length"]
+            else:
+                sequence_dir = self._get_sequence_dir(self.data_dir, 'sn500', sequence_name)
+                img_dir = os.path.join(sequence_dir, 'img1')
+                num_frames = len(os.listdir(img_dir))
+            for i in range(num_frames):
                 annotations[sequence_name].append({
                     "id": [],
                     "category": [],
@@ -316,6 +324,49 @@ class SoccerNetGSR_Detection(Dataset):
                 annotations[sequence_name][i]["is_legal"] = is_legal(annotations[sequence_name][i])
         return annotations
     
+    def _get_extra_data_annotations(self):
+        with zipfile.ZipFile(self.extra_data_path) as zf:
+            name_list = zf.namelist()
+            sequence_names = [name for name in name_list if 'pkl' in name and '_image' not in name]
+            processed_sequence_names = [f'SNGS-{name}' for name in sequence_names]
+            annotations = self._init_annotations(processed_sequence_names, extra_data=True)
+            for name in sequence_names:
+                processed_sequence_name = f'SNGS-{name}'
+                with zf.open(f'{name}.pkl') as f:
+                    data = pickle.load(f) # pandas dataframe
+                with zf.open(f'{name}_image.pkl') as f:
+                    image_data = pickle.load(f) # pandas dataframe
+
+                for id, row in data.iterrows():
+                    frame_idx = int(row['image_id'][-6:]) - 1
+                    annotations[processed_sequence_name][frame_idx]["id"].append(0)
+                    annotations[processed_sequence_name][frame_idx]["category"].append(0)
+                    annotations[processed_sequence_name][frame_idx]["bbox"].append(row['bbox_ltwh'].tolist())
+                    annotations[processed_sequence_name][frame_idx]["visibility"].append(1.0)
+                    annotations[processed_sequence_name][frame_idx]["role"].append(role_mapping[row['role']])
+                    legibility_score = row['legibility_score']
+                    annotations[processed_sequence_name][frame_idx]["legibility_score"].append(legibility_score)
+                    jn = row['jersey_number'] if legibility_score > 0.5 else None
+                    annotations[processed_sequence_name][frame_idx]["jersey"].append(jn_mapping[jn])
+                    if jn is not None:
+                        if len(jn) == 1:
+                            annotations[processed_sequence_name][frame_idx]["digit_tail"].append(digit_tail_mapping[jn])
+                            annotations[processed_sequence_name][frame_idx]["digit_head"].append(digit_head_mapping[None])
+                        elif len(jn) == 2:
+                            annotations[processed_sequence_name][frame_idx]["digit_head"].append(digit_head_mapping[jn[0]])
+                            annotations[processed_sequence_name][frame_idx]["digit_tail"].append(digit_tail_mapping[jn[1]])
+                        else:
+                            annotations[processed_sequence_name][frame_idx]["digit_head"].append(digit_head_mapping[None])
+                            annotations[processed_sequence_name][frame_idx]["digit_tail"].append(digit_tail_mapping[None])
+                    else:
+                        annotations[processed_sequence_name][frame_idx]["digit_head"].append(digit_head_mapping[None])
+                        annotations[processed_sequence_name][frame_idx]["digit_tail"].append(digit_tail_mapping[None])
+                        
+                for id, row in image_data.iterrows():
+                    frame_idx = int(row['id'][-6:]) - 1
+                    annotations[processed_sequence_name][frame_idx]["lines"] = row["lines"]
+        return annotations
+    
     def correct_lines_labels(self, data):
         if 'Goal left post left' in data.keys():
             data['Goal left post left '] = copy.deepcopy(data['Goal left post left'])
@@ -377,31 +428,33 @@ class SoccerNetGSR_Detection(Dataset):
         annotation['labels'] = annotation['category']
         annotation['roles'] = annotation['role']
         # use for camera loss:
-        annotation['quaternion'] = mat_to_quat(annotation['rotation_matrix'].unsqueeze(0)).squeeze(0)
-        H, W = metas['image_size']
-        fov_h = 2 * torch.atan((H / 2) / annotation['intrinsic'][1, 1])
-        fov_w = 2 * torch.atan((W / 2) / annotation['intrinsic'][0, 0])
-        annotation['fov_hw'] = torch.stack([fov_h, fov_w])
+        if self.train_camera_regression:
+            annotation['quaternion'] = mat_to_quat(annotation['rotation_matrix'].unsqueeze(0)).squeeze(0)
+            H, W = metas['image_size']
+            fov_h = 2 * torch.atan((H / 2) / annotation['intrinsic'][1, 1])
+            fov_w = 2 * torch.atan((W / 2) / annotation['intrinsic'][0, 0])
+            annotation['fov_hw'] = torch.stack([fov_h, fov_w])
         # use for keypoints detection:
         # print(annotation['lines'])
-        try:
-            line_db = LineKeypointsDB(annotation['lines'], image)
-            lines_target = line_db.get_tensor()
-            annotation['lines_target'] = torch.tensor(lines_target, dtype=torch.float32)
-            annotation['valid_lines'] = torch.tensor(True, dtype=torch.bool)
-        except Exception as e:
-            annotation['lines_target'] = torch.zeros((self.num_lines, self.image_input_size//2, self.image_input_size//2), dtype=torch.float32)
-            annotation['valid_lines'] = torch.tensor(False, dtype=torch.bool)
-        try:
-            keypoints = KeypointsDB(self.correct_lines_labels(annotation['lines']), image)
-            keypoints_target, keypoints_mask = keypoints.get_tensor_w_mask()
-            annotation['keypoints_target'] = torch.tensor(keypoints_target, dtype=torch.float32)
-            annotation['keypoints_mask'] = torch.tensor(keypoints_mask, dtype=torch.float32)
-            annotation['valid_keypoints'] = torch.tensor(True, dtype=torch.bool)
-        except Exception as e:
-            annotation['keypoints_target'] = torch.zeros((self.num_keypoints, self.image_input_size//2, self.image_input_size//2), dtype=torch.float32)
-            annotation['keypoints_mask'] = torch.zeros((self.num_keypoints), dtype=torch.float32)
-            annotation['valid_keypoints'] = torch.tensor(False, dtype=torch.bool)
+        if self.train_keypoints_or_lines_detection:
+            try:
+                line_db = LineKeypointsDB(annotation['lines'], image)
+                lines_target = line_db.get_tensor()
+                annotation['lines_target'] = torch.tensor(lines_target, dtype=torch.float32)
+                annotation['valid_lines'] = torch.tensor(True, dtype=torch.bool)
+            except Exception as e:
+                annotation['lines_target'] = torch.zeros((self.num_lines, self.image_input_size//2, self.image_input_size//2), dtype=torch.float32)
+                annotation['valid_lines'] = torch.tensor(False, dtype=torch.bool)
+            try:
+                keypoints = KeypointsDB(self.correct_lines_labels(annotation['lines']), image)
+                keypoints_target, keypoints_mask = keypoints.get_tensor_w_mask()
+                annotation['keypoints_target'] = torch.tensor(keypoints_target, dtype=torch.float32)
+                annotation['keypoints_mask'] = torch.tensor(keypoints_mask, dtype=torch.float32)
+                annotation['valid_keypoints'] = torch.tensor(True, dtype=torch.bool)
+            except Exception as e:
+                annotation['keypoints_target'] = torch.zeros((self.num_keypoints, self.image_input_size//2, self.image_input_size//2), dtype=torch.float32)
+                annotation['keypoints_mask'] = torch.zeros((self.num_keypoints), dtype=torch.float32)
+                annotation['valid_keypoints'] = torch.tensor(False, dtype=torch.bool)
         
         return image, annotation, metas
         
@@ -472,11 +525,14 @@ class SoccerNetGSR_Detection(Dataset):
             return image, annotation, metas
 
 def build_gsr_detection_dataset(config: dict, split: str):
+    assert 'SoccerNetGSR_Detection' in config['DATASETS_TO_HEADS'], "SoccerNetGSR_Detection must be in DATASETS_TO_HEADS"
+    train_keypoints_or_lines_detection = 'LinesDetection' in config['DATASETS_TO_HEADS']['SoccerNetGSR_Detection'] or 'KeypointsDetection' in config['DATASETS_TO_HEADS']['SoccerNetGSR_Detection']
+    train_camera_regression = 'CameraRegression' in config['DATASETS_TO_HEADS']['SoccerNetGSR_Detection']
+    
     dataset = SoccerNetGSR_Detection(
         data_root=config["DATA_ROOT"],
         sub_dir=config["SoccerNetGSR_SUB_DIR"],
         split=split,
-        load_annotation=True,
         transforms=build_transforms(config),
         num_keypoints=config["NUM_KEYPOINTS"],
         num_lines=config["NUM_LINES"],
@@ -486,6 +542,8 @@ def build_gsr_detection_dataset(config: dict, split: str):
         image_input_size=config["AUG_MAX_SIZE"],
         detect_ball=config["DETR_DETECT_BALL"],
         detect_ball_only=config["DETECT_BALL_ONLY"],
+        train_keypoints_or_lines_detection=train_keypoints_or_lines_detection,
+        train_camera_regression=train_camera_regression,
     )
     return dataset
 
@@ -680,12 +738,16 @@ class LRAmbiguityFix():
 
 def build_transforms(config: dict):
 
+    use_lr_ambiguity_fix = False
+    if 'SoccerNetGSR_Detection' in config['DATASETS_TO_HEADS'] and ('LinesDetection' in config['DATASETS_TO_HEADS']['SoccerNetGSR_Detection'] or 'KeypointsDetection' in config['DATASETS_TO_HEADS']['SoccerNetGSR_Detection']):
+        use_lr_ambiguity_fix = True
+    
     return Compose([
         ToTensor(),
         RandomResize(sizes=config["AUG_RANDOM_RESIZE"], max_size=config["AUG_MAX_SIZE"], keep_aspect_ratio=config["KEEP_ASPECT_RATIO"]),
         Normalize(mean=config["AUG_MEAN"], std=config["AUG_STD"]),
         BoxXYWHtoCXCYWH(),
-        LRAmbiguityFix(),
+        LRAmbiguityFix() if use_lr_ambiguity_fix else None,
     ])
     
 def collate_fn(batch):
