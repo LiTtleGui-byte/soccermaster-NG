@@ -63,6 +63,9 @@ class SoccerNetGSR_Detection(Dataset):
         self.image_input_size = image_input_size
         self.detect_ball = detect_ball
         self.detect_ball_only = detect_ball_only
+        self.use_extra_data = use_extra_data
+        self.extra_data_path = extra_data_path
+        self.extra_data_only = extra_data_only
         self.train_keypoints_or_lines_detection = train_keypoints_or_lines_detection
         self.train_camera_regression = train_camera_regression
         
@@ -71,15 +74,20 @@ class SoccerNetGSR_Detection(Dataset):
             print("Warning: Both detect_ball_only and detect_ball are set to True. detect_ball_only takes precedence.")
 
         self.sequence_infos = self._get_sequence_infos()
-        self.image_paths = self._get_image_paths()
+        self.image_paths = defaultdict(list)
         
         self.annotations = dict()
         if not (extra_data_only and self.split == 'train'):
+            image_paths = self._get_image_paths()
+            self.image_paths.update(image_paths)
             annotations = self._get_annotations()
             self.annotations.update(annotations)
         if use_extra_data and self.split == 'train':
+            extra_data_image_paths = self._get_extra_data_image_paths()
+            self.image_paths.update(extra_data_image_paths)
             extra_data_annotations = self._get_extra_data_annotations()
             self.annotations.update(extra_data_annotations)
+            
         # self.ann_is_legals = self._decouple_is_legal()
         self.set_sample_position()
             
@@ -137,12 +145,18 @@ class SoccerNetGSR_Detection(Dataset):
         annotations = dict()
         for sequence_name in sequence_names:
             annotations[sequence_name] = []
-            if not extra_data:
-                num_frames = self.sequence_infos[sequence_name]["length"]
-            else:
-                sequence_dir = self._get_sequence_dir(self.data_dir, 'sn500', sequence_name)
-                img_dir = os.path.join(sequence_dir, 'img1')
-                num_frames = len(os.listdir(img_dir))
+            # if not extra_data:
+            num_frames = self.sequence_infos[sequence_name]["length"]
+            # else:
+            #     sequence_dir = self._get_sequence_dir(self.data_dir, 'sn500', sequence_name)
+            #     img_dir = os.path.join(sequence_dir, 'img1')
+            #     num_frames = len(os.listdir(img_dir))
+            #     self.sequence_infos[sequence_name] = {
+            #     "width": 1920,
+            #     "height": 1080,
+            #     "length": num_frames,
+            #     "is_static": False,
+            # }
             for i in range(num_frames):
                 annotations[sequence_name].append({
                     "id": [],
@@ -324,10 +338,44 @@ class SoccerNetGSR_Detection(Dataset):
                 annotations[sequence_name][i]["is_legal"] = is_legal(annotations[sequence_name][i])
         return annotations
     
+    def _get_extra_data_image_paths(self):
+        """
+        Get image paths for extra data sequences
+        """
+        image_paths = defaultdict(list)
+        
+        # Get sequence names from the zip file
+        with zipfile.ZipFile(self.extra_data_path) as zf:
+            name_list = zf.namelist()
+            # Extract sequence names from pickle files (excluding '_image' files)
+            sequence_names = list(set(name[:-4] for name in name_list if name.endswith('.pkl') and '_image' not in name))
+        
+        processed_sequence_names = [f'SNGS-{name}' for name in sequence_names]
+        
+        for name, processed_sequence_name in zip(sequence_names, processed_sequence_names):
+            sequence_dir = self._get_sequence_dir(self.data_dir, 'sn500', processed_sequence_name)
+            
+            img_dir = os.path.join(sequence_dir, 'img1')
+            num_frames = len(os.listdir(img_dir))
+            self.sequence_infos[processed_sequence_name] = {
+                "width": 1920,
+                "height": 1080,
+                "length": num_frames,
+                "is_static": False,
+            }
+            
+            sequence_length = self.sequence_infos[processed_sequence_name]["length"]
+            
+            for i in range(sequence_length):
+                image_path = self._get_image_path(sequence_dir, i)
+                image_paths[processed_sequence_name].append(image_path)
+        
+        return image_paths
+    
     def _get_extra_data_annotations(self):
         with zipfile.ZipFile(self.extra_data_path) as zf:
             name_list = zf.namelist()
-            sequence_names = [name for name in name_list if 'pkl' in name and '_image' not in name]
+            sequence_names = [name[:-4] for name in name_list if 'pkl' in name and '_image' not in name]
             processed_sequence_names = [f'SNGS-{name}' for name in sequence_names]
             annotations = self._init_annotations(processed_sequence_names, extra_data=True)
             for name in sequence_names:
@@ -339,7 +387,7 @@ class SoccerNetGSR_Detection(Dataset):
 
                 for id, row in data.iterrows():
                     frame_idx = int(row['image_id'][-6:]) - 1
-                    annotations[processed_sequence_name][frame_idx]["id"].append(0)
+                    annotations[processed_sequence_name][frame_idx]["id"].append(id)
                     annotations[processed_sequence_name][frame_idx]["category"].append(0)
                     annotations[processed_sequence_name][frame_idx]["bbox"].append(row['bbox_ltwh'].tolist())
                     annotations[processed_sequence_name][frame_idx]["visibility"].append(1.0)
@@ -347,6 +395,8 @@ class SoccerNetGSR_Detection(Dataset):
                     legibility_score = row['legibility_score']
                     annotations[processed_sequence_name][frame_idx]["legibility_score"].append(legibility_score)
                     jn = row['jersey_number'] if legibility_score > 0.5 else None
+                    if jn is not None and (int(jn) < 0 or int(jn) > 99):
+                        jn = None
                     annotations[processed_sequence_name][frame_idx]["jersey"].append(jn_mapping[jn])
                     if jn is not None:
                         if len(jn) == 1:
@@ -364,10 +414,46 @@ class SoccerNetGSR_Detection(Dataset):
                         
                 for id, row in image_data.iterrows():
                     frame_idx = int(row['id'][-6:]) - 1
-                    annotations[processed_sequence_name][frame_idx]["lines"] = row["lines"]
+                    annotations[processed_sequence_name][frame_idx]["lines"] = self.correct_lines_labels_reverse(row["lines"])
+                    # Convert lists to tensors in a single operation per frame
+        for sequence_name in processed_sequence_names:
+            for i in range(self.sequence_infos[sequence_name]["length"]):
+                frame_annotation = annotations[sequence_name][i]
+                if len(frame_annotation["id"]) > 0:
+                    frame_annotation["id"] = torch.tensor(frame_annotation["id"], dtype=torch.int64)
+                    frame_annotation["category"] = torch.tensor(frame_annotation["category"], dtype=torch.int64)
+                    frame_annotation["bbox"] = torch.tensor(frame_annotation["bbox"], dtype=torch.float32)
+                    frame_annotation["visibility"] = torch.tensor(frame_annotation["visibility"], dtype=torch.float32)
+                    frame_annotation["role"] = torch.tensor(frame_annotation["role"], dtype=torch.int64)
+                    frame_annotation["jersey"] = torch.tensor(frame_annotation["jersey"], dtype=torch.int64)
+                    frame_annotation["digit_head"] = torch.tensor(frame_annotation["digit_head"], dtype=torch.int64)
+                    frame_annotation["digit_tail"] = torch.tensor(frame_annotation["digit_tail"], dtype=torch.int64)
+                    frame_annotation["legibility_score"] = torch.tensor(frame_annotation["legibility_score"], dtype=torch.float32)
+                else:
+                    # Empty frame
+                    frame_annotation["id"] = torch.zeros((0, ), dtype=torch.int64)
+                    frame_annotation["category"] = torch.zeros((0, ), dtype=torch.int64)
+                    frame_annotation["bbox"] = torch.zeros((0, 4), dtype=torch.float32)
+                    frame_annotation["visibility"] = torch.zeros((0, ), dtype=torch.float32)
+                    frame_annotation["role"] = torch.zeros((0, ), dtype=torch.int64)
+                    frame_annotation["jersey"] = torch.zeros((0, ), dtype=torch.int64)
+                    frame_annotation["digit_head"] = torch.zeros((0, ), dtype=torch.int64)
+                    frame_annotation["digit_tail"] = torch.zeros((0, ), dtype=torch.int64)
+                    frame_annotation["legibility_score"] = torch.zeros((0, ), dtype=torch.float32)
+
+        for sequence_name in processed_sequence_names:
+            for i in range(self.sequence_infos[sequence_name]["length"]):
+                annotations[sequence_name][i]["is_legal"] = is_legal(annotations[sequence_name][i])
         return annotations
     
     def correct_lines_labels(self, data):
+        if 'Goal left post left' in data.keys():
+            data['Goal left post left '] = copy.deepcopy(data['Goal left post left'])
+            del data['Goal left post left']
+
+        return data
+    
+    def correct_lines_labels_reverse(self, data):
         if 'Goal left post left' in data.keys():
             data['Goal left post left '] = copy.deepcopy(data['Goal left post left'])
             del data['Goal left post left']
@@ -542,6 +628,9 @@ def build_gsr_detection_dataset(config: dict, split: str):
         image_input_size=config["AUG_MAX_SIZE"],
         detect_ball=config["DETR_DETECT_BALL"],
         detect_ball_only=config["DETECT_BALL_ONLY"],
+        use_extra_data=config["USE_EXTRA_DATA"],
+        extra_data_path=config["EXTRA_DATA_PATH"],
+        extra_data_only=config["EXTRA_DATA_ONLY"],
         train_keypoints_or_lines_detection=train_keypoints_or_lines_detection,
         train_camera_regression=train_camera_regression,
     )
