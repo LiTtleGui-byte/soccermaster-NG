@@ -50,6 +50,7 @@ class MultiTaskingSigLIP(nn.Module):
             config['TRAIN_BACKBONE'], 
             False, 
             config['BACKBONE_USE_TEMPORAL_GATE'], 
+            config['FREEZE_VISION_ENCODER'],
             config['FREEZE_TEXT_ENCODER'],
             config['BACKBONE_HIDDEN_DIM']
         )

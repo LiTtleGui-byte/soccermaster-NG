@@ -414,7 +414,10 @@ class SoccerNetGSR_Detection(Dataset):
                         
                 for id, row in image_data.iterrows():
                     frame_idx = int(row['id'][-6:]) - 1
-                    annotations[processed_sequence_name][frame_idx]["lines"] = self.correct_lines_labels_reverse(row["lines"])
+                    lines = row["lines"]
+                    if not isinstance(lines, dict):
+                        lines = {}
+                    annotations[processed_sequence_name][frame_idx]["lines"] = self.correct_lines_labels_reverse(lines)
                     # Convert lists to tensors in a single operation per frame
         for sequence_name in processed_sequence_names:
             for i in range(self.sequence_infos[sequence_name]["length"]):

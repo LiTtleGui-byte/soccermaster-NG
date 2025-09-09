@@ -23,7 +23,7 @@ from timm.models.layers import DropPath
 from einops import rearrange
 
 class ResidualAttentionBlock(nn.Module):
-    def __init__(self, res_idx, d_model=768, n_head=12, drop_path=0., attn_mask=None, dropout=0., attention_type='divided_space_time',model_name = "google/siglip-base-patch16-224"):
+    def __init__(self, res_idx, d_model=768, n_head=12, drop_path=0., attn_mask=None, dropout=0., attention_type='divided_space_time', model_name="google/siglip-base-patch16-224"):
         super().__init__()
         model = SiglipVisionModel.from_pretrained(model_name)
         vision_model = model.vision_model
@@ -117,6 +117,7 @@ class SiglipBackbone(nn.Module):
                  train_backbone: bool,
                  use_lora: bool,
                  use_temporal_gate: bool,
+                 freeze_vision_encoder: bool = False,
                  freeze_text_encoder: bool = True,
                  hidden_dim: int = 768):
         super().__init__()
@@ -133,6 +134,14 @@ class SiglipBackbone(nn.Module):
         self.hidden_dim = hidden_dim
                 
         self.text_model = TextEncoder(text_encoder_ckpt_path)
+        
+        if freeze_vision_encoder:
+            for param in self.vision_model.parameters():
+                param.requires_grad = False
+        else:
+            for param in self.vision_model.parameters():
+                param.requires_grad = True
+        
         if freeze_text_encoder:
             for param in self.text_model.parameters():
                 param.requires_grad = False
