@@ -3,6 +3,9 @@ from torchvision.transforms import v2
 import random
 from math import floor
 from PIL import Image
+import numpy as np
+import cv2
+import copy
 
 class Compose:
     def __init__(self, transforms):
@@ -21,7 +24,6 @@ class Normalize:
         self.std = std
 
     def __call__(self, image, annotation, metas):
-        image = image.to(torch.float32).div(255)
         image = v2.functional.normalize(image, mean=self.mean, std=self.std)
         if "bbox" in annotation:
             h, w = image.shape[-2:]
@@ -68,6 +70,7 @@ class RandomResize:
         # Resize images:
         if isinstance(image, torch.Tensor):
             image = v2.functional.resize(image, new_hw, interpolation=v2.InterpolationMode.BICUBIC)
+            image = torch.clamp(image, 0, 1)
         else:
             raise NotImplementedError(f"The input image type {type(image)} is not supported.")
         # Resize annotations:
@@ -85,6 +88,7 @@ class ToTensor:
 
     def __call__(self, image, annotation, metas):
         image = v2.functional.to_image(image)
+        image = v2.functional.to_dtype(image, torch.float32, scale=True)
         return image, annotation, metas
     
 def get_image_hw(image: torch.Tensor | list | Image.Image):
@@ -96,3 +100,198 @@ def get_image_hw(image: torch.Tensor | list | Image.Image):
         return image.height, image.width
     else:
         raise NotImplementedError("The input image type is not supported.")
+
+
+class ColorJitter:
+    """Apply color jitter transformation with configurable parameters"""
+    def __init__(self, brightness=0.0, contrast=0.0, saturation=0.0, hue=0.0, p=1.0):
+        self.brightness = brightness
+        self.contrast = contrast
+        self.saturation = saturation
+        self.hue = hue
+        self.p = p
+
+    def __call__(self, image, annotation, metas):
+        if random.random() > self.p:
+            return image, annotation, metas
+        
+        # Store color jitter parameters for consistent application across frames
+        if 'color_jitter_params' not in metas:
+            # Generate random parameters
+            brightness_factor = None
+            if self.brightness > 0:
+                brightness_factor = random.uniform(max(0, 1 - self.brightness), 1 + self.brightness)
+            
+            contrast_factor = None
+            if self.contrast > 0:
+                contrast_factor = random.uniform(max(0, 1 - self.contrast), 1 + self.contrast)
+            
+            saturation_factor = None
+            if self.saturation > 0:
+                saturation_factor = random.uniform(max(0, 1 - self.saturation), 1 + self.saturation)
+            
+            hue_factor = None
+            if self.hue > 0:
+                hue_factor = random.uniform(-self.hue, self.hue)
+            
+            metas['color_jitter_params'] = {
+                'brightness': brightness_factor,
+                'contrast': contrast_factor,
+                'saturation': saturation_factor,
+                'hue': hue_factor
+            }
+        
+        # Apply color jitter using stored parameters
+        params = metas['color_jitter_params']
+        
+        if isinstance(image, torch.Tensor):
+            if params['brightness'] is not None:
+                image = v2.functional.adjust_brightness(image, params['brightness'])
+            if params['contrast'] is not None:
+                image = v2.functional.adjust_contrast(image, params['contrast'])
+            if params['saturation'] is not None:
+                image = v2.functional.adjust_saturation(image, params['saturation'])
+            if params['hue'] is not None:
+                image = v2.functional.adjust_hue(image, params['hue'])
+        elif isinstance(image, list):
+            # Apply to all frames in the list
+            for i in range(len(image)):
+                if params['brightness'] is not None:
+                    image[i] = v2.functional.adjust_brightness(image[i], params['brightness'])
+                if params['contrast'] is not None:
+                    image[i] = v2.functional.adjust_contrast(image[i], params['contrast'])
+                if params['saturation'] is not None:
+                    image[i] = v2.functional.adjust_saturation(image[i], params['saturation'])
+                if params['hue'] is not None:
+                    image[i] = v2.functional.adjust_hue(image[i], params['hue'])
+        else:
+            raise NotImplementedError(f"Color jitter not implemented for image type: {type(image)}")
+        
+        return image, annotation, metas
+
+
+class RandomHorizontalFlip:
+    """Apply random horizontal flip with annotation adjustment"""
+    def __init__(self, p=0.5):
+        self.p = p
+
+    def __call__(self, image, annotation, metas):
+        if random.random() > self.p:
+            return image, annotation, metas
+        
+        # Store flip decision for consistent application across frames
+        if 'horizontal_flip' not in metas:
+            metas['horizontal_flip'] = True
+        
+        if not metas['horizontal_flip']:
+            return image, annotation, metas
+        
+        # Apply horizontal flip to image(s)
+        if isinstance(image, torch.Tensor):
+            image = v2.functional.hflip(image)
+            image_width = image.shape[-1]
+        elif isinstance(image, list):
+            # Apply to all frames in the list
+            for i in range(len(image)):
+                image[i] = v2.functional.hflip(image[i])
+            image_width = image[0].shape[-1]
+        else:
+            raise NotImplementedError(f"Horizontal flip not implemented for image type: {type(image)}")
+        
+        # Adjust annotations
+        if "bbox" in annotation:
+            # Flip bounding boxes (format: x, y, w, h)
+            # bbox = annotation["bbox"].clone()
+            bbox = annotation["bbox"]
+            bbox[:, 0] = image_width - bbox[:, 0] - bbox[:, 2]  # x_new = width - x_old - w
+            annotation["bbox"] = bbox
+        
+        if "lines" in annotation and len(annotation["lines"]) > 0:
+            lines = annotation["lines"]
+            for _, line in lines.items():
+                for point in line:
+                    point["x"] = 1 - point["x"]
+            annotation["lines"] = lines
+        
+        return image, annotation, metas
+
+
+class GaussianNoise:
+    """Add Gaussian noise to images"""
+    def __init__(self, mean=0.0, std=0.02, p=1.0):
+        self.mean = mean
+        self.std = std
+        self.p = p
+
+    def __call__(self, image, annotation, metas):
+        if random.random() > self.p:
+            return image, annotation, metas
+        
+        # Store noise parameters for consistent application across frames
+        if 'gaussian_noise_params' not in metas:
+            metas['gaussian_noise_params'] = {
+                'mean': self.mean,
+                'std': random.uniform(0, self.std)  # Random std up to max
+            }
+        
+        params = metas['gaussian_noise_params']
+        
+        if isinstance(image, torch.Tensor):
+            noise = torch.randn_like(image) * params['std'] + params['mean']
+            image = torch.clamp(image + noise, 0, 1) if image.max() <= 1 else torch.clamp(image + noise * 255, 0, 255)
+        elif isinstance(image, list):
+            # Apply to all frames in the list
+            for i in range(len(image)):
+                noise = torch.randn_like(image[i]) * params['std'] + params['mean']
+                image[i] = torch.clamp(image[i] + noise, 0, 1) if image[i].max() <= 1 else torch.clamp(image[i] + noise * 255, 0, 255)
+        else:
+            raise NotImplementedError(f"Gaussian noise not implemented for image type: {type(image)}")
+        
+        return image, annotation, metas
+
+
+class GaussianBlur:
+    """Apply Gaussian blur to images"""
+    def __init__(self, kernel_size_range=(3, 7), sigma_range=(0.1, 2.0), p=1.0):
+        self.kernel_size_range = kernel_size_range
+        self.sigma_range = sigma_range
+        self.p = p
+
+    def __call__(self, image, annotation, metas):
+        if random.random() > self.p:
+            return image, annotation, metas
+        
+        # Store blur parameters for consistent application across frames
+        if 'gaussian_blur_params' not in metas:
+            kernel_size = random.randint(self.kernel_size_range[0], self.kernel_size_range[1])
+            if kernel_size % 2 == 0:  # Ensure kernel size is odd
+                kernel_size += 1
+            sigma = random.uniform(self.sigma_range[0], self.sigma_range[1])
+            metas['gaussian_blur_params'] = {
+                'kernel_size': kernel_size,
+                'sigma': sigma
+            }
+        
+        params = metas['gaussian_blur_params']
+        
+        if isinstance(image, torch.Tensor):
+            image = v2.functional.gaussian_blur(image, [params['kernel_size'], params['kernel_size']], [params['sigma'], params['sigma']])
+        elif isinstance(image, list):
+            # Apply to all frames in the list
+            for i in range(len(image)):
+                image[i] = v2.functional.gaussian_blur(image[i], [params['kernel_size'], params['kernel_size']], [params['sigma'], params['sigma']])
+        else:
+            raise NotImplementedError(f"Gaussian blur not implemented for image type: {type(image)}")
+        
+        return image, annotation, metas
+
+
+class ClearAugmentationMetas:
+    """Clear augmentation metadata to ensure independence between samples"""
+    def __call__(self, image, annotation, metas):
+        # Remove augmentation-specific metadata
+        keys_to_remove = ['color_jitter_params', 'horizontal_flip', 'gaussian_noise_params', 'gaussian_blur_params']
+        for key in keys_to_remove:
+            if key in metas:
+                del metas[key]
+        return image, annotation, metas

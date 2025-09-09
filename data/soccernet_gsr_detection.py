@@ -18,7 +18,7 @@ from math import floor
 from torch.utils.data import DataLoader
 import torch.nn.functional as F
 from utils.box_ops import box_xywh_to_xyxy, box_xyxy_to_cxcywh, box_cxcywh_to_xywh, bbox_xywh_to_cxcywh
-from data.utils import Compose, ToTensor, RandomResize, Normalize, get_image_hw
+from data.utils import Compose, ToTensor, RandomResize, Normalize, get_image_hw, ColorJitter, RandomHorizontalFlip, GaussianNoise, GaussianBlur, ClearAugmentationMetas
 from data.soccernet_gsr_reid import role_mapping, jn_mapping, digit_head_mapping, digit_tail_mapping
 from data.pnlcalib_utils.utils_keypoints import KeypointsDB
 from data.pnlcalib_utils.utils_lines import LineKeypointsDB
@@ -622,7 +622,7 @@ def build_gsr_detection_dataset(config: dict, split: str):
         data_root=config["DATA_ROOT"],
         sub_dir=config["SoccerNetGSR_SUB_DIR"],
         split=split,
-        transforms=build_transforms(config),
+        transforms=build_transforms(config, split),
         num_keypoints=config["NUM_KEYPOINTS"],
         num_lines=config["NUM_LINES"],
         detection_data_type=config["DETECTION_DATA_TYPE"],
@@ -828,19 +828,59 @@ class LRAmbiguityFix():
     def __repr__(self) -> str:
         return f"{self.__class__.__name__}(v_th={self.v_th}, h_th={self.h_th})"
 
-def build_transforms(config: dict):
+def build_transforms(config: dict, split: str = "train"):
+    
 
     use_lr_ambiguity_fix = False
     if 'SoccerNetGSR_Detection' in config['DATASETS_TO_HEADS'] and ('LinesDetection' in config['DATASETS_TO_HEADS']['SoccerNetGSR_Detection'] or 'KeypointsDetection' in config['DATASETS_TO_HEADS']['SoccerNetGSR_Detection']):
         use_lr_ambiguity_fix = True
     
-    return Compose([
-        ToTensor(),
+    transforms = [
+        ClearAugmentationMetas(),  # Clear any previous augmentation metadata
+        ToTensor(),  # Convert to tensor and float, divide by 255
         RandomResize(sizes=config["AUG_RANDOM_RESIZE"], max_size=config["AUG_MAX_SIZE"], keep_aspect_ratio=config["KEEP_ASPECT_RATIO"]),
-        Normalize(mean=config["AUG_MEAN"], std=config["AUG_STD"]),
+    ]
+    
+    # Add training-specific augmentations after resize
+    if split == "train" and config["AUG_ENABLE_TRAINING_AUGMENTATION"]:
+        # Color jitter
+        if config["AUG_COLOR_JITTER_V2"]:
+            transforms.append(ColorJitter(
+                brightness=config["AUG_BRIGHTNESS"],
+                contrast=config["AUG_CONTRAST"], 
+                saturation=config["AUG_SATURATION"],
+                hue=config["AUG_HUE"],
+                p=1.0  # Always apply if enabled
+            ))
+        
+        # Random horizontal flip
+        if config["AUG_RANDOM_HORIZONTAL_FLIP"]:
+            transforms.append(RandomHorizontalFlip(p=config.get("AUG_HORIZONTAL_FLIP_PROB", 0.5)))
+        
+        # Gaussian noise
+        if config["AUG_GAUSSIAN_NOISE"]:
+            transforms.append(GaussianNoise(
+                mean=0.0,
+                std=config["AUG_GAUSSIAN_NOISE_STD"],
+                p=config["AUG_GAUSSIAN_NOISE_PROB"]
+            ))
+        
+        # Gaussian blur
+        if config["AUG_GAUSSIAN_BLUR"]:
+            transforms.append(GaussianBlur(
+                kernel_size_range=config["AUG_GAUSSIAN_BLUR_KERNEL_SIZE_RANGE"],
+                sigma_range=config["AUG_GAUSSIAN_BLUR_SIGMA_RANGE"],
+                p=config["AUG_GAUSSIAN_BLUR_PROB"]
+            ))
+    
+    # Add final transforms
+    transforms.extend([
+        Normalize(mean=config["AUG_MEAN"], std=config["AUG_STD"]),  # Normalize at the end
         BoxXYWHtoCXCYWH(),
         LRAmbiguityFix() if use_lr_ambiguity_fix else None,
     ])
+    
+    return Compose(transforms)
     
 def collate_fn(batch):
     images, annotations, metas = zip(*batch)

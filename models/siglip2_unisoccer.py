@@ -114,7 +114,6 @@ class SiglipBackbone(nn.Module):
                  ckpt_path: str,
                  stage_1_ckpt_dir: str,
                  text_encoder_ckpt_path: str,
-                 train_backbone: bool,
                  use_lora: bool,
                  use_temporal_gate: bool,
                  freeze_vision_encoder: bool = False,

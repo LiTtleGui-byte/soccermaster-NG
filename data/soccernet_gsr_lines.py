@@ -210,7 +210,7 @@ def build_gsr_lines_dataset(config: dict, split: str):
         sub_dir=config["SoccerNetGSR_SUB_DIR"],
         split=split,
         load_annotation=True,
-        transforms=build_transforms(config),
+        transforms=build_transforms(config, split),
     )
     return dataset
 
@@ -359,13 +359,54 @@ class LRAmbiguityFix():
     def __repr__(self) -> str:
         return f"{self.__class__.__name__}(v_th={self.v_th}, h_th={self.h_th})"
 
-def build_transforms(config: dict):
-    return Compose([
-        ToTensor(),
+def build_transforms(config: dict, split: str = "train"):
+    from data.utils import ColorJitter, RandomHorizontalFlip, GaussianNoise, GaussianBlur, ClearAugmentationMetas
+    
+    transforms = [
+        ClearAugmentationMetas(),  # Clear any previous augmentation metadata
+        ToTensor(),  # Convert to tensor and float, divide by 255
         RandomResize(sizes=config["AUG_RANDOM_RESIZE"], max_size=config["AUG_MAX_SIZE"], keep_aspect_ratio=config["KEEP_ASPECT_RATIO"]),
-        Normalize(mean=config["AUG_MEAN"], std=config["AUG_STD"]),
+    ]
+    
+    # Add training-specific augmentations after resize
+    if split == "train" and config["AUG_ENABLE_TRAINING_AUGMENTATION"]:
+        # Color jitter
+        if config["AUG_COLOR_JITTER_V2"]:
+            transforms.append(ColorJitter(
+                brightness=config["AUG_BRIGHTNESS"],
+                contrast=config["AUG_CONTRAST"], 
+                saturation=config["AUG_SATURATION"],
+                hue=config["AUG_HUE"],
+                p=1.0  # Always apply if enabled
+            ))
+        
+        # Random horizontal flip
+        if config["AUG_RANDOM_HORIZONTAL_FLIP"]:
+            transforms.append(RandomHorizontalFlip(p=config.get("AUG_HORIZONTAL_FLIP_PROB", 0.5)))
+        
+        # Gaussian noise
+        if config["AUG_GAUSSIAN_NOISE"]:
+            transforms.append(GaussianNoise(
+                mean=0.0,
+                std=config["AUG_GAUSSIAN_NOISE_STD"],
+                p=config["AUG_GAUSSIAN_NOISE_PROB"]
+            ))
+        
+        # Gaussian blur
+        if config["AUG_GAUSSIAN_BLUR"]:
+            transforms.append(GaussianBlur(
+                kernel_size_range=config["AUG_GAUSSIAN_BLUR_KERNEL_SIZE_RANGE"],
+                sigma_range=config["AUG_GAUSSIAN_BLUR_SIGMA_RANGE"],
+                p=config["AUG_GAUSSIAN_BLUR_PROB"]
+            ))
+    
+    # Add final transforms
+    transforms.extend([
+        Normalize(mean=config["AUG_MEAN"], std=config["AUG_STD"]),  # Normalize at the end
         LRAmbiguityFix(),
     ])
+    
+    return Compose(transforms)
     
 def collate_fn(batch):
     images, annotations, metas = zip(*batch)

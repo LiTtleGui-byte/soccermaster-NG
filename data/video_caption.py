@@ -194,15 +194,56 @@ def read_frames_decord(
 
     return frames, frame_indices, duration
 
-def build_transforms(config: dict):
+def build_transforms(config: dict, split: str = "train"):
     """
     Build transforms
     """
-    return Compose([
-        ToTensor(),
+    from data.utils import ColorJitter, RandomHorizontalFlip, GaussianNoise, GaussianBlur, ClearAugmentationMetas
+    
+    transforms = [
+        ClearAugmentationMetas(),  # Clear any previous augmentation metadata
+        ToTensor(),  # Convert to tensor and float, divide by 255
         RandomResize(sizes=config["AUG_RANDOM_RESIZE"], max_size=config["AUG_MAX_SIZE"], keep_aspect_ratio=config["KEEP_ASPECT_RATIO"]),
-        Normalize(mean=config["AUG_MEAN"], std=config["AUG_STD"]),
+    ]
+    
+    # Add training-specific augmentations after resize
+    if split == "train" and config["AUG_ENABLE_TRAINING_AUGMENTATION"]:
+        # Color jitter
+        if config["AUG_COLOR_JITTER_V2"]:
+            transforms.append(ColorJitter(
+                brightness=config["AUG_BRIGHTNESS"],
+                contrast=config["AUG_CONTRAST"], 
+                saturation=config["AUG_SATURATION"],
+                hue=config["AUG_HUE"],
+                p=1.0  # Always apply if enabled
+            ))
+        
+        # Random horizontal flip
+        if config["AUG_RANDOM_HORIZONTAL_FLIP"]:
+            transforms.append(RandomHorizontalFlip(p=config.get("AUG_HORIZONTAL_FLIP_PROB", 0.5)))
+        
+        # Gaussian noise
+        if config["AUG_GAUSSIAN_NOISE"]:
+            transforms.append(GaussianNoise(
+                mean=0.0,
+                std=config["AUG_GAUSSIAN_NOISE_STD"],
+                p=config["AUG_GAUSSIAN_NOISE_PROB"]
+            ))
+        
+        # Gaussian blur
+        if config["AUG_GAUSSIAN_BLUR"]:
+            transforms.append(GaussianBlur(
+                kernel_size_range=config["AUG_GAUSSIAN_BLUR_KERNEL_SIZE_RANGE"],
+                sigma_range=config["AUG_GAUSSIAN_BLUR_SIGMA_RANGE"],
+                p=config["AUG_GAUSSIAN_BLUR_PROB"]
+            ))
+    
+    # Add final transforms
+    transforms.extend([
+        Normalize(mean=config["AUG_MEAN"], std=config["AUG_STD"]),  # Normalize at the end
     ])
+    
+    return Compose(transforms)
     
 def collate_fn(batch):
     clip, annotations, metas = zip(*batch)
@@ -228,7 +269,7 @@ def build_video_caption_dataset(config: dict, split: str):
         trimmed30=config["VIDEO_CAPTION_TRIMMED30"],
         # keywords=config["VIDEO_CAPTION_KEYWORDS"],
         text_key=config["VIDEO_CAPTION_TEXT_KEY"],
-        transforms=build_transforms(config),
+        transforms=build_transforms(config, split),
     )
     assert config["VIDEO_CAPTION_FIX_START"] == None
     return dataset

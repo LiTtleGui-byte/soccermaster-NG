@@ -47,7 +47,6 @@ class MultiTaskingSigLIP(nn.Module):
             config['CKPT_PATH'], 
             config['STAGE_1_CKPT_DIR'], 
             config['TEXT_ENCODER_CKPT_PATH'], 
-            config['TRAIN_BACKBONE'], 
             False, 
             config['BACKBONE_USE_TEMPORAL_GATE'], 
             config['FREEZE_VISION_ENCODER'],

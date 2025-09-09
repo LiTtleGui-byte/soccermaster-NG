@@ -27,9 +27,9 @@ class SiglipBackbone(nn.Module):
                  ckpt_path: str,
                  stage_1_ckpt_dir: str,
                  text_encoder_ckpt_path: str,
-                 train_backbone: bool,
                  use_lora: bool,
                  use_temporal_gate: bool,
+                 freeze_vision_encoder: bool,
                  freeze_text_encoder: bool = True,
                  hidden_dim: int = 768):
         super().__init__()
@@ -45,14 +45,15 @@ class SiglipBackbone(nn.Module):
             self.vision_model = TimesformerSiglipVisionModel.from_pretrained(ckpt_path, config=vision_config, device_map="cpu")
         self.backbone_type = backbone_type
         
-        if train_backbone:
-            for name, param in self.vision_model.named_parameters():
-                param.requires_grad = True
-        else:
+        self.text_model = TextEncoder(text_encoder_ckpt_path)
+        
+        if freeze_vision_encoder:
             for param in self.vision_model.parameters():
                 param.requires_grad = False
-                
-        self.text_model = TextEncoder(text_encoder_ckpt_path)
+        else:
+            for param in self.vision_model.parameters():
+                param.requires_grad = True
+        
         if freeze_text_encoder:
             for param in self.text_model.parameters():
                 param.requires_grad = False
