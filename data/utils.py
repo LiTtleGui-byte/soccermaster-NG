@@ -218,6 +218,16 @@ class RandomHorizontalFlip:
             lines = correct_lines_labels(lines)
             annotation["lines"] = lines
         
+        # Flip lines_target if it exists (horizontal flip along x-axis)
+        if "lines_target" in annotation:
+            lines_target = annotation["lines_target"]
+            annotation["lines_target"] = torch.flip(lines_target, dims=[-1])
+        
+        # Flip keypoints_target if it exists (horizontal flip along x-axis)
+        if "keypoints_target" in annotation:
+            keypoints_target = annotation["keypoints_target"]
+            annotation["keypoints_target"] = torch.flip(keypoints_target, dims=[-1])
+        
         return image, annotation, metas
 
 

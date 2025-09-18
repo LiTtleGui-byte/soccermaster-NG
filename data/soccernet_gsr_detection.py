@@ -496,40 +496,19 @@ class SoccerNetGSR_Detection(Dataset):
     
     def format_data(self, image, annotation, metas):
         if self.transforms is not None:
-                image, annotation, metas = self.transforms(image, annotation, metas)
+            image, annotation, metas = self.transforms(image, annotation, metas)
             
         # used for DETR loss:
         annotation['boxes'] = annotation['bbox']
         annotation['labels'] = annotation['category']
         annotation['roles'] = annotation['role']
-        # use for camera loss:
+        
         if self.train_camera_regression:
             annotation['quaternion'] = mat_to_quat(annotation['rotation_matrix'].unsqueeze(0)).squeeze(0)
             H, W = metas['image_size']
             fov_h = 2 * torch.atan((H / 2) / annotation['intrinsic'][1, 1])
             fov_w = 2 * torch.atan((W / 2) / annotation['intrinsic'][0, 0])
             annotation['fov_hw'] = torch.stack([fov_h, fov_w])
-        # use for keypoints detection:
-        # print(annotation['lines'])
-        if self.train_keypoints_or_lines_detection:
-            try:
-                line_db = LineKeypointsDB(annotation['lines'], image)
-                lines_target = line_db.get_tensor()
-                annotation['lines_target'] = torch.tensor(lines_target, dtype=torch.float32)
-                annotation['valid_lines'] = torch.tensor(True, dtype=torch.bool)
-            except Exception as e:
-                annotation['lines_target'] = torch.zeros((self.num_lines, self.image_input_size//2, self.image_input_size//2), dtype=torch.float32)
-                annotation['valid_lines'] = torch.tensor(False, dtype=torch.bool)
-            try:
-                keypoints = KeypointsDB(annotation['lines'], image)
-                keypoints_target, keypoints_mask = keypoints.get_tensor_w_mask()
-                annotation['keypoints_target'] = torch.tensor(keypoints_target, dtype=torch.float32)
-                annotation['keypoints_mask'] = torch.tensor(keypoints_mask, dtype=torch.float32)
-                annotation['valid_keypoints'] = torch.tensor(True, dtype=torch.bool)
-            except Exception as e:
-                annotation['keypoints_target'] = torch.zeros((self.num_keypoints, self.image_input_size//2, self.image_input_size//2), dtype=torch.float32)
-                annotation['keypoints_mask'] = torch.zeros((self.num_keypoints), dtype=torch.float32)
-                annotation['valid_keypoints'] = torch.tensor(False, dtype=torch.bool)
         
         return image, annotation, metas
         
@@ -710,8 +689,6 @@ class BoxXYWHtoCXCYWH:
         annotation["bbox"] = bbox_xywh_to_cxcywh(annotation["bbox"])
         return image, annotation, metas
 
-
-
 class LRAmbiguityFix():
     def __init__(self, v_th=70, h_th=20):
         self.v_th = v_th
@@ -781,16 +758,59 @@ class LRAmbiguityFix():
     def __repr__(self) -> str:
         return f"{self.__class__.__name__}(v_th={self.v_th}, h_th={self.h_th})"
 
+
+class KeypointsLinesDetectionTransform:
+    def __init__(self, num_keypoints=58, num_lines=24, image_input_size=512):
+        self.num_keypoints = num_keypoints
+        self.num_lines = num_lines
+        self.image_input_size = image_input_size
+
+    def __call__(self, image, annotation, metas):
+        # 处理lines detection
+        try:
+            line_db = LineKeypointsDB(annotation['lines'], image)
+            lines_target = line_db.get_tensor()
+            annotation['lines_target'] = torch.tensor(lines_target, dtype=torch.float32)
+            annotation['valid_lines'] = torch.tensor(True, dtype=torch.bool)
+        except Exception as e:
+            annotation['lines_target'] = torch.zeros((self.num_lines, self.image_input_size//2, self.image_input_size//2), dtype=torch.float32)
+            annotation['valid_lines'] = torch.tensor(False, dtype=torch.bool)
+        
+        # 处理keypoints detection
+        try:
+            keypoints = KeypointsDB(annotation['lines'], image)
+            keypoints_target, keypoints_mask = keypoints.get_tensor_w_mask()
+            annotation['keypoints_target'] = torch.tensor(keypoints_target, dtype=torch.float32)
+            annotation['keypoints_mask'] = torch.tensor(keypoints_mask, dtype=torch.float32)
+            annotation['valid_keypoints'] = torch.tensor(True, dtype=torch.bool)
+        except Exception as e:
+            annotation['keypoints_target'] = torch.zeros((self.num_keypoints, self.image_input_size//2, self.image_input_size//2), dtype=torch.float32)
+            annotation['keypoints_mask'] = torch.zeros((self.num_keypoints), dtype=torch.float32)
+            annotation['valid_keypoints'] = torch.tensor(False, dtype=torch.bool)
+        
+        return image, annotation, metas
+
+    def __repr__(self) -> str:
+        return f"{self.__class__.__name__}(num_keypoints={self.num_keypoints}, num_lines={self.num_lines}, image_input_size={self.image_input_size})"
+
 def build_transforms(config: dict, split: str = "train"):
     
-
     use_lr_ambiguity_fix = False
-    if 'SoccerNetGSR_Detection' in config['DATASETS_TO_HEADS'] and ('LinesDetection' in config['DATASETS_TO_HEADS']['SoccerNetGSR_Detection'] or 'KeypointsDetection' in config['DATASETS_TO_HEADS']['SoccerNetGSR_Detection']):
-        use_lr_ambiguity_fix = True
+    use_keypoints_lines_detection = False
+    if 'SoccerNetGSR_Detection' in config['DATASETS_TO_HEADS']:
+        if 'LinesDetection' in config['DATASETS_TO_HEADS']['SoccerNetGSR_Detection'] or 'KeypointsDetection' in config['DATASETS_TO_HEADS']['SoccerNetGSR_Detection']:
+            use_lr_ambiguity_fix = True
+            use_keypoints_lines_detection = True
     
     transforms = [
         ClearAugmentationMetas(),  # Clear any previous augmentation metadata
+        LRAmbiguityFix() if use_lr_ambiguity_fix else None,  # Apply LRAmbiguityFix before ToTensor (works with PIL images)
         ToTensor(),  # Convert to tensor and float, divide by 255
+        KeypointsLinesDetectionTransform(
+            num_keypoints=config["NUM_KEYPOINTS"], 
+            num_lines=config["NUM_LINES"], 
+            image_input_size=config["AUG_MAX_SIZE"]
+        ) if use_keypoints_lines_detection else None,  # Apply after ToTensor since it needs tensor images
         RandomResize(sizes=config["AUG_RANDOM_RESIZE"], max_size=config["AUG_MAX_SIZE"], keep_aspect_ratio=config["KEEP_ASPECT_RATIO"]),
     ]
     
@@ -830,7 +850,6 @@ def build_transforms(config: dict, split: str = "train"):
     transforms.extend([
         Normalize(mean=config["AUG_MEAN"], std=config["AUG_STD"]),  # Normalize at the end
         BoxXYWHtoCXCYWH(),
-        LRAmbiguityFix() if use_lr_ambiguity_fix else None,
     ])
     
     return Compose(transforms)
