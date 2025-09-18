@@ -26,7 +26,7 @@ import copy
 import zipfile
 import pickle
 
-from sn_calibration.src.evaluate_extremities import mirror_labels
+from data.utils import flip_annot_names, h_lines, v_lines, correct_lines_labels, correct_lines_labels_reverse
 
 class SoccerNetGSR_Detection(Dataset):
     def __init__(
@@ -276,8 +276,8 @@ class SoccerNetGSR_Detection(Dataset):
                             annotations[sequence_name][frame_idx]["digit_head"].append(digit_head_mapping[None])
                             annotations[sequence_name][frame_idx]["digit_tail"].append(digit_tail_mapping[None])
                 elif anno['supercategory']== 'pitch':
-                    # annotations[sequence_name][frame_idx]['lines'] = self.correct_lines_labels(anno['lines'])
-                    annotations[sequence_name][frame_idx]['lines'] = anno['lines']
+                    annotations[sequence_name][frame_idx]['lines'] = correct_lines_labels(anno['lines'])
+                    # annotations[sequence_name][frame_idx]['lines'] = anno['lines']
                 else:
                     raise ValueError(f"Unknown annotation: {anno}")
                 
@@ -417,7 +417,7 @@ class SoccerNetGSR_Detection(Dataset):
                     lines = row["lines"]
                     if not isinstance(lines, dict):
                         lines = {}
-                    annotations[processed_sequence_name][frame_idx]["lines"] = self.correct_lines_labels_reverse(lines)
+                    annotations[processed_sequence_name][frame_idx]["lines"] = correct_lines_labels(correct_lines_labels_reverse(lines))
                     # Convert lists to tensors in a single operation per frame
         for sequence_name in processed_sequence_names:
             for i in range(self.sequence_infos[sequence_name]["length"]):
@@ -448,21 +448,7 @@ class SoccerNetGSR_Detection(Dataset):
             for i in range(self.sequence_infos[sequence_name]["length"]):
                 annotations[sequence_name][i]["is_legal"] = is_legal(annotations[sequence_name][i])
         return annotations
-    
-    def correct_lines_labels(self, data):
-        if 'Goal left post left' in data.keys():
-            data['Goal left post left '] = copy.deepcopy(data['Goal left post left'])
-            del data['Goal left post left']
 
-        return data
-    
-    def correct_lines_labels_reverse(self, data):
-        if 'Goal left post left' in data.keys():
-            data['Goal left post left '] = copy.deepcopy(data['Goal left post left'])
-            del data['Goal left post left']
-
-        return data
-    
     def _decouple_is_legal(self):
         decoupled_is_legal = defaultdict(list)
         for sequence_name in self.annotations:
@@ -535,7 +521,7 @@ class SoccerNetGSR_Detection(Dataset):
                 annotation['lines_target'] = torch.zeros((self.num_lines, self.image_input_size//2, self.image_input_size//2), dtype=torch.float32)
                 annotation['valid_lines'] = torch.tensor(False, dtype=torch.bool)
             try:
-                keypoints = KeypointsDB(self.correct_lines_labels(annotation['lines']), image)
+                keypoints = KeypointsDB(annotation['lines'], image)
                 keypoints_target, keypoints_mask = keypoints.get_tensor_w_mask()
                 annotation['keypoints_target'] = torch.tensor(keypoints_target, dtype=torch.float32)
                 annotation['keypoints_mask'] = torch.tensor(keypoints_mask, dtype=torch.float32)
@@ -724,40 +710,7 @@ class BoxXYWHtoCXCYWH:
         annotation["bbox"] = bbox_xywh_to_cxcywh(annotation["bbox"])
         return image, annotation, metas
 
-FLIP_POSTS = {
-    'Goal left post right': 'Goal left post left ',
-    'Goal left post left ': 'Goal left post right',
-    'Goal right post right': 'Goal right post left',
-    'Goal right post left': 'Goal right post right'
-}
 
-h_lines = ['Goal left crossbar', 'Side line left', 'Small rect. left main', 'Big rect. left main', 'Middle line',
-                   'Big rect. right main', 'Small rect. right main', 'Side line right', 'Goal right crossbar']
-
-v_lines = ['Side line top', 'Big rect. left top', 'Small rect. left top', 'Small rect. left bottom',
-                   'Big rect. left bottom', 'Big rect. right top', 'Small rect. right top', 'Small rect. right bottom',
-                              'Big rect. right bottom', 'Side line bottom']
-
-def swap_top_bottom_names(line_name: str) -> str:
-    x: str = 'top'
-    y: str = 'bottom'
-    if x in line_name or y in line_name:
-        return y.join(part.replace(y, x) for part in line_name.split(x))
-    return line_name
-
-
-def swap_posts_names(line_name: str) -> str:
-    if line_name in FLIP_POSTS:
-        return FLIP_POSTS[line_name]
-    return line_name
-
-def flip_annot_names(annot, swap_top_bottom: bool = True, swap_posts: bool = True):
-    annot = mirror_labels(annot)
-    if swap_top_bottom:
-        annot = {swap_top_bottom_names(k): v for k, v in annot.items()}
-    if swap_posts:
-        annot = {swap_posts_names(k): v for k, v in annot.items()}
-    return annot
 
 class LRAmbiguityFix():
     def __init__(self, v_th=70, h_th=20):

@@ -38,18 +38,19 @@ def process_annotation(args):
         keypoints_error = False
         lines_error = False
         
-        try:
-            keypoints_db = KeypointsDB(correct_lines_labels(lines_data), image)
-            target, mask = keypoints_db.get_tensor_w_mask()
-        except Exception as e:
-            keypoints_error = True
-        
         # 测试LineKeypointsDB
         try:
             lines_db = LineKeypointsDB(lines_data, image)
             lines_target = lines_db.get_tensor()
         except Exception as e:
             lines_error = True
+        
+        try:
+            keypoints_db = KeypointsDB(correct_lines_labels(lines_data), image)
+            target, mask = keypoints_db.get_tensor_w_mask()
+        except Exception as e:
+            keypoints_error = True
+        
             
         return {
             'success': True, 

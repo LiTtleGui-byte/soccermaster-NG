@@ -97,13 +97,12 @@ AUG_TRAJECTORY_OCCLUSION_PROB: 0.5
 AUG_TRAJECTORY_SWITCH_PROB: 0.5
 # 6. additional augmentations:
 AUG_ENABLE_TRAINING_AUGMENTATION: False  # enable augmentation only during training
-AUG_RANDOM_HORIZONTAL_FLIP: True       # enable random horizontal flip
+AUG_RANDOM_HORIZONTAL_FLIP: False       # enable random horizontal flip
 AUG_HORIZONTAL_FLIP_PROB: 0.5          # probability of horizontal flip
-AUG_ENABLE_COLOR_JITTER_V2: True       # enable enhanced color jitter (different from AUG_COLOR_JITTER_V2)
-AUG_GAUSSIAN_NOISE: True               # enable gaussian noise
+AUG_GAUSSIAN_NOISE: False               # enable gaussian noise
 AUG_GAUSSIAN_NOISE_STD: 0.02           # standard deviation for gaussian noise
 AUG_GAUSSIAN_NOISE_PROB: 0.3           # probability of applying gaussian noise
-AUG_GAUSSIAN_BLUR: True                # enable gaussian blur
+AUG_GAUSSIAN_BLUR: False                # enable gaussian blur
 AUG_GAUSSIAN_BLUR_KERNEL_SIZE_RANGE: [3, 7]  # kernel size range for gaussian blur
 AUG_GAUSSIAN_BLUR_SIGMA_RANGE: [0.1, 2.0]    # sigma range for gaussian blur
 AUG_GAUSSIAN_BLUR_PROB: 0.2            # probability of applying gaussian blur
