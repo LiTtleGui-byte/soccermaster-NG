@@ -551,8 +551,10 @@ class SoccerNetGSR_Detection(Dataset):
                     "is_static": self.sequence_infos[sequence_name]["is_static"],
                     "size_divisibility": 1,}
             
+            # Apply transforms to all frames with shared metas for consistent augmentation
             for i in range(len(images)):
-                images[i], annotations[i], _ = self.format_data(images[i], annotations[i], {})
+                # Use shared metas for the entire sequence to ensure consistent augmentation parameters
+                images[i], annotations[i], metas = self.format_data(images[i], annotations[i], metas)
                 
             # 需要做padding和collate吗？暂时先不做
             # if len(images) < self.num_frames:
@@ -806,11 +808,6 @@ def build_transforms(config: dict, split: str = "train"):
         ClearAugmentationMetas(),  # Clear any previous augmentation metadata
         LRAmbiguityFix() if use_lr_ambiguity_fix else None,  # Apply LRAmbiguityFix before ToTensor (works with PIL images)
         ToTensor(),  # Convert to tensor and float, divide by 255
-        KeypointsLinesDetectionTransform(
-            num_keypoints=config["NUM_KEYPOINTS"], 
-            num_lines=config["NUM_LINES"], 
-            image_input_size=config["AUG_MAX_SIZE"]
-        ) if use_keypoints_lines_detection else None,  # Apply after ToTensor since it needs tensor images
         RandomResize(sizes=config["AUG_RANDOM_RESIZE"], max_size=config["AUG_MAX_SIZE"], keep_aspect_ratio=config["KEEP_ASPECT_RATIO"]),
     ]
     
@@ -848,6 +845,11 @@ def build_transforms(config: dict, split: str = "train"):
     
     # Add final transforms
     transforms.extend([
+        KeypointsLinesDetectionTransform(
+            num_keypoints=config["NUM_KEYPOINTS"], 
+            num_lines=config["NUM_LINES"], 
+            image_input_size=config["AUG_MAX_SIZE"]
+        ) if use_keypoints_lines_detection else None,  # Apply after ToTensor since it needs tensor images
         Normalize(mean=config["AUG_MEAN"], std=config["AUG_STD"]),  # Normalize at the end
         BoxXYWHtoCXCYWH(),
     ])

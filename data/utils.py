@@ -113,11 +113,12 @@ class ColorJitter:
         self.p = p
 
     def __call__(self, image, annotation, metas):
-        if random.random() > self.p:
-            return image, annotation, metas
-        
-        # Store color jitter parameters for consistent application across frames
+        # Store color jitter parameters and apply decision for consistent application across frames
         if 'color_jitter_params' not in metas:
+            # Make the apply decision once and store it
+            metas['color_jitter_apply'] = random.random() <= self.p
+            if not metas['color_jitter_apply']:
+                return image, annotation, metas
             # Generate random parameters
             brightness_factor = None
             if self.brightness > 0:
@@ -141,6 +142,10 @@ class ColorJitter:
                 'saturation': saturation_factor,
                 'hue': hue_factor
             }
+        else:
+            # Check if we should apply color jitter based on the stored decision
+            if not metas['color_jitter_apply']:
+                return image, annotation, metas
         
         # Apply color jitter using stored parameters
         params = metas['color_jitter_params']
@@ -177,12 +182,9 @@ class RandomHorizontalFlip:
         self.p = p
 
     def __call__(self, image, annotation, metas):
-        if random.random() > self.p:
-            return image, annotation, metas
-        
         # Store flip decision for consistent application across frames
         if 'horizontal_flip' not in metas:
-            metas['horizontal_flip'] = True
+            metas['horizontal_flip'] = random.random() <= self.p
         
         if not metas['horizontal_flip']:
             return image, annotation, metas
@@ -239,15 +241,19 @@ class GaussianNoise:
         self.p = p
 
     def __call__(self, image, annotation, metas):
-        if random.random() > self.p:
-            return image, annotation, metas
-        
-        # Store noise parameters for consistent application across frames
+        # Store noise parameters and apply decision for consistent application across frames
         if 'gaussian_noise_params' not in metas:
+            metas['gaussian_noise_apply'] = random.random() <= self.p
+            if not metas['gaussian_noise_apply']:
+                return image, annotation, metas
             metas['gaussian_noise_params'] = {
                 'mean': self.mean,
                 'std': random.uniform(0, self.std)  # Random std up to max
             }
+        else:
+            # Check if we should apply gaussian noise based on the stored decision
+            if not metas['gaussian_noise_apply']:
+                return image, annotation, metas
         
         params = metas['gaussian_noise_params']
         
@@ -273,11 +279,11 @@ class GaussianBlur:
         self.p = p
 
     def __call__(self, image, annotation, metas):
-        if random.random() > self.p:
-            return image, annotation, metas
-        
-        # Store blur parameters for consistent application across frames
+        # Store blur parameters and apply decision for consistent application across frames
         if 'gaussian_blur_params' not in metas:
+            metas['gaussian_blur_apply'] = random.random() <= self.p
+            if not metas['gaussian_blur_apply']:
+                return image, annotation, metas
             kernel_size = random.randint(self.kernel_size_range[0], self.kernel_size_range[1])
             if kernel_size % 2 == 0:  # Ensure kernel size is odd
                 kernel_size += 1
@@ -286,6 +292,10 @@ class GaussianBlur:
                 'kernel_size': kernel_size,
                 'sigma': sigma
             }
+        else:
+            # Check if we should apply gaussian blur based on the stored decision
+            if not metas['gaussian_blur_apply']:
+                return image, annotation, metas
         
         params = metas['gaussian_blur_params']
         
@@ -305,7 +315,7 @@ class ClearAugmentationMetas:
     """Clear augmentation metadata to ensure independence between samples"""
     def __call__(self, image, annotation, metas):
         # Remove augmentation-specific metadata
-        keys_to_remove = ['color_jitter_params', 'horizontal_flip', 'gaussian_noise_params', 'gaussian_blur_params']
+        keys_to_remove = ['color_jitter_params', 'color_jitter_apply', 'horizontal_flip', 'gaussian_noise_params', 'gaussian_noise_apply', 'gaussian_blur_params', 'gaussian_blur_apply']
         for key in keys_to_remove:
             if key in metas:
                 del metas[key]
