@@ -311,11 +311,177 @@ class GaussianBlur:
         return image, annotation, metas
 
 
+class RandomCrop:
+    """Apply random crop to images with annotation adjustment"""
+    def __init__(self, crop_size_ratio_range=(0.6, 1.0), p=1.0):
+        """
+        Args:
+            crop_size_ratio_range: Range of crop size as ratio of original image
+            p: Probability of applying crop
+        """
+        self.crop_size_ratio_range = crop_size_ratio_range
+        self.p = p
+
+    def __call__(self, image, annotation, metas):
+        # Store crop parameters for consistent application across frames
+        if 'random_crop_params' not in metas:
+            metas['random_crop_apply'] = random.random() <= self.p
+            if not metas['random_crop_apply']:
+                return image, annotation, metas
+                
+            # Get original image dimensions
+            if isinstance(image, torch.Tensor):
+                orig_h, orig_w = image.shape[-2], image.shape[-1]
+            elif isinstance(image, list):
+                orig_h, orig_w = image[0].shape[-2], image[0].shape[-1]
+            else:
+                raise NotImplementedError(f"Random crop not implemented for image type: {type(image)}")
+            
+            # Generate random crop parameters
+            crop_ratio = random.uniform(self.crop_size_ratio_range[0], self.crop_size_ratio_range[1])
+            crop_h = int(orig_h * crop_ratio)
+            crop_w = int(orig_w * crop_ratio)
+            
+            # Random crop position
+            max_x = orig_w - crop_w
+            max_y = orig_h - crop_h
+            crop_x = random.randint(0, max_x) if max_x > 0 else 0
+            crop_y = random.randint(0, max_y) if max_y > 0 else 0
+            
+            metas['random_crop_params'] = {
+                'crop_x': crop_x,
+                'crop_y': crop_y,
+                'crop_w': crop_w,
+                'crop_h': crop_h,
+                'orig_w': orig_w,
+                'orig_h': orig_h
+            }
+        else:
+            # Check if we should apply random crop based on the stored decision
+            if not metas['random_crop_apply']:
+                return image, annotation, metas
+        
+        params = metas['random_crop_params']
+        crop_x, crop_y, crop_w, crop_h = params['crop_x'], params['crop_y'], params['crop_w'], params['crop_h']
+        orig_w, orig_h = params['orig_w'], params['orig_h']
+        
+        # Apply crop to image(s)
+        if isinstance(image, torch.Tensor):
+            image = image[..., crop_y:crop_y+crop_h, crop_x:crop_x+crop_w]
+        elif isinstance(image, list):
+            # Apply to all frames in the list
+            for i in range(len(image)):
+                image[i] = image[i][..., crop_y:crop_y+crop_h, crop_x:crop_x+crop_w]
+        
+        # Adjust bounding boxes
+        if "bbox" in annotation and len(annotation["bbox"]) > 0:
+            bbox = annotation["bbox"].clone()
+            # bbox format: [x, y, w, h]
+            
+            # Adjust box coordinates relative to crop
+            bbox[:, 0] = bbox[:, 0] - crop_x  # x
+            bbox[:, 1] = bbox[:, 1] - crop_y  # y
+            
+            # Filter out boxes that are completely outside the crop
+            x1 = bbox[:, 0]
+            y1 = bbox[:, 1]
+            x2 = bbox[:, 0] + bbox[:, 2]
+            y2 = bbox[:, 1] + bbox[:, 3]
+            
+            # Check which boxes intersect with the crop area
+            valid_mask = (x2 > 0) & (y2 > 0) & (x1 < crop_w) & (y1 < crop_h)
+            
+            if valid_mask.any():
+                # Clip boxes to crop boundaries
+                bbox[:, 0] = torch.clamp(bbox[:, 0], 0, crop_w)  # x
+                bbox[:, 1] = torch.clamp(bbox[:, 1], 0, crop_h)  # y
+                bbox[:, 2] = torch.clamp(x2, 0, crop_w) - bbox[:, 0]  # w
+                bbox[:, 3] = torch.clamp(y2, 0, crop_h) - bbox[:, 1]  # h
+                
+                # Keep only valid boxes (with positive width and height)
+                valid_size_mask = (bbox[:, 2] > 0) & (bbox[:, 3] > 0)
+                final_mask = valid_mask & valid_size_mask
+                
+                # Filter all related annotations
+                annotation["bbox"] = bbox[final_mask]
+                if "id" in annotation:
+                    annotation["id"] = annotation["id"][final_mask]
+                if "category" in annotation:
+                    annotation["category"] = annotation["category"][final_mask]
+                if "visibility" in annotation:
+                    annotation["visibility"] = annotation["visibility"][final_mask]
+                if "role" in annotation:
+                    annotation["role"] = annotation["role"][final_mask]
+                if "jersey" in annotation:
+                    annotation["jersey"] = annotation["jersey"][final_mask]
+                if "digit_head" in annotation:
+                    annotation["digit_head"] = annotation["digit_head"][final_mask]
+                if "digit_tail" in annotation:
+                    annotation["digit_tail"] = annotation["digit_tail"][final_mask]
+                if "legibility_score" in annotation:
+                    annotation["legibility_score"] = annotation["legibility_score"][final_mask]
+            else:
+                # No valid boxes, create empty tensors
+                annotation["bbox"] = torch.zeros((0, 4), dtype=torch.float32)
+                if "id" in annotation:
+                    annotation["id"] = torch.zeros((0,), dtype=torch.int64)
+                if "category" in annotation:
+                    annotation["category"] = torch.zeros((0,), dtype=torch.int64)
+                if "visibility" in annotation:
+                    annotation["visibility"] = torch.zeros((0,), dtype=torch.float32)
+                if "role" in annotation:
+                    annotation["role"] = torch.zeros((0,), dtype=torch.int64)
+                if "jersey" in annotation:
+                    annotation["jersey"] = torch.zeros((0,), dtype=torch.int64)
+                if "digit_head" in annotation:
+                    annotation["digit_head"] = torch.zeros((0,), dtype=torch.int64)
+                if "digit_tail" in annotation:
+                    annotation["digit_tail"] = torch.zeros((0,), dtype=torch.int64)
+                if "legibility_score" in annotation:
+                    annotation["legibility_score"] = torch.zeros((0,), dtype=torch.float32)
+        
+        # Adjust lines annotations
+        if "lines" in annotation and len(annotation["lines"]) > 0:
+            lines = annotation["lines"]
+            adjusted_lines = {}
+            
+            for line_name, points in lines.items():
+                adjusted_points = []
+                for point in points:
+                    # Convert normalized coordinates to absolute coordinates
+                    abs_x = point["x"] * orig_w
+                    abs_y = point["y"] * orig_h
+                    
+                    # Adjust relative to crop
+                    crop_abs_x = abs_x - crop_x
+                    crop_abs_y = abs_y - crop_y
+                    
+                    # Check if point is within crop area
+                    # if 0 <= crop_abs_x <= crop_w and 0 <= crop_abs_y <= crop_h:
+                        # Convert back to normalized coordinates relative to crop
+                    adjusted_points.append({
+                        "x": crop_abs_x / crop_w,
+                        "y": crop_abs_y / crop_h
+                    })
+                
+                # Only keep lines that have at least one point within the crop
+                # if len(adjusted_points) > 0:
+                adjusted_lines[line_name] = adjusted_points
+            
+            annotation["lines"] = adjusted_lines
+        
+        # Store crop info for later use
+        metas['crop_applied'] = True
+        metas['crop_info'] = params
+        
+        return image, annotation, metas
+
+
 class ClearAugmentationMetas:
     """Clear augmentation metadata to ensure independence between samples"""
     def __call__(self, image, annotation, metas):
         # Remove augmentation-specific metadata
-        keys_to_remove = ['color_jitter_params', 'color_jitter_apply', 'horizontal_flip', 'gaussian_noise_params', 'gaussian_noise_apply', 'gaussian_blur_params', 'gaussian_blur_apply']
+        keys_to_remove = ['color_jitter_params', 'color_jitter_apply', 'horizontal_flip', 'gaussian_noise_params', 'gaussian_noise_apply', 'gaussian_blur_params', 'gaussian_blur_apply', 'random_crop_params', 'random_crop_apply', 'crop_applied', 'crop_info']
         for key in keys_to_remove:
             if key in metas:
                 del metas[key]

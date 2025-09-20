@@ -18,7 +18,7 @@ from math import floor
 from torch.utils.data import DataLoader
 import torch.nn.functional as F
 from utils.box_ops import box_xywh_to_xyxy, box_xyxy_to_cxcywh, box_cxcywh_to_xywh, bbox_xywh_to_cxcywh
-from data.utils import Compose, ToTensor, RandomResize, Normalize, get_image_hw, ColorJitter, RandomHorizontalFlip, GaussianNoise, GaussianBlur, ClearAugmentationMetas
+from data.utils import Compose, ToTensor, RandomResize, Normalize, get_image_hw, ColorJitter, RandomHorizontalFlip, GaussianNoise, GaussianBlur, ClearAugmentationMetas, RandomCrop
 from data.soccernet_gsr_reid import role_mapping, jn_mapping, digit_head_mapping, digit_tail_mapping
 from data.pnlcalib_utils.utils_keypoints import KeypointsDB
 from data.pnlcalib_utils.utils_lines import LineKeypointsDB
@@ -779,8 +779,19 @@ class KeypointsLinesDetectionTransform:
             annotation['valid_lines'] = torch.tensor(False, dtype=torch.bool)
         
         # 处理keypoints detection
+        
+        if 'random_crop_params' in metas and metas['random_crop_apply']:
+            params = metas['random_crop_params']
+            crop_x, crop_y, crop_w, crop_h = params['crop_x'], params['crop_y'], params['crop_w'], params['crop_h']
+            orig_w, orig_h = params['orig_w'], params['orig_h']
+            max_dist_w = max(orig_w - crop_w - crop_x, crop_x)
+            max_dist_h = max(orig_h - crop_h - crop_y, crop_y)
+            extra_factor = max((max_dist_w + 0.5 * orig_w) / crop_w, (max_dist_h + 0.5 * orig_h) / crop_h)
+        else:
+            extra_factor = 0.5
+        
         try:
-            keypoints = KeypointsDB(annotation['lines'], image)
+            keypoints = KeypointsDB(annotation['lines'], image, extra_factor=extra_factor)
             keypoints_target, keypoints_mask = keypoints.get_tensor_w_mask()
             annotation['keypoints_target'] = torch.tensor(keypoints_target, dtype=torch.float32)
             annotation['keypoints_mask'] = torch.tensor(keypoints_mask, dtype=torch.float32)
@@ -801,15 +812,23 @@ def build_transforms(config: dict, split: str = "train"):
     use_keypoints_lines_detection = False
     if 'SoccerNetGSR_Detection' in config['DATASETS_TO_HEADS']:
         if 'LinesDetection' in config['DATASETS_TO_HEADS']['SoccerNetGSR_Detection'] or 'KeypointsDetection' in config['DATASETS_TO_HEADS']['SoccerNetGSR_Detection']:
-            use_lr_ambiguity_fix = True
+            use_lr_ambiguity_fix = config['USE_LR_AMBIGUITY_FIX']
             use_keypoints_lines_detection = True
     
     transforms = [
         ClearAugmentationMetas(),  # Clear any previous augmentation metadata
         LRAmbiguityFix() if use_lr_ambiguity_fix else None,  # Apply LRAmbiguityFix before ToTensor (works with PIL images)
         ToTensor(),  # Convert to tensor and float, divide by 255
-        RandomResize(sizes=config["AUG_RANDOM_RESIZE"], max_size=config["AUG_MAX_SIZE"], keep_aspect_ratio=config["KEEP_ASPECT_RATIO"]),
     ]
+    
+    # Add random crop after ToTensor and before RandomResize
+    if split == "train" and config["AUG_ENABLE_RANDOM_CROP"]:
+        transforms.append(RandomCrop(
+            crop_size_ratio_range=config["AUG_RANDOM_CROP_SIZE_RATIO_RANGE"],
+            p=config["AUG_RANDOM_CROP_PROB"]
+        ))
+    
+    transforms.append(RandomResize(sizes=config["AUG_RANDOM_RESIZE"], max_size=config["AUG_MAX_SIZE"], keep_aspect_ratio=config["KEEP_ASPECT_RATIO"]))
     
     # Add training-specific augmentations after resize
     if split == "train" and config["AUG_ENABLE_TRAINING_AUGMENTATION"]:
@@ -825,7 +844,7 @@ def build_transforms(config: dict, split: str = "train"):
         
         # Random horizontal flip
         if config["AUG_RANDOM_HORIZONTAL_FLIP"]:
-            transforms.append(RandomHorizontalFlip(p=config.get("AUG_HORIZONTAL_FLIP_PROB", 0.5)))
+            transforms.append(RandomHorizontalFlip(p=config["AUG_HORIZONTAL_FLIP_PROB"]))
         
         # Gaussian noise
         if config["AUG_GAUSSIAN_NOISE"]:

@@ -91,10 +91,8 @@ AUG_CONTRAST: 0.4
 AUG_SATURATION: 0.4
 AUG_HUE: 0.2
 AUG_COLOR_JITTER_V2: False
-# 5. for id biding:
-AUG_NUM_GROUPS: 6
-AUG_TRAJECTORY_OCCLUSION_PROB: 0.5
-AUG_TRAJECTORY_SWITCH_PROB: 0.5
+# 5. lr ambiguity fix:
+USE_LR_AMBIGUITY_FIX: True
 # 6. additional augmentations:
 AUG_ENABLE_TRAINING_AUGMENTATION: False  # enable augmentation only during training
 AUG_RANDOM_HORIZONTAL_FLIP: False       # enable random horizontal flip
@@ -106,6 +104,9 @@ AUG_GAUSSIAN_BLUR: False                # enable gaussian blur
 AUG_GAUSSIAN_BLUR_KERNEL_SIZE_RANGE: [3, 7]  # kernel size range for gaussian blur
 AUG_GAUSSIAN_BLUR_SIGMA_RANGE: [0.1, 2.0]    # sigma range for gaussian blur
 AUG_GAUSSIAN_BLUR_PROB: 0.2            # probability of applying gaussian blur
+AUG_ENABLE_RANDOM_CROP: False           # enable random crop (applied after ToTensor, before RandomResize)
+AUG_RANDOM_CROP_SIZE_RATIO_RANGE: [0.6, 1.0]  # range of crop size as ratio of original image
+AUG_RANDOM_CROP_PROB: 1.0              # probability of applying random crop
 # 7. mean and std:
 # imagenet
 # AUG_MEAN = [0.485, 0.456, 0.406]

@@ -80,6 +80,90 @@ def resize_keypoints_l(keypoints, original_size, new_size):
 
     return resized_keypoints
 
+def clip_line_to_image(x1, y1, x2, y2, img_width, img_height):
+    """
+    使用Liang-Barsky算法裁剪线段到图像边界内
+    
+    Args:
+        x1, y1: 线段起点坐标
+        x2, y2: 线段终点坐标  
+        img_width, img_height: 图像宽度和高度
+        
+    Returns:
+        如果线段完全在图像外，返回None
+        如果线段部分或完全在图像内，返回裁剪后的坐标(x1_new, y1_new, x2_new, y2_new)
+    """
+    # 参数化线段: P = P1 + t * (P2 - P1), t ∈ [0, 1]
+    dx = x2 - x1
+    dy = y2 - y1
+    
+    # 边界参数
+    p = [-dx, dx, -dy, dy]  # 对应左、右、下、上边界
+    q = [x1, img_width - 1 - x1, y1, img_height - 1 - y1]
+    
+    t_min = 0.0
+    t_max = 1.0
+    
+    for i in range(4):
+        if p[i] == 0:
+            # 线段平行于边界
+            if q[i] < 0:
+                return None  # 线段完全在边界外
+        else:
+            t = q[i] / p[i]
+            if p[i] < 0:
+                # 从外向内
+                t_min = max(t_min, t)
+            else:
+                # 从内向外
+                t_max = min(t_max, t)
+            
+            if t_min > t_max:
+                return None  # 线段完全在图像外
+    
+    # 计算裁剪后的端点
+    x1_new = int(x1 + t_min * dx)
+    y1_new = int(y1 + t_min * dy)
+    x2_new = int(x1 + t_max * dx)
+    y2_new = int(y1 + t_max * dy)
+    
+    return x1_new, y1_new, x2_new, y2_new
+
+
+def clip_keypoints_to_image(resized_keypoints, img_width, img_height):
+    """
+    裁剪线段关键点到图像边界内
+    
+    Args:
+        resized_keypoints: 调整大小后的关键点字典
+        img_width, img_height: 图像宽度和高度
+        
+    Returns:
+        裁剪后的关键点字典，移除完全在图像外的线段
+    """
+    clipped_keypoints = {}
+    
+    for kp, values in resized_keypoints.items():
+        x1, y1 = values['x_1'], values['y_1']
+        x2, y2 = values['x_2'], values['y_2']
+        
+        # 裁剪线段
+        clipped_coords = clip_line_to_image(x1, y1, x2, y2, img_width, img_height)
+        
+        if clipped_coords is not None:
+            # 线段至少部分在图像内，保留裁剪后的坐标
+            x1_new, y1_new, x2_new, y2_new = clipped_coords
+            clipped_keypoints[kp] = {
+                'x_1': x1_new, 
+                'y_1': y1_new, 
+                'x_2': x2_new, 
+                'y_2': y2_new
+            }
+        # 如果clipped_coords为None，则线段完全在图像外，不添加到结果中
+    
+    return clipped_keypoints
+
+
 def generate_gaussian_array_vectorized_l(num_matrices, keypoints, original_size, down_ratio=2, sigma=2, sigma_mult=1):
 
     def sigma_f(px, py, size, sigma):
@@ -91,6 +175,8 @@ def generate_gaussian_array_vectorized_l(num_matrices, keypoints, original_size,
 
     new_size = tuple(int(ti / down_ratio) for ti in original_size)
     resized_keypoints = resize_keypoints_l(keypoints, original_size, new_size)
+    
+    resized_keypoints = clip_keypoints_to_image(resized_keypoints, new_size[1], new_size[0])
 
     # Create an array of center points based on resized keypoints for both points
     center_points = []

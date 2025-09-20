@@ -21,7 +21,7 @@ from data.pnlcalib_utils.utils_geometry import line_intersection, ellipse_inters
 
 class KeypointsDB(object):
 
-    def __init__(self, data, image):
+    def __init__(self, data, image, extra_factor=0.5):
 
         self.keypoint_pair_list = [['Side line top', 'Side line left'],
                                    ['Side line top', 'Middle line'],
@@ -114,8 +114,8 @@ class KeypointsDB(object):
         _, self.h, self.w = self.image.size()
         self.size = (self.w, self.h)
 
-        self.h_extra = self.h * 0.5
-        self.w_extra = self.w * 0.5
+        self.h_extra = self.h * extra_factor
+        self.w_extra = self.w * extra_factor
 
         self.keypoints = {}
         self.keypoints1 = {}

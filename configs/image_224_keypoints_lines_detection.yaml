@@ -1,7 +1,7 @@
 SUPER_CONFIG_PATH: ./configs/default.yaml
 
 DATASETS_TO_HEADS:
-  SoccerNetGSR_Detection: [SoccerNetGSR_Detection, LinesDetection, KeypointsDetection]
+  SoccerNetGSR_Detection: [KeypointsDetection, LinesDetection]
 
 BATCH_SIZE: 12
 NUM_WORKERS: 12
@@ -15,9 +15,3 @@ CKPT_PATH: ./pretrained_models/google/siglip2-base-patch16-224
 TEXT_ENCODER_CKPT_PATH: ./pretrained_models/google/siglip2-base-patch16-224
 
 LINES_HEAD_TYPE: default
-
-AUG_ENABLE_TRAINING_AUGMENTATION: True
-AUG_COLOR_JITTER_V2: True
-AUG_RANDOM_HORIZONTAL_FLIP: True
-AUG_GAUSSIAN_NOISE: True
-AUG_GAUSSIAN_BLUR: True

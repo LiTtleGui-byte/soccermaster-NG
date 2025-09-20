@@ -16,7 +16,7 @@ from typing import List
 import torch.distributed as dist
 import math
 
-from data.utils import Compose, ToTensor, RandomResize, Normalize
+from data.utils import Compose, ToTensor, RandomResize, Normalize, get_image_hw, ColorJitter, RandomHorizontalFlip, GaussianNoise, GaussianBlur, ClearAugmentationMetas, RandomCrop
 
 # keywords_list = ['corner', 'goal', 'injury', 'own goal', 'penalty', 'penalty missed', 'red card', 'second yellow card', 'substitution', 'start of game(half)', 'end of game(half)', 'yellow card', 'throw in', 'free kick', 'saved by goal-keeper', 'shot off target', 'clearance', "lead to corner", 'off-side', 'var', 'foul with no card', 'statistics and summary', 'ball possession', 'ball out of play']
 keywords_list = ["var", "end of half game", "clearance", "second yellow card", "injury", "ball possession", "throw in", "show added time", "shot off target", "start of half game", "substitution", "saved by goal-keeper", "red card", "lead to corner", "ball out of play", "off side", "goal", "penalty", "yellow card", "foul lead to penalty", "corner", "free kick", "foul with no card"]
@@ -195,16 +195,20 @@ def read_frames_decord(
     return frames, frame_indices, duration
 
 def build_transforms(config: dict, split: str = "train"):
-    """
-    Build transforms
-    """
-    from data.utils import ColorJitter, RandomHorizontalFlip, GaussianNoise, GaussianBlur, ClearAugmentationMetas
     
     transforms = [
         ClearAugmentationMetas(),  # Clear any previous augmentation metadata
         ToTensor(),  # Convert to tensor and float, divide by 255
-        RandomResize(sizes=config["AUG_RANDOM_RESIZE"], max_size=config["AUG_MAX_SIZE"], keep_aspect_ratio=config["KEEP_ASPECT_RATIO"]),
     ]
+    
+    # Add random crop after ToTensor and before RandomResize
+    if split == "train" and config["AUG_ENABLE_RANDOM_CROP"]:
+        transforms.append(RandomCrop(
+            crop_size_ratio_range=config["AUG_RANDOM_CROP_SIZE_RATIO_RANGE"],
+            p=config["AUG_RANDOM_CROP_PROB"]
+        ))
+    
+    transforms.append(RandomResize(sizes=config["AUG_RANDOM_RESIZE"], max_size=config["AUG_MAX_SIZE"], keep_aspect_ratio=config["KEEP_ASPECT_RATIO"]))
     
     # Add training-specific augmentations after resize
     if split == "train" and config["AUG_ENABLE_TRAINING_AUGMENTATION"]:
@@ -220,7 +224,7 @@ def build_transforms(config: dict, split: str = "train"):
         
         # Random horizontal flip
         if config["AUG_RANDOM_HORIZONTAL_FLIP"]:
-            transforms.append(RandomHorizontalFlip(p=config.get("AUG_HORIZONTAL_FLIP_PROB", 0.5)))
+            transforms.append(RandomHorizontalFlip(p=config["AUG_HORIZONTAL_FLIP_PROB"]))
         
         # Gaussian noise
         if config["AUG_GAUSSIAN_NOISE"]:
