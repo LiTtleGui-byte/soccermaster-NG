@@ -115,7 +115,11 @@ AUG_AFFINE_TRANSLATE: [0.1, 0.1]        # tuple of maximum absolute fraction for
 AUG_AFFINE_SCALE: [0.9, 1.1]           # scaling factor interval (min_scale, max_scale)
 AUG_AFFINE_SHEAR: 5                     # range of degrees for shearing (-shear, +shear)
 AUG_AFFINE_PROB: 0.5                   # probability of applying random affine transformation
-# 8. mean and std:
+# 8. random perspective transformation:
+AUG_ENABLE_RANDOM_PERSPECTIVE: False    # enable random perspective transformation (applied after RandomAffine)
+AUG_PERSPECTIVE_DISTORTION_SCALE: 0.3   # range of perspective distortion (0.0 to 1.0)
+AUG_PERSPECTIVE_PROB: 0.5               # probability of applying random perspective transformation
+# 9. mean and std:
 # imagenet
 # AUG_MEAN = [0.485, 0.456, 0.406]
 # AUG_STD = [0.229, 0.224, 0.225]

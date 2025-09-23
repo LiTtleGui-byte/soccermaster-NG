@@ -14,7 +14,7 @@ from PIL import Image, ImageDraw, ImageFont
 import numpy as np
 import yaml
 import copy
-from data.utils import ColorJitter, RandomHorizontalFlip, GaussianNoise, GaussianBlur, ClearAugmentationMetas, Compose, ToTensor, RandomResize, Normalize, RandomCrop, RandomAffine
+from data.utils import ColorJitter, RandomHorizontalFlip, GaussianNoise, GaussianBlur, ClearAugmentationMetas, Compose, ToTensor, RandomResize, Normalize, RandomCrop, RandomAffine, RandomPerspective
 from data.soccernet_gsr_detection import build_transforms, BoxXYWHtoCXCYWH
 from configs.util import yaml_to_dict
 from torchvision.transforms import v2
@@ -31,6 +31,7 @@ def load_config():
     config["AUG_COLOR_JITTER_V2"] = True
     config["AUG_ENABLE_RANDOM_CROP"] = True
     config["AUG_ENABLE_RANDOM_AFFINE"] = True
+    config["AUG_ENABLE_RANDOM_PERSPECTIVE"] = True
     config["AUG_ENABLE_RANDOM_HORIZONTAL_FLIP"] = True
     config["AUG_ENABLE_GAUSSIAN_NOISE"] = True
     config["AUG_ENABLE_GAUSSIAN_BLUR"] = True
@@ -358,6 +359,23 @@ def apply_transforms_and_save(image_path, output_dir):
     
     print("✓ 保存随机仿射变换效果")
     
+    # Random Perspective
+    random_perspective = RandomPerspective(
+        distortion_scale=config["AUG_PERSPECTIVE_DISTORTION_SCALE"],
+        p=1.0
+    )
+    image_rp, annotation_rp, _ = random_perspective(image_normalized, copy.deepcopy(annotation_resized), metas.copy())
+    
+    rp_pil = tensor_to_pil(image_rp.float())
+    rp_pil.save(os.path.join(output_dir, "07_random_perspective.jpg"))
+    
+    # 保存带bbox的随机透视变换结果
+    rp_with_bbox = draw_bboxes_on_image(rp_pil, annotation_rp, config)
+    if rp_with_bbox:
+        rp_with_bbox.save(os.path.join(output_dir, "07_random_perspective_with_bbox.jpg"))
+    
+    print("✓ 保存随机透视变换效果")
+    
     # 2. 测试完整的训练transforms
     print("\n=== 测试完整的训练transforms ===")
     
@@ -381,12 +399,12 @@ def apply_transforms_and_save(image_path, output_dir):
     image_denorm = image_full * std + mean
     
     full_pil = tensor_to_pil(image_denorm)
-    full_pil.save(os.path.join(output_dir, "07_full_train_transforms.jpg"))
+    full_pil.save(os.path.join(output_dir, "08_full_train_transforms.jpg"))
     
     # 保存带bbox的完整训练transforms结果 (使用cxcywh格式，因为经过了BoxXYWHtoCXCYWH变换)
     full_with_bbox = draw_bboxes_on_image(full_pil, ann_full, config, bbox_format="cxcywh")
     if full_with_bbox:
-        full_with_bbox.save(os.path.join(output_dir, "07_full_train_transforms_with_bbox.jpg"))
+        full_with_bbox.save(os.path.join(output_dir, "08_full_train_transforms_with_bbox.jpg"))
     
     print("✓ 保存完整训练transforms效果")
     
@@ -407,12 +425,12 @@ def apply_transforms_and_save(image_path, output_dir):
     image_test_denorm = image_test * std + mean
     
     test_pil = tensor_to_pil(image_test_denorm)
-    test_pil.save(os.path.join(output_dir, "08_test_transforms.jpg"))
+    test_pil.save(os.path.join(output_dir, "09_test_transforms.jpg"))
     
     # 保存带bbox的测试transforms结果 (使用cxcywh格式，因为经过了BoxXYWHtoCXCYWH变换)
     test_with_bbox = draw_bboxes_on_image(test_pil, ann_test, config, bbox_format="cxcywh")
     if test_with_bbox:
-        test_with_bbox.save(os.path.join(output_dir, "08_test_transforms_with_bbox.jpg"))
+        test_with_bbox.save(os.path.join(output_dir, "09_test_transforms_with_bbox.jpg"))
     
     print("✓ 保存测试transforms效果")
     
@@ -432,10 +450,12 @@ def apply_transforms_and_save(image_path, output_dir):
     print("  05_random_crop_with_bbox.jpg         - 随机裁剪效果（带bbox）")
     print("  06_random_affine.jpg                 - 随机仿射变换效果")
     print("  06_random_affine_with_bbox.jpg       - 随机仿射变换效果（带bbox）")
-    print("  07_full_train_transforms.jpg         - 完整训练变换效果")
-    print("  07_full_train_transforms_with_bbox.jpg - 完整训练变换效果（带bbox）")
-    print("  08_test_transforms.jpg               - 测试变换效果（无增强）")
-    print("  08_test_transforms_with_bbox.jpg     - 测试变换效果（带bbox）")
+    print("  07_random_perspective.jpg            - 随机透视变换效果")
+    print("  07_random_perspective_with_bbox.jpg  - 随机透视变换效果（带bbox）")
+    print("  08_full_train_transforms.jpg         - 完整训练变换效果")
+    print("  08_full_train_transforms_with_bbox.jpg - 完整训练变换效果（带bbox）")
+    print("  09_test_transforms.jpg               - 测试变换效果（无增强）")
+    print("  09_test_transforms_with_bbox.jpg     - 测试变换效果（带bbox）")
 
 def main():
     """主函数"""

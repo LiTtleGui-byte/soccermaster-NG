@@ -624,6 +624,238 @@ class RandomAffine:
         return f"{self.__class__.__name__}(degrees={self.degrees}, translate={self.translate}, scale={self.scale}, shear={self.shear}, p={self.p})"
 
 
+class RandomPerspective:
+    """Apply random perspective transformation with annotation adjustment"""
+    def __init__(self, distortion_scale=0.3, p=1.0):
+        """
+        Args:
+            distortion_scale: Argument to control the degree of distortion and ranges from 0 to 1.
+                             Distortion is applied to the image in each corner (top-left, top-right, 
+                             bottom-left, bottom-right).
+            p: Probability of applying perspective transformation
+        """
+        self.distortion_scale = distortion_scale
+        self.p = p
+
+    def __call__(self, image, annotation, metas):
+        # Store perspective parameters for consistent application across frames
+        if 'random_perspective_params' not in metas:
+            metas['random_perspective_apply'] = random.random() <= self.p
+            if not metas['random_perspective_apply']:
+                return image, annotation, metas
+                
+            # Get original image dimensions
+            if isinstance(image, torch.Tensor):
+                orig_h, orig_w = image.shape[-2], image.shape[-1]
+            elif isinstance(image, list):
+                orig_h, orig_w = image[0].shape[-2], image[0].shape[-1]
+            else:
+                raise NotImplementedError(f"Random perspective not implemented for image type: {type(image)}")
+            
+            # Generate random perspective transformation
+            # Create random starting points for the four corners
+            start_points = [
+                [0, 0],           # top-left
+                [orig_w - 1, 0],  # top-right
+                [orig_w - 1, orig_h - 1],  # bottom-right
+                [0, orig_h - 1]   # bottom-left
+            ]
+            
+            # Apply random distortion to the end points
+            end_points = []
+            for point in start_points:
+                # Calculate maximum distortion based on image size
+                max_distortion_w = self.distortion_scale * orig_w / 2
+                max_distortion_h = self.distortion_scale * orig_h / 2
+                
+                # Add random distortion
+                distorted_x = point[0] + random.uniform(-max_distortion_w, max_distortion_w)
+                distorted_y = point[1] + random.uniform(-max_distortion_h, max_distortion_h)
+                
+                # Clamp to ensure points are within reasonable bounds
+                distorted_x = max(0, min(orig_w - 1, distorted_x))
+                distorted_y = max(0, min(orig_h - 1, distorted_y))
+                
+                end_points.append([distorted_x, distorted_y])
+            
+            metas['random_perspective_params'] = {
+                'start_points': start_points,
+                'end_points': end_points,
+                'orig_w': orig_w,
+                'orig_h': orig_h
+            }
+        else:
+            # Check if we should apply random perspective based on the stored decision
+            if not metas['random_perspective_apply']:
+                return image, annotation, metas
+        
+        params = metas['random_perspective_params']
+        start_points = params['start_points']
+        end_points = params['end_points']
+        orig_w, orig_h = params['orig_w'], params['orig_h']
+        
+        # Apply perspective transformation to image(s)
+        if isinstance(image, torch.Tensor):
+            image = v2.functional.perspective(image, start_points, end_points)
+        elif isinstance(image, list):
+            # Apply to all frames in the list
+            for i in range(len(image)):
+                image[i] = v2.functional.perspective(image[i], start_points, end_points)
+        
+        # Calculate perspective transformation matrix using OpenCV
+        start_points_np = np.array(start_points, dtype=np.float32)
+        end_points_np = np.array(end_points, dtype=np.float32)
+        perspective_matrix = cv2.getPerspectiveTransform(start_points_np, end_points_np)
+        
+        # Adjust bounding boxes
+        if "bbox" in annotation and len(annotation["bbox"]) > 0:
+            bbox = annotation["bbox"].clone()
+            # bbox format: [x, y, w, h]
+            
+            new_bboxes = []
+            valid_indices = []
+            
+            for i, box in enumerate(bbox):
+                x, y, w, h = box
+                
+                # Get the four corners of the bounding box
+                corners = np.array([
+                    [x, y],          # top-left
+                    [x + w, y],      # top-right  
+                    [x + w, y + h],  # bottom-right
+                    [x, y + h]       # bottom-left
+                ], dtype=np.float32)
+                
+                # Add homogeneous coordinate for perspective transformation
+                corners_homogeneous = np.hstack([corners, np.ones((4, 1))])
+                
+                # Transform corners using perspective matrix
+                transformed_corners = perspective_matrix @ corners_homogeneous.T
+                # Convert from homogeneous coordinates
+                transformed_corners = transformed_corners[:2] / transformed_corners[2]
+                transformed_corners = transformed_corners.T
+                
+                # Get new bounding box from transformed corners
+                min_x = np.min(transformed_corners[:, 0])
+                max_x = np.max(transformed_corners[:, 0])
+                min_y = np.min(transformed_corners[:, 1])
+                max_y = np.max(transformed_corners[:, 1])
+                
+                new_w = max_x - min_x
+                new_h = max_y - min_y
+                
+                # Check if the transformed box is still valid (intersects with image)
+                if (max_x > 0 and max_y > 0 and min_x < orig_w and min_y < orig_h and 
+                    new_w > 0 and new_h > 0):
+                    # Clip to image boundaries
+                    clipped_min_x = max(0, min_x)
+                    clipped_min_y = max(0, min_y)
+                    clipped_max_x = min(orig_w, max_x)
+                    clipped_max_y = min(orig_h, max_y)
+                    
+                    clipped_w = clipped_max_x - clipped_min_x
+                    clipped_h = clipped_max_y - clipped_min_y
+                    
+                    if clipped_w > 0 and clipped_h > 0:
+                        new_bboxes.append([clipped_min_x, clipped_min_y, clipped_w, clipped_h])
+                        valid_indices.append(i)
+            
+            if len(new_bboxes) > 0:
+                annotation["bbox"] = torch.tensor(new_bboxes, dtype=torch.float32)
+                valid_mask = torch.tensor(valid_indices, dtype=torch.long)
+                
+                # Filter all related annotations
+                if "id" in annotation:
+                    annotation["id"] = annotation["id"][valid_mask]
+                if "category" in annotation:
+                    annotation["category"] = annotation["category"][valid_mask]
+                if "visibility" in annotation:
+                    annotation["visibility"] = annotation["visibility"][valid_mask]
+                if "role" in annotation:
+                    annotation["role"] = annotation["role"][valid_mask]
+                if "jersey" in annotation:
+                    annotation["jersey"] = annotation["jersey"][valid_mask]
+                if "digit_head" in annotation:
+                    annotation["digit_head"] = annotation["digit_head"][valid_mask]
+                if "digit_tail" in annotation:
+                    annotation["digit_tail"] = annotation["digit_tail"][valid_mask]
+                if "legibility_score" in annotation:
+                    annotation["legibility_score"] = annotation["legibility_score"][valid_mask]
+            else:
+                # No valid boxes, create empty tensors
+                annotation["bbox"] = torch.zeros((0, 4), dtype=torch.float32)
+                if "id" in annotation:
+                    annotation["id"] = torch.zeros((0,), dtype=torch.int64)
+                if "category" in annotation:
+                    annotation["category"] = torch.zeros((0,), dtype=torch.int64)
+                if "visibility" in annotation:
+                    annotation["visibility"] = torch.zeros((0,), dtype=torch.float32)
+                if "role" in annotation:
+                    annotation["role"] = torch.zeros((0,), dtype=torch.int64)
+                if "jersey" in annotation:
+                    annotation["jersey"] = torch.zeros((0,), dtype=torch.int64)
+                if "digit_head" in annotation:
+                    annotation["digit_head"] = torch.zeros((0,), dtype=torch.int64)
+                if "digit_tail" in annotation:
+                    annotation["digit_tail"] = torch.zeros((0,), dtype=torch.int64)
+                if "legibility_score" in annotation:
+                    annotation["legibility_score"] = torch.zeros((0,), dtype=torch.float32)
+        
+        # Adjust lines annotations
+        if "lines" in annotation and len(annotation["lines"]) > 0:
+            lines = annotation["lines"]
+            adjusted_lines = {}
+            
+            for line_name, points in lines.items():
+                adjusted_points = []
+                for point in points:
+                    # Convert normalized coordinates to absolute coordinates
+                    abs_x = point["x"] * orig_w
+                    abs_y = point["y"] * orig_h
+                    
+                    # Apply perspective transformation
+                    point_homogeneous = np.array([abs_x, abs_y, 1.0], dtype=np.float32)
+                    transformed_point = perspective_matrix @ point_homogeneous
+                    # Convert from homogeneous coordinates
+                    transformed_x = transformed_point[0] / transformed_point[2]
+                    transformed_y = transformed_point[1] / transformed_point[2]
+                    
+                    # Convert back to normalized coordinates
+                    adjusted_points.append({
+                        "x": transformed_x / orig_w,
+                        "y": transformed_y / orig_h
+                    })
+                
+                adjusted_lines[line_name] = adjusted_points
+            
+            annotation["lines"] = adjusted_lines
+        
+        # Transform lines_target if it exists
+        if "lines_target" in annotation:
+            lines_target = annotation["lines_target"]
+            transformed_heatmaps = []
+            for i in range(lines_target.shape[0]):
+                heatmap = lines_target[i].unsqueeze(0).unsqueeze(0)  # Add batch and channel dims
+                transformed_heatmap = v2.functional.perspective(heatmap, start_points, end_points)
+                transformed_heatmaps.append(transformed_heatmap.squeeze(0).squeeze(0))
+            annotation["lines_target"] = torch.stack(transformed_heatmaps, dim=0)
+        
+        # Transform keypoints_target if it exists
+        if "keypoints_target" in annotation:
+            keypoints_target = annotation["keypoints_target"]
+            transformed_keypoints = []
+            for i in range(keypoints_target.shape[0]):
+                heatmap = keypoints_target[i].unsqueeze(0).unsqueeze(0)  # Add batch and channel dims
+                transformed_heatmap = v2.functional.perspective(heatmap, start_points, end_points)
+                transformed_keypoints.append(transformed_heatmap.squeeze(0).squeeze(0))
+            annotation["keypoints_target"] = torch.stack(transformed_keypoints, dim=0)
+        
+        return image, annotation, metas
+
+    def __repr__(self) -> str:
+        return f"{self.__class__.__name__}(distortion_scale={self.distortion_scale}, p={self.p})"
+
+
 class RandomCrop:
     """Apply random crop to images with annotation adjustment"""
     def __init__(self, crop_size_ratio_range=(0.6, 1.0), p=1.0):
@@ -795,7 +1027,7 @@ class ClearAugmentationMetas:
     """Clear augmentation metadata to ensure independence between samples"""
     def __call__(self, image, annotation, metas):
         # Remove augmentation-specific metadata
-        keys_to_remove = ['color_jitter_params', 'color_jitter_apply', 'horizontal_flip', 'gaussian_noise_params', 'gaussian_noise_apply', 'gaussian_blur_params', 'gaussian_blur_apply', 'random_affine_params', 'random_affine_apply', 'random_crop_params', 'random_crop_apply', 'crop_applied', 'crop_info']
+        keys_to_remove = ['color_jitter_params', 'color_jitter_apply', 'horizontal_flip', 'gaussian_noise_params', 'gaussian_noise_apply', 'gaussian_blur_params', 'gaussian_blur_apply', 'random_affine_params', 'random_affine_apply', 'random_perspective_params', 'random_perspective_apply', 'random_crop_params', 'random_crop_apply', 'crop_applied', 'crop_info']
         for key in keys_to_remove:
             if key in metas:
                 del metas[key]

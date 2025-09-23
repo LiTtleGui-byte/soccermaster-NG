@@ -18,7 +18,7 @@ from math import floor
 from torch.utils.data import DataLoader
 import torch.nn.functional as F
 from utils.box_ops import box_xywh_to_xyxy, box_xyxy_to_cxcywh, box_cxcywh_to_xywh, bbox_xywh_to_cxcywh
-from data.utils import Compose, ToTensor, RandomResize, Normalize, get_image_hw, ColorJitter, RandomHorizontalFlip, GaussianNoise, GaussianBlur, ClearAugmentationMetas, RandomCrop, RandomAffine
+from data.utils import Compose, ToTensor, RandomResize, Normalize, get_image_hw, ColorJitter, RandomHorizontalFlip, GaussianNoise, GaussianBlur, ClearAugmentationMetas, RandomCrop, RandomAffine, RandomPerspective
 from data.soccernet_gsr_reid import role_mapping, jn_mapping, digit_head_mapping, digit_tail_mapping
 from data.pnlcalib_utils.utils_keypoints import KeypointsDB
 from data.pnlcalib_utils.utils_lines import LineKeypointsDB
@@ -822,7 +822,7 @@ def build_transforms(config: dict, split: str = "train"):
     ]
     
     if split == "train" and config["AUG_ENABLE_TRAINING_AUGMENTATION"]:
-        # Add random affine after ToTensor and before RandomCrop
+        # Add random affine after ToTensor and before RandomPerspective
         if config["AUG_ENABLE_RANDOM_AFFINE"]:
             transforms.append(RandomAffine(
                 degrees=config["AUG_AFFINE_DEGREES"],
@@ -830,6 +830,13 @@ def build_transforms(config: dict, split: str = "train"):
                 scale=config["AUG_AFFINE_SCALE"],
                 shear=config["AUG_AFFINE_SHEAR"],
                 p=config["AUG_AFFINE_PROB"]
+            ))
+        
+        # Add random perspective after RandomAffine and before RandomCrop
+        if config["AUG_ENABLE_RANDOM_PERSPECTIVE"]:
+            transforms.append(RandomPerspective(
+                distortion_scale=config["AUG_PERSPECTIVE_DISTORTION_SCALE"],
+                p=config["AUG_PERSPECTIVE_PROB"]
             ))
         
         # Add random crop after ToTensor and before RandomResize
