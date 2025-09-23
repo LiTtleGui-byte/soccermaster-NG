@@ -8,6 +8,11 @@ import cv2
 import copy
 from sn_calibration.src.evaluate_extremities import mirror_labels
 
+try:
+    from torchvision.transforms.functional import _get_inverse_affine_matrix as get_inv_affine_matrix
+except Exception:
+    from torchvision.transforms.v2.functional import _get_inverse_affine_matrix as get_inv_affine_matrix
+
 class Compose:
     def __init__(self, transforms):
         self.transforms = transforms
@@ -323,14 +328,36 @@ class RandomAffine:
                       in the range -img_width * a < dx < img_width * a and vertical shift is 
                       randomly sampled in the range -img_height * b < dy < img_height * b
             scale: Scaling factor interval, e.g (a, b), then scale is randomly sampled from the range a <= scale <= b
-            shear: Range of degrees to select from for shearing. If shear is a number,
-                   a shear parallel to the x axis in the range (-shear, +shear) will be applied
+            shear: Range of degrees to select from for shearing. Can be a number or a tuple/list:
+                   - If shear is a number, shearing is applied on both x and y axes in the range (-shear, +shear)
+                   - If shear is a 2-element tuple (shear_x, shear_y), separate ranges are applied for x and y axes
+                   - If shear is a 4-element tuple (min_shear_x, max_shear_x, min_shear_y, max_shear_y), 
+                     individual ranges are applied for x and y axes
             p: Probability of applying affine transformation
         """
         self.degrees = degrees if isinstance(degrees, (tuple, list)) else (-degrees, degrees)
         self.translate = translate
         self.scale = scale
-        self.shear = shear if isinstance(shear, (tuple, list)) else (-shear, shear) if shear is not None else None
+        
+        # Handle shear parameter to support both x and y directions
+        if shear is None:
+            self.shear = None
+        elif isinstance(shear, (tuple, list)):
+            if len(shear) == 2:
+                # Two values: (shear_x_range, shear_y_range) or (shear_x, shear_y)
+                self.shear = (
+                    shear[0] if isinstance(shear[0], (tuple, list)) else (-shear[0], shear[0]),
+                    shear[1] if isinstance(shear[1], (tuple, list)) else (-shear[1], shear[1])
+                )
+            elif len(shear) == 4:
+                # Four values: (min_shear_x, max_shear_x, min_shear_y, max_shear_y)
+                self.shear = ((shear[0], shear[1]), (shear[2], shear[3]))
+            else:
+                raise ValueError(f"shear must be a number, 2-element tuple, or 4-element tuple, got {len(shear)} elements")
+        else:
+            # Single number: apply same range to both x and y
+            self.shear = ((-shear, shear), (-shear, shear))
+        
         self.p = p
 
     def __call__(self, image, annotation, metas):
@@ -364,14 +391,16 @@ class RandomAffine:
                 scale_factor = random.uniform(self.scale[0], self.scale[1])
             
             shear_x = 0
+            shear_y = 0
             if self.shear is not None:
-                shear_x = random.uniform(self.shear[0], self.shear[1])
+                shear_x = random.uniform(self.shear[0][0], self.shear[0][1])
+                shear_y = random.uniform(self.shear[1][0], self.shear[1][1])
             
             metas['random_affine_params'] = {
                 'angle': angle,
                 'translate': (translate_x, translate_y),
                 'scale': scale_factor,
-                'shear': shear_x,
+                'shear': (shear_x, shear_y),
                 'orig_w': orig_w,
                 'orig_h': orig_h
             }
@@ -384,7 +413,7 @@ class RandomAffine:
         angle = params['angle']
         translate_x, translate_y = params['translate']
         scale_factor = params['scale']
-        shear_x = params['shear']
+        shear_x, shear_y = params['shear']
         orig_w, orig_h = params['orig_w'], params['orig_h']
         
         # Apply affine transformation to image(s)
@@ -394,7 +423,7 @@ class RandomAffine:
                 angle=angle, 
                 translate=[translate_x, translate_y], 
                 scale=scale_factor, 
-                shear=[shear_x, 0]
+                shear=[shear_x, shear_y]
             )
         elif isinstance(image, list):
             # Apply to all frames in the list
@@ -404,38 +433,26 @@ class RandomAffine:
                     angle=angle, 
                     translate=[translate_x, translate_y], 
                     scale=scale_factor, 
-                    shear=[shear_x, 0]
+                    shear=[shear_x, shear_y]
                 )
         
-        # Compute affine transformation matrix
-        # Center of rotation is the center of the image
-        center_x, center_y = orig_w / 2, orig_h / 2
-        
-        # Convert angle to radians
-        angle_rad = np.radians(angle)
-        cos_a = np.cos(angle_rad)
-        sin_a = np.sin(angle_rad)
-        
-        # Convert shear to radians
-        shear_rad = np.radians(shear_x)
-        shear_tan = np.tan(shear_rad)
-        
-        # Create transformation matrix (from destination to source coordinates)
-        # This matches PyTorch's convention
-        # First apply shear, then scale, then rotation, then translation
-        
-        # Combined transformation matrix
-        a = scale_factor * cos_a
-        b = scale_factor * (-sin_a + shear_tan * cos_a)
-        c = scale_factor * sin_a
-        d = scale_factor * (cos_a + shear_tan * sin_a)
-        
-        # Translation part (includes centering)
-        tx = -a * center_x - b * center_y + center_x + translate_x
-        ty = -c * center_x - d * center_y + center_y + translate_y
-        
-        # Store transformation matrix for coordinate transformation
-        transform_matrix = np.array([[a, b, tx], [c, d, ty], [0, 0, 1]])
+        # Build forward transform matrix (input -> output) consistent with torchvision.affine
+        center = [orig_w * 0.5, orig_h * 0.5]
+
+        coeffs = get_inv_affine_matrix(
+            center=center,
+            angle=angle,
+            translate=[translate_x, translate_y],
+            scale=scale_factor,
+            shear=[shear_x, shear_y],
+            inverted=False,
+        )
+        transform_matrix = np.array(
+            [[coeffs[0], coeffs[1], coeffs[2]],
+             [coeffs[3], coeffs[4], coeffs[5]],
+             [0.0, 0.0, 1.0]],
+            dtype=np.float32,
+        )
         
         # Adjust bounding boxes
         if "bbox" in annotation and len(annotation["bbox"]) > 0:
@@ -578,7 +595,7 @@ class RandomAffine:
                     angle=angle,
                     translate=[translate_x * scale_w, translate_y * scale_h],
                     scale=scale_factor,
-                    shear=[shear_x, 0]
+                    shear=[shear_x, shear_y]
                 )
                 transformed_heatmaps.append(transformed_heatmap.squeeze(0).squeeze(0))
             annotation["lines_target"] = torch.stack(transformed_heatmaps, dim=0)
@@ -596,7 +613,7 @@ class RandomAffine:
                     angle=angle,
                     translate=[translate_x * (w / orig_w), translate_y * (h / orig_h)],
                     scale=scale_factor,
-                    shear=[shear_x, 0]
+                    shear=[shear_x, shear_y]
                 )
                 transformed_keypoints.append(transformed_heatmap.squeeze(0).squeeze(0))
             annotation["keypoints_target"] = torch.stack(transformed_keypoints, dim=0)

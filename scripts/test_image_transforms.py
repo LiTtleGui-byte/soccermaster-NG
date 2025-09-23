@@ -336,14 +336,14 @@ def apply_transforms_and_save(image_path, output_dir):
     
     # Random Affine
     random_affine = RandomAffine(
-        # degrees=config["AUG_AFFINE_DEGREES"],
-        # translate=config["AUG_AFFINE_TRANSLATE"],
-        # scale=config["AUG_AFFINE_SCALE"],
-        # shear=config["AUG_AFFINE_SHEAR"],
-        degrees=0,
-        translate=[0,0],
-        scale=[1.0,1.0],
-        shear=5,
+        degrees=config["AUG_AFFINE_DEGREES"],
+        translate=config["AUG_AFFINE_TRANSLATE"],
+        scale=config["AUG_AFFINE_SCALE"],
+        shear=config["AUG_AFFINE_SHEAR"],
+        # degrees=0,
+        # translate=[0,0],
+        # scale=[1.0,1.0],
+        # shear=15,
         p=1.0
     )
     image_ra, annotation_ra, _ = random_affine(image_normalized, copy.deepcopy(annotation_resized), metas.copy())
