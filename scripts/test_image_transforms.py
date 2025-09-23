@@ -86,8 +86,45 @@ def load_image_and_annotation(image_path, config):
         # legibility_score: 号码清晰度得分 (0-1) - 基于有无jersey推测
         "legibility_score": torch.tensor([0.95, 0.90, 0.88, 0.92, 0.0, 0.85], dtype=torch.float32),
         
-        # lines: 球场线条信息 (空字典，因为这个例子主要关注目标检测)
-        "lines": {},
+        # lines: 球场线条信息 (硬编码的真实lines数据)
+        "lines": {
+            "Side line top": [
+                {
+                    "x": 0.0,
+                    "y": 0.2940777777777778
+                },
+                {
+                    "x": 0.4890421875,
+                    "y": 0.2992666666666666
+                },
+                {
+                    "x": 0.77439375,
+                    "y": 0.29635370370370373
+                },
+                {
+                    "x": 1.0,
+                    "y": 0.29099166666666665
+                }
+            ],
+            "Middle line": [
+                {
+                    "x": 0.5051244791666667,
+                    "y": 0.9998490740740741
+                },
+                {
+                    "x": 0.5036705729166667,
+                    "y": 0.7501189814814815
+                },
+                {
+                    "x": 0.5022166666666666,
+                    "y": 0.5003888888888889
+                },
+                {
+                    "x": 0.5008604166666667,
+                    "y": 0.2995601851851852
+                }
+            ]
+        },
     }
     
     return image_tensor, image, annotation
@@ -108,11 +145,11 @@ def tensor_to_pil(tensor):
     return Image.fromarray(tensor)
 
 def draw_bboxes_on_image(image, annotation, config, bbox_format="xywh"):
-    """在图片上绘制bbox
+    """在图片上绘制bbox和lines
     
     Args:
         image: PIL图片
-        annotation: 包含bbox信息的annotation字典
+        annotation: 包含bbox和lines信息的annotation字典
         config: 配置字典
         bbox_format: bbox格式，"xywh"表示[x,y,w,h]，"cxcywh"表示[cx,cy,w,h]
     """
@@ -120,8 +157,11 @@ def draw_bboxes_on_image(image, annotation, config, bbox_format="xywh"):
         return None
     
     # 创建图片副本进行绘制
-    img_with_bbox = image.copy()
-    draw = ImageDraw.Draw(img_with_bbox)
+    img_with_annotations = image.copy()
+    draw = ImageDraw.Draw(img_with_annotations)
+    
+    # 获取图片尺寸
+    img_width, img_height = img_with_annotations.size
     
     # 尝试加载字体，如果失败则使用默认字体
     try:
@@ -133,6 +173,21 @@ def draw_bboxes_on_image(image, annotation, config, bbox_format="xywh"):
     category_colors = {
         0: "red",      # person
         1: "blue",     # ball
+    }
+    
+    # 定义lines颜色
+    line_colors = {
+        "Side line top": "yellow",
+        "Side line bottom": "yellow", 
+        "Side line left": "yellow",
+        "Side line right": "yellow",
+        "Middle line": "green",
+        "Goal left crossbar": "orange",
+        "Goal right crossbar": "orange",
+        "Big rect. left main": "cyan",
+        "Big rect. right main": "cyan",
+        "Small rect. left main": "magenta", 
+        "Small rect. right main": "magenta",
     }
     
     # 角色映射 (与soccernet_gsr_reid.py中的role_mapping保持一致)
@@ -196,7 +251,35 @@ def draw_bboxes_on_image(image, annotation, config, bbox_format="xywh"):
             # 绘制标签文字
             draw.text((x1, y1-20), label, fill="white", font=font)
     
-    return img_with_bbox
+    # 绘制lines
+    if "lines" in annotation and annotation["lines"]:
+        for line_name, points in annotation["lines"].items():
+            if len(points) >= 2:
+                # 获取线条颜色，如果没有预定义则使用白色
+                line_color = line_colors.get(line_name, "white")
+                
+                # 转换归一化坐标到绝对坐标并绘制线条
+                abs_points = []
+                for point in points:
+                    abs_x = point["x"] * img_width
+                    abs_y = point["y"] * img_height
+                    abs_points.append((abs_x, abs_y))
+                
+                # 绘制连接所有点的线条
+                if len(abs_points) >= 2:
+                    for i in range(len(abs_points) - 1):
+                        draw.line([abs_points[i], abs_points[i + 1]], fill=line_color, width=2)
+                    
+                    # 在线条起点绘制标签
+                    if abs_points:
+                        start_x, start_y = abs_points[0]
+                        # 绘制标签背景
+                        bbox_label = draw.textbbox((start_x, start_y), line_name, font=font)
+                        draw.rectangle(bbox_label, fill=line_color, outline=line_color)
+                        # 绘制标签文字
+                        draw.text((start_x, start_y), line_name, fill="black", font=font)
+    
+    return img_with_annotations
 
 def apply_transforms_and_save(image_path, output_dir):
     """应用不同的数据增强并保存结果"""
@@ -213,11 +296,11 @@ def apply_transforms_and_save(image_path, output_dir):
     print(f"原始图片数据范围: [{image_tensor.min()}, {image_tensor.max()}]")
     print(f"找到 {len(original_annotation['bbox'])} 个目标")
     
-    # 保存原始图片（带bbox）
-    original_with_bbox = draw_bboxes_on_image(original_pil, original_annotation, config)
-    if original_with_bbox:
-        original_with_bbox.save(os.path.join(output_dir, "00_original_with_bbox.jpg"))
-        print("✓ 保存原始图片（带bbox）")
+    # 保存原始图片（带bbox和lines）
+    original_with_annotations = draw_bboxes_on_image(original_pil, original_annotation, config)
+    if original_with_annotations:
+        original_with_annotations.save(os.path.join(output_dir, "00_original_with_annotations.jpg"))
+        print("✓ 保存原始图片（带bbox和lines）")
     
     # 也保存不带bbox的原始图片
     original_pil.save(os.path.join(output_dir, "00_original.jpg"))
@@ -261,10 +344,10 @@ def apply_transforms_and_save(image_path, output_dir):
     cj_pil = tensor_to_pil(image_cj)
     cj_pil.save(os.path.join(output_dir, "01_color_jitter.jpg"))
     
-    # 保存带bbox的Color Jitter结果
-    cj_with_bbox = draw_bboxes_on_image(cj_pil, annotation_cj, config)
-    if cj_with_bbox:
-        cj_with_bbox.save(os.path.join(output_dir, "01_color_jitter_with_bbox.jpg"))
+    # 保存带bbox和lines的Color Jitter结果
+    cj_with_annotations = draw_bboxes_on_image(cj_pil, annotation_cj, config)
+    if cj_with_annotations:
+        cj_with_annotations.save(os.path.join(output_dir, "01_color_jitter_with_annotations.jpg"))
     
     print("✓ 保存Color Jitter效果")
     
@@ -275,10 +358,10 @@ def apply_transforms_and_save(image_path, output_dir):
     hf_pil = tensor_to_pil(image_hf.float())
     hf_pil.save(os.path.join(output_dir, "02_horizontal_flip.jpg"))
     
-    # 保存带bbox的水平翻转结果
-    hf_with_bbox = draw_bboxes_on_image(hf_pil, annotation_hf, config)
-    if hf_with_bbox:
-        hf_with_bbox.save(os.path.join(output_dir, "02_horizontal_flip_with_bbox.jpg"))
+    # 保存带bbox和lines的水平翻转结果
+    hf_with_annotations = draw_bboxes_on_image(hf_pil, annotation_hf, config)
+    if hf_with_annotations:
+        hf_with_annotations.save(os.path.join(output_dir, "02_horizontal_flip_with_annotations.jpg"))
     
     print("✓ 保存水平翻转效果")
     
@@ -293,10 +376,10 @@ def apply_transforms_and_save(image_path, output_dir):
     gn_pil = tensor_to_pil(image_gn)
     gn_pil.save(os.path.join(output_dir, "03_gaussian_noise.jpg"))
     
-    # 保存带bbox的高斯噪声结果
-    gn_with_bbox = draw_bboxes_on_image(gn_pil, annotation_gn, config)
-    if gn_with_bbox:
-        gn_with_bbox.save(os.path.join(output_dir, "03_gaussian_noise_with_bbox.jpg"))
+    # 保存带bbox和lines的高斯噪声结果
+    gn_with_annotations = draw_bboxes_on_image(gn_pil, annotation_gn, config)
+    if gn_with_annotations:
+        gn_with_annotations.save(os.path.join(output_dir, "03_gaussian_noise_with_annotations.jpg"))
     
     print("✓ 保存高斯噪声效果")
     
@@ -311,10 +394,10 @@ def apply_transforms_and_save(image_path, output_dir):
     gb_pil = tensor_to_pil(image_gb.float())
     gb_pil.save(os.path.join(output_dir, "04_gaussian_blur.jpg"))
     
-    # 保存带bbox的高斯模糊结果
-    gb_with_bbox = draw_bboxes_on_image(gb_pil, annotation_gb, config)
-    if gb_with_bbox:
-        gb_with_bbox.save(os.path.join(output_dir, "04_gaussian_blur_with_bbox.jpg"))
+    # 保存带bbox和lines的高斯模糊结果
+    gb_with_annotations = draw_bboxes_on_image(gb_pil, annotation_gb, config)
+    if gb_with_annotations:
+        gb_with_annotations.save(os.path.join(output_dir, "04_gaussian_blur_with_annotations.jpg"))
     
     print("✓ 保存高斯模糊效果")
     
@@ -328,10 +411,10 @@ def apply_transforms_and_save(image_path, output_dir):
     rc_pil = tensor_to_pil(image_rc.float())
     rc_pil.save(os.path.join(output_dir, "05_random_crop.jpg"))
     
-    # 保存带bbox的随机裁剪结果
-    rc_with_bbox = draw_bboxes_on_image(rc_pil, annotation_rc, config)
-    if rc_with_bbox:
-        rc_with_bbox.save(os.path.join(output_dir, "05_random_crop_with_bbox.jpg"))
+    # 保存带bbox和lines的随机裁剪结果
+    rc_with_annotations = draw_bboxes_on_image(rc_pil, annotation_rc, config)
+    if rc_with_annotations:
+        rc_with_annotations.save(os.path.join(output_dir, "05_random_crop_with_annotations.jpg"))
     
     print("✓ 保存随机裁剪效果")
     
@@ -352,10 +435,10 @@ def apply_transforms_and_save(image_path, output_dir):
     ra_pil = tensor_to_pil(image_ra.float())
     ra_pil.save(os.path.join(output_dir, "06_random_affine.jpg"))
     
-    # 保存带bbox的随机仿射变换结果
-    ra_with_bbox = draw_bboxes_on_image(ra_pil, annotation_ra, config)
-    if ra_with_bbox:
-        ra_with_bbox.save(os.path.join(output_dir, "06_random_affine_with_bbox.jpg"))
+    # 保存带bbox和lines的随机仿射变换结果
+    ra_with_annotations = draw_bboxes_on_image(ra_pil, annotation_ra, config)
+    if ra_with_annotations:
+        ra_with_annotations.save(os.path.join(output_dir, "06_random_affine_with_annotations.jpg"))
     
     print("✓ 保存随机仿射变换效果")
     
@@ -369,10 +452,10 @@ def apply_transforms_and_save(image_path, output_dir):
     rp_pil = tensor_to_pil(image_rp.float())
     rp_pil.save(os.path.join(output_dir, "07_random_perspective.jpg"))
     
-    # 保存带bbox的随机透视变换结果
-    rp_with_bbox = draw_bboxes_on_image(rp_pil, annotation_rp, config)
-    if rp_with_bbox:
-        rp_with_bbox.save(os.path.join(output_dir, "07_random_perspective_with_bbox.jpg"))
+    # 保存带bbox和lines的随机透视变换结果
+    rp_with_annotations = draw_bboxes_on_image(rp_pil, annotation_rp, config)
+    if rp_with_annotations:
+        rp_with_annotations.save(os.path.join(output_dir, "07_random_perspective_with_annotations.jpg"))
     
     print("✓ 保存随机透视变换效果")
     
@@ -401,10 +484,10 @@ def apply_transforms_and_save(image_path, output_dir):
     full_pil = tensor_to_pil(image_denorm)
     full_pil.save(os.path.join(output_dir, "08_full_train_transforms.jpg"))
     
-    # 保存带bbox的完整训练transforms结果 (使用cxcywh格式，因为经过了BoxXYWHtoCXCYWH变换)
-    full_with_bbox = draw_bboxes_on_image(full_pil, ann_full, config, bbox_format="cxcywh")
-    if full_with_bbox:
-        full_with_bbox.save(os.path.join(output_dir, "08_full_train_transforms_with_bbox.jpg"))
+    # 保存带bbox和lines的完整训练transforms结果 (使用cxcywh格式，因为经过了BoxXYWHtoCXCYWH变换)
+    full_with_annotations = draw_bboxes_on_image(full_pil, ann_full, config, bbox_format="cxcywh")
+    if full_with_annotations:
+        full_with_annotations.save(os.path.join(output_dir, "08_full_train_transforms_with_annotations.jpg"))
     
     print("✓ 保存完整训练transforms效果")
     
@@ -427,35 +510,35 @@ def apply_transforms_and_save(image_path, output_dir):
     test_pil = tensor_to_pil(image_test_denorm)
     test_pil.save(os.path.join(output_dir, "09_test_transforms.jpg"))
     
-    # 保存带bbox的测试transforms结果 (使用cxcywh格式，因为经过了BoxXYWHtoCXCYWH变换)
-    test_with_bbox = draw_bboxes_on_image(test_pil, ann_test, config, bbox_format="cxcywh")
-    if test_with_bbox:
-        test_with_bbox.save(os.path.join(output_dir, "09_test_transforms_with_bbox.jpg"))
+    # 保存带bbox和lines的测试transforms结果 (使用cxcywh格式，因为经过了BoxXYWHtoCXCYWH变换)
+    test_with_annotations = draw_bboxes_on_image(test_pil, ann_test, config, bbox_format="cxcywh")
+    if test_with_annotations:
+        test_with_annotations.save(os.path.join(output_dir, "09_test_transforms_with_annotations.jpg"))
     
     print("✓ 保存测试transforms效果")
     
     print(f"\n🎉 所有处理完成！结果保存在: {output_dir}")
     print("\n📁 输出文件说明:")
-    print("  00_original.jpg                      - 原始图片")
-    print("  00_original_with_bbox.jpg            - 原始图片（带bbox标注）")
-    print("  01_color_jitter.jpg                  - 颜色抖动效果")
-    print("  01_color_jitter_with_bbox.jpg        - 颜色抖动效果（带bbox）")
-    print("  02_horizontal_flip.jpg               - 水平翻转效果")
-    print("  02_horizontal_flip_with_bbox.jpg     - 水平翻转效果（带bbox）")
-    print("  03_gaussian_noise.jpg                - 高斯噪声效果")
-    print("  03_gaussian_noise_with_bbox.jpg      - 高斯噪声效果（带bbox）")
-    print("  04_gaussian_blur.jpg                 - 高斯模糊效果")
-    print("  04_gaussian_blur_with_bbox.jpg       - 高斯模糊效果（带bbox）")
-    print("  05_random_crop.jpg                   - 随机裁剪效果")
-    print("  05_random_crop_with_bbox.jpg         - 随机裁剪效果（带bbox）")
-    print("  06_random_affine.jpg                 - 随机仿射变换效果")
-    print("  06_random_affine_with_bbox.jpg       - 随机仿射变换效果（带bbox）")
-    print("  07_random_perspective.jpg            - 随机透视变换效果")
-    print("  07_random_perspective_with_bbox.jpg  - 随机透视变换效果（带bbox）")
-    print("  08_full_train_transforms.jpg         - 完整训练变换效果")
-    print("  08_full_train_transforms_with_bbox.jpg - 完整训练变换效果（带bbox）")
-    print("  09_test_transforms.jpg               - 测试变换效果（无增强）")
-    print("  09_test_transforms_with_bbox.jpg     - 测试变换效果（带bbox）")
+    print("  00_original.jpg                              - 原始图片")
+    print("  00_original_with_annotations.jpg             - 原始图片（带bbox和lines标注）")
+    print("  01_color_jitter.jpg                          - 颜色抖动效果")
+    print("  01_color_jitter_with_annotations.jpg         - 颜色抖动效果（带bbox和lines）")
+    print("  02_horizontal_flip.jpg                       - 水平翻转效果")
+    print("  02_horizontal_flip_with_annotations.jpg      - 水平翻转效果（带bbox和lines）")
+    print("  03_gaussian_noise.jpg                        - 高斯噪声效果")
+    print("  03_gaussian_noise_with_annotations.jpg       - 高斯噪声效果（带bbox和lines）")
+    print("  04_gaussian_blur.jpg                         - 高斯模糊效果")
+    print("  04_gaussian_blur_with_annotations.jpg        - 高斯模糊效果（带bbox和lines）")
+    print("  05_random_crop.jpg                           - 随机裁剪效果")
+    print("  05_random_crop_with_annotations.jpg          - 随机裁剪效果（带bbox和lines）")
+    print("  06_random_affine.jpg                         - 随机仿射变换效果")
+    print("  06_random_affine_with_annotations.jpg        - 随机仿射变换效果（带bbox和lines）")
+    print("  07_random_perspective.jpg                    - 随机透视变换效果")
+    print("  07_random_perspective_with_annotations.jpg   - 随机透视变换效果（带bbox和lines）")
+    print("  08_full_train_transforms.jpg                 - 完整训练变换效果")
+    print("  08_full_train_transforms_with_annotations.jpg - 完整训练变换效果（带bbox和lines）")
+    print("  09_test_transforms.jpg                       - 测试变换效果（无增强）")
+    print("  09_test_transforms_with_annotations.jpg      - 测试变换效果（带bbox和lines）")
 
 def main():
     """主函数"""
