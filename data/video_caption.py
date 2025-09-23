@@ -16,7 +16,7 @@ from typing import List
 import torch.distributed as dist
 import math
 
-from data.utils import Compose, ToTensor, RandomResize, Normalize, get_image_hw, ColorJitter, RandomHorizontalFlip, GaussianNoise, GaussianBlur, ClearAugmentationMetas, RandomCrop
+from data.utils import Compose, ToTensor, RandomResize, Normalize, get_image_hw, ColorJitter, RandomHorizontalFlip, GaussianNoise, GaussianBlur, ClearAugmentationMetas, RandomCrop, RandomAffine
 
 # keywords_list = ['corner', 'goal', 'injury', 'own goal', 'penalty', 'penalty missed', 'red card', 'second yellow card', 'substitution', 'start of game(half)', 'end of game(half)', 'yellow card', 'throw in', 'free kick', 'saved by goal-keeper', 'shot off target', 'clearance', "lead to corner", 'off-side', 'var', 'foul with no card', 'statistics and summary', 'ball possession', 'ball out of play']
 keywords_list = ["var", "end of half game", "clearance", "second yellow card", "injury", "ball possession", "throw in", "show added time", "shot off target", "start of half game", "substitution", "saved by goal-keeper", "red card", "lead to corner", "ball out of play", "off side", "goal", "penalty", "yellow card", "foul lead to penalty", "corner", "free kick", "foul with no card"]
@@ -200,6 +200,16 @@ def build_transforms(config: dict, split: str = "train"):
         ClearAugmentationMetas(),  # Clear any previous augmentation metadata
         ToTensor(),  # Convert to tensor and float, divide by 255
     ]
+    
+    # Add random affine after ToTensor and before RandomCrop
+    if split == "train" and config["AUG_ENABLE_RANDOM_AFFINE"]:
+        transforms.append(RandomAffine(
+            degrees=config["AUG_AFFINE_DEGREES"],
+            translate=config["AUG_AFFINE_TRANSLATE"],
+            scale=config["AUG_AFFINE_SCALE"],
+            shear=config["AUG_AFFINE_SHEAR"],
+            p=config["AUG_AFFINE_PROB"]
+        ))
     
     # Add random crop after ToTensor and before RandomResize
     if split == "train" and config["AUG_ENABLE_RANDOM_CROP"]:

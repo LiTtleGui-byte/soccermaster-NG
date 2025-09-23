@@ -1,0 +1,29 @@
+SUPER_CONFIG_PATH: ./configs/default.yaml
+
+DATASETS_TO_HEADS:
+  SoccerNetGSR_Detection: [SoccerNetGSR_Detection, LinesDetection, KeypointsDetection]
+
+BATCH_SIZE: 12
+NUM_WORKERS: 12
+
+AUG_RESIZE_SCALES: [224]
+AUG_MAX_SIZE: 224
+AUG_RANDOM_RESIZE: [224]
+
+BACKBONE_TYPE: image
+CKPT_PATH: ./pretrained_models/google/siglip2-base-patch16-224
+TEXT_ENCODER_CKPT_PATH: ./pretrained_models/google/siglip2-base-patch16-224
+
+LINES_HEAD_TYPE: default
+
+USE_LR_AMBIGUITY_FIX: False
+
+AUG_ENABLE_TRAINING_AUGMENTATION: True
+AUG_COLOR_JITTER_V2: False
+AUG_RANDOM_HORIZONTAL_FLIP: False
+AUG_GAUSSIAN_NOISE: False
+AUG_GAUSSIAN_BLUR: False
+AUG_ENABLE_RANDOM_CROP: False
+AUG_ENABLE_RANDOM_AFFINE: True
+
+RESUME_TRAINING: True

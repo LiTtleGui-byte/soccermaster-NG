@@ -311,6 +311,302 @@ class GaussianBlur:
         return image, annotation, metas
 
 
+class RandomAffine:
+    """Apply random affine transformation with annotation adjustment"""
+    def __init__(self, degrees=0, translate=None, scale=None, shear=None, p=1.0):
+        """
+        Args:
+            degrees: Range of degrees to select from for rotation. If degrees is a number
+                    instead of sequence like (min, max), the range of degrees will be (-degrees, +degrees)
+            translate: Tuple of maximum absolute fraction for horizontal and vertical translations
+                      For example translate=(a, b), then horizontal shift is randomly sampled 
+                      in the range -img_width * a < dx < img_width * a and vertical shift is 
+                      randomly sampled in the range -img_height * b < dy < img_height * b
+            scale: Scaling factor interval, e.g (a, b), then scale is randomly sampled from the range a <= scale <= b
+            shear: Range of degrees to select from for shearing. If shear is a number,
+                   a shear parallel to the x axis in the range (-shear, +shear) will be applied
+            p: Probability of applying affine transformation
+        """
+        self.degrees = degrees if isinstance(degrees, (tuple, list)) else (-degrees, degrees)
+        self.translate = translate
+        self.scale = scale
+        self.shear = shear if isinstance(shear, (tuple, list)) else (-shear, shear) if shear is not None else None
+        self.p = p
+
+    def __call__(self, image, annotation, metas):
+        # Store affine parameters for consistent application across frames
+        if 'random_affine_params' not in metas:
+            metas['random_affine_apply'] = random.random() <= self.p
+            if not metas['random_affine_apply']:
+                return image, annotation, metas
+                
+            # Get original image dimensions
+            if isinstance(image, torch.Tensor):
+                orig_h, orig_w = image.shape[-2], image.shape[-1]
+            elif isinstance(image, list):
+                orig_h, orig_w = image[0].shape[-2], image[0].shape[-1]
+            else:
+                raise NotImplementedError(f"Random affine not implemented for image type: {type(image)}")
+            
+            # Generate random affine parameters
+            angle = random.uniform(self.degrees[0], self.degrees[1])
+            
+            translate_x = 0
+            translate_y = 0
+            if self.translate is not None:
+                max_dx = self.translate[0] * orig_w
+                max_dy = self.translate[1] * orig_h
+                translate_x = random.uniform(-max_dx, max_dx)
+                translate_y = random.uniform(-max_dy, max_dy)
+            
+            scale_factor = 1.0
+            if self.scale is not None:
+                scale_factor = random.uniform(self.scale[0], self.scale[1])
+            
+            shear_x = 0
+            if self.shear is not None:
+                shear_x = random.uniform(self.shear[0], self.shear[1])
+            
+            metas['random_affine_params'] = {
+                'angle': angle,
+                'translate': (translate_x, translate_y),
+                'scale': scale_factor,
+                'shear': shear_x,
+                'orig_w': orig_w,
+                'orig_h': orig_h
+            }
+        else:
+            # Check if we should apply random affine based on the stored decision
+            if not metas['random_affine_apply']:
+                return image, annotation, metas
+        
+        params = metas['random_affine_params']
+        angle = params['angle']
+        translate_x, translate_y = params['translate']
+        scale_factor = params['scale']
+        shear_x = params['shear']
+        orig_w, orig_h = params['orig_w'], params['orig_h']
+        
+        # Apply affine transformation to image(s)
+        if isinstance(image, torch.Tensor):
+            image = v2.functional.affine(
+                image, 
+                angle=angle, 
+                translate=[translate_x, translate_y], 
+                scale=scale_factor, 
+                shear=[shear_x, 0]
+            )
+        elif isinstance(image, list):
+            # Apply to all frames in the list
+            for i in range(len(image)):
+                image[i] = v2.functional.affine(
+                    image[i], 
+                    angle=angle, 
+                    translate=[translate_x, translate_y], 
+                    scale=scale_factor, 
+                    shear=[shear_x, 0]
+                )
+        
+        # Compute affine transformation matrix
+        # Center of rotation is the center of the image
+        center_x, center_y = orig_w / 2, orig_h / 2
+        
+        # Convert angle to radians
+        angle_rad = np.radians(angle)
+        cos_a = np.cos(angle_rad)
+        sin_a = np.sin(angle_rad)
+        
+        # Convert shear to radians
+        shear_rad = np.radians(shear_x)
+        shear_tan = np.tan(shear_rad)
+        
+        # Create transformation matrix (from destination to source coordinates)
+        # This matches PyTorch's convention
+        # First apply shear, then scale, then rotation, then translation
+        
+        # Combined transformation matrix
+        a = scale_factor * cos_a
+        b = scale_factor * (-sin_a + shear_tan * cos_a)
+        c = scale_factor * sin_a
+        d = scale_factor * (cos_a + shear_tan * sin_a)
+        
+        # Translation part (includes centering)
+        tx = -a * center_x - b * center_y + center_x + translate_x
+        ty = -c * center_x - d * center_y + center_y + translate_y
+        
+        # Store transformation matrix for coordinate transformation
+        transform_matrix = np.array([[a, b, tx], [c, d, ty], [0, 0, 1]])
+        
+        # Adjust bounding boxes
+        if "bbox" in annotation and len(annotation["bbox"]) > 0:
+            bbox = annotation["bbox"].clone()
+            # bbox format: [x, y, w, h]
+            
+            new_bboxes = []
+            valid_indices = []
+            
+            for i, box in enumerate(bbox):
+                x, y, w, h = box
+                
+                # Get the four corners of the bounding box
+                corners = np.array([
+                    [x, y, 1],          # top-left
+                    [x + w, y, 1],      # top-right  
+                    [x + w, y + h, 1],  # bottom-right
+                    [x, y + h, 1]       # bottom-left
+                ]).T
+                
+                # Transform corners
+                transformed_corners = transform_matrix @ corners
+                transformed_corners = transformed_corners[:2, :]  # Remove homogeneous coordinate
+                
+                # Get new bounding box from transformed corners
+                min_x = np.min(transformed_corners[0, :])
+                max_x = np.max(transformed_corners[0, :])
+                min_y = np.min(transformed_corners[1, :])
+                max_y = np.max(transformed_corners[1, :])
+                
+                new_w = max_x - min_x
+                new_h = max_y - min_y
+                
+                # Check if the transformed box is still valid (intersects with image)
+                if (max_x > 0 and max_y > 0 and min_x < orig_w and min_y < orig_h and 
+                    new_w > 0 and new_h > 0):
+                    # Clip to image boundaries
+                    clipped_min_x = max(0, min_x)
+                    clipped_min_y = max(0, min_y)
+                    clipped_max_x = min(orig_w, max_x)
+                    clipped_max_y = min(orig_h, max_y)
+                    
+                    clipped_w = clipped_max_x - clipped_min_x
+                    clipped_h = clipped_max_y - clipped_min_y
+                    
+                    if clipped_w > 0 and clipped_h > 0:
+                        new_bboxes.append([clipped_min_x, clipped_min_y, clipped_w, clipped_h])
+                        valid_indices.append(i)
+            
+            if len(new_bboxes) > 0:
+                annotation["bbox"] = torch.tensor(new_bboxes, dtype=torch.float32)
+                valid_mask = torch.tensor(valid_indices, dtype=torch.long)
+                
+                # Filter all related annotations
+                if "id" in annotation:
+                    annotation["id"] = annotation["id"][valid_mask]
+                if "category" in annotation:
+                    annotation["category"] = annotation["category"][valid_mask]
+                if "visibility" in annotation:
+                    annotation["visibility"] = annotation["visibility"][valid_mask]
+                if "role" in annotation:
+                    annotation["role"] = annotation["role"][valid_mask]
+                if "jersey" in annotation:
+                    annotation["jersey"] = annotation["jersey"][valid_mask]
+                if "digit_head" in annotation:
+                    annotation["digit_head"] = annotation["digit_head"][valid_mask]
+                if "digit_tail" in annotation:
+                    annotation["digit_tail"] = annotation["digit_tail"][valid_mask]
+                if "legibility_score" in annotation:
+                    annotation["legibility_score"] = annotation["legibility_score"][valid_mask]
+            else:
+                # No valid boxes, create empty tensors
+                annotation["bbox"] = torch.zeros((0, 4), dtype=torch.float32)
+                if "id" in annotation:
+                    annotation["id"] = torch.zeros((0,), dtype=torch.int64)
+                if "category" in annotation:
+                    annotation["category"] = torch.zeros((0,), dtype=torch.int64)
+                if "visibility" in annotation:
+                    annotation["visibility"] = torch.zeros((0,), dtype=torch.float32)
+                if "role" in annotation:
+                    annotation["role"] = torch.zeros((0,), dtype=torch.int64)
+                if "jersey" in annotation:
+                    annotation["jersey"] = torch.zeros((0,), dtype=torch.int64)
+                if "digit_head" in annotation:
+                    annotation["digit_head"] = torch.zeros((0,), dtype=torch.int64)
+                if "digit_tail" in annotation:
+                    annotation["digit_tail"] = torch.zeros((0,), dtype=torch.int64)
+                if "legibility_score" in annotation:
+                    annotation["legibility_score"] = torch.zeros((0,), dtype=torch.float32)
+        
+        # Adjust lines annotations
+        if "lines" in annotation and len(annotation["lines"]) > 0:
+            lines = annotation["lines"]
+            adjusted_lines = {}
+            
+            for line_name, points in lines.items():
+                adjusted_points = []
+                for point in points:
+                    # Convert normalized coordinates to absolute coordinates
+                    abs_x = point["x"] * orig_w
+                    abs_y = point["y"] * orig_h
+                    
+                    # Apply affine transformation
+                    point_homogeneous = np.array([abs_x, abs_y, 1])
+                    transformed_point = transform_matrix @ point_homogeneous
+                    
+                    # Convert back to normalized coordinates
+                    adjusted_points.append({
+                        "x": transformed_point[0] / orig_w,
+                        "y": transformed_point[1] / orig_h
+                    })
+                
+                adjusted_lines[line_name] = adjusted_points
+            
+            annotation["lines"] = adjusted_lines
+        
+        # Transform lines_target if it exists
+        if "lines_target" in annotation:
+            # Note: This is a heatmap transformation which is more complex
+            # For simplicity, we'll apply the same affine transformation
+            lines_target = annotation["lines_target"]
+            h, w = lines_target.shape[-2:]
+            # Scale transformation matrix to heatmap size
+            scale_h = h / orig_h
+            scale_w = w / orig_w
+            heatmap_transform = transform_matrix.copy()
+            heatmap_transform[0, 0] *= scale_w  # a
+            heatmap_transform[0, 1] *= scale_h  # b  
+            heatmap_transform[0, 2] *= scale_w  # tx
+            heatmap_transform[1, 0] *= scale_w  # c
+            heatmap_transform[1, 1] *= scale_h  # d
+            heatmap_transform[1, 2] *= scale_h  # ty
+            
+            # Apply affine transformation to each heatmap channel
+            transformed_heatmaps = []
+            for i in range(lines_target.shape[0]):
+                heatmap = lines_target[i].unsqueeze(0).unsqueeze(0)  # Add batch and channel dims
+                transformed_heatmap = v2.functional.affine(
+                    heatmap,
+                    angle=angle,
+                    translate=[translate_x * scale_w, translate_y * scale_h],
+                    scale=scale_factor,
+                    shear=[shear_x, 0]
+                )
+                transformed_heatmaps.append(transformed_heatmap.squeeze(0).squeeze(0))
+            annotation["lines_target"] = torch.stack(transformed_heatmaps, dim=0)
+        
+        # Transform keypoints_target if it exists
+        if "keypoints_target" in annotation:
+            keypoints_target = annotation["keypoints_target"]
+            h, w = keypoints_target.shape[-2:]
+            # Apply affine transformation to each keypoint heatmap channel
+            transformed_keypoints = []
+            for i in range(keypoints_target.shape[0]):
+                heatmap = keypoints_target[i].unsqueeze(0).unsqueeze(0)  # Add batch and channel dims
+                transformed_heatmap = v2.functional.affine(
+                    heatmap,
+                    angle=angle,
+                    translate=[translate_x * (w / orig_w), translate_y * (h / orig_h)],
+                    scale=scale_factor,
+                    shear=[shear_x, 0]
+                )
+                transformed_keypoints.append(transformed_heatmap.squeeze(0).squeeze(0))
+            annotation["keypoints_target"] = torch.stack(transformed_keypoints, dim=0)
+        
+        return image, annotation, metas
+
+    def __repr__(self) -> str:
+        return f"{self.__class__.__name__}(degrees={self.degrees}, translate={self.translate}, scale={self.scale}, shear={self.shear}, p={self.p})"
+
+
 class RandomCrop:
     """Apply random crop to images with annotation adjustment"""
     def __init__(self, crop_size_ratio_range=(0.6, 1.0), p=1.0):
@@ -338,9 +634,10 @@ class RandomCrop:
                 raise NotImplementedError(f"Random crop not implemented for image type: {type(image)}")
             
             # Generate random crop parameters
-            crop_ratio = random.uniform(self.crop_size_ratio_range[0], self.crop_size_ratio_range[1])
-            crop_h = int(orig_h * crop_ratio)
-            crop_w = int(orig_w * crop_ratio)
+            crop_ratio_h = random.uniform(self.crop_size_ratio_range[0], self.crop_size_ratio_range[1])
+            crop_ratio_w = random.uniform(self.crop_size_ratio_range[0], self.crop_size_ratio_range[1])
+            crop_h = int(orig_h * crop_ratio_h)
+            crop_w = int(orig_w * crop_ratio_w)
             
             # Random crop position
             max_x = orig_w - crop_w
@@ -481,7 +778,7 @@ class ClearAugmentationMetas:
     """Clear augmentation metadata to ensure independence between samples"""
     def __call__(self, image, annotation, metas):
         # Remove augmentation-specific metadata
-        keys_to_remove = ['color_jitter_params', 'color_jitter_apply', 'horizontal_flip', 'gaussian_noise_params', 'gaussian_noise_apply', 'gaussian_blur_params', 'gaussian_blur_apply', 'random_crop_params', 'random_crop_apply', 'crop_applied', 'crop_info']
+        keys_to_remove = ['color_jitter_params', 'color_jitter_apply', 'horizontal_flip', 'gaussian_noise_params', 'gaussian_noise_apply', 'gaussian_blur_params', 'gaussian_blur_apply', 'random_affine_params', 'random_affine_apply', 'random_crop_params', 'random_crop_apply', 'crop_applied', 'crop_info']
         for key in keys_to_remove:
             if key in metas:
                 del metas[key]

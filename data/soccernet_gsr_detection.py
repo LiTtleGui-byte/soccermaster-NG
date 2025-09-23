@@ -18,7 +18,7 @@ from math import floor
 from torch.utils.data import DataLoader
 import torch.nn.functional as F
 from utils.box_ops import box_xywh_to_xyxy, box_xyxy_to_cxcywh, box_cxcywh_to_xywh, bbox_xywh_to_cxcywh
-from data.utils import Compose, ToTensor, RandomResize, Normalize, get_image_hw, ColorJitter, RandomHorizontalFlip, GaussianNoise, GaussianBlur, ClearAugmentationMetas, RandomCrop
+from data.utils import Compose, ToTensor, RandomResize, Normalize, get_image_hw, ColorJitter, RandomHorizontalFlip, GaussianNoise, GaussianBlur, ClearAugmentationMetas, RandomCrop, RandomAffine
 from data.soccernet_gsr_reid import role_mapping, jn_mapping, digit_head_mapping, digit_tail_mapping
 from data.pnlcalib_utils.utils_keypoints import KeypointsDB
 from data.pnlcalib_utils.utils_lines import LineKeypointsDB
@@ -821,12 +821,23 @@ def build_transforms(config: dict, split: str = "train"):
         ToTensor(),  # Convert to tensor and float, divide by 255
     ]
     
-    # Add random crop after ToTensor and before RandomResize
-    if split == "train" and config["AUG_ENABLE_RANDOM_CROP"]:
-        transforms.append(RandomCrop(
-            crop_size_ratio_range=config["AUG_RANDOM_CROP_SIZE_RATIO_RANGE"],
-            p=config["AUG_RANDOM_CROP_PROB"]
-        ))
+    if split == "train" and config["AUG_ENABLE_TRAINING_AUGMENTATION"]:
+        # Add random affine after ToTensor and before RandomCrop
+        if config["AUG_ENABLE_RANDOM_AFFINE"]:
+            transforms.append(RandomAffine(
+                degrees=config["AUG_AFFINE_DEGREES"],
+                translate=config["AUG_AFFINE_TRANSLATE"],
+                scale=config["AUG_AFFINE_SCALE"],
+                shear=config["AUG_AFFINE_SHEAR"],
+                p=config["AUG_AFFINE_PROB"]
+            ))
+        
+        # Add random crop after ToTensor and before RandomResize
+        if config["AUG_ENABLE_RANDOM_CROP"]:
+            transforms.append(RandomCrop(
+                crop_size_ratio_range=config["AUG_RANDOM_CROP_SIZE_RATIO_RANGE"],
+                p=config["AUG_RANDOM_CROP_PROB"]
+            ))
     
     transforms.append(RandomResize(sizes=config["AUG_RANDOM_RESIZE"], max_size=config["AUG_MAX_SIZE"], keep_aspect_ratio=config["KEEP_ASPECT_RATIO"]))
     

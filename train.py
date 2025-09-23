@@ -31,6 +31,206 @@ from runtime_option import runtime_option
 from utils.misc import is_distributed, set_seed
 from configs.util import load_super_config, update_config, yaml_to_dict
 from models.build import build_loss_fn, build_metrics_fn
+from torch.utils.data import Sampler
+import random
+
+class OffsetSampler(Sampler):
+    """自定义采样器，支持从指定位置开始采样，兼容分布式训练"""
+    def __init__(self, dataset, start_offset=0, shuffle=True, seed=None, drop_last=False):
+        self.dataset = dataset
+        self.start_offset = start_offset
+        self.shuffle = shuffle
+        self.seed = seed
+        self.drop_last = drop_last
+        self.dataset_length = len(dataset)
+        self.epoch = 0
+        
+        # 初始化分布式参数
+        self._refresh_dist_params()
+        
+    def _refresh_dist_params(self):
+        """刷新分布式参数，支持单机和多机训练"""
+        try:
+            import torch.distributed as dist
+            if dist.is_available() and dist.is_initialized():
+                self.num_replicas = dist.get_world_size()
+                self.rank = dist.get_rank()
+            else:
+                self.num_replicas = 1
+                self.rank = 0
+        except:
+            self.num_replicas = 1
+            self.rank = 0
+            
+        if self.drop_last and self.dataset_length % self.num_replicas != 0:
+            self.num_samples = self.dataset_length // self.num_replicas
+        else:
+            self.num_samples = (self.dataset_length + self.num_replicas - 1) // self.num_replicas
+        self.total_size = self.num_samples * self.num_replicas
+        
+    def __iter__(self):
+        # 每次迭代时刷新分布式参数
+        self._refresh_dist_params()
+        
+        if self.shuffle:
+            # 生成随机种子，确保所有进程看到相同的shuffle顺序
+            if self.seed is not None:
+                generator = torch.Generator()
+                generator.manual_seed(self.seed + self.epoch)
+            else:
+                generator = torch.Generator()
+                generator.manual_seed(self.epoch)
+            indices = torch.randperm(self.dataset_length, generator=generator).tolist()
+        else:
+            indices = list(range(self.dataset_length))
+        
+        # 计算实际的起始位置（考虑数据集循环）
+        actual_offset = self.start_offset % self.dataset_length
+        
+        # 从偏移位置开始，然后循环
+        indices = indices[actual_offset:] + indices[:actual_offset]
+        
+        # 处理分布式训练的padding
+        if not self.drop_last:
+            padding_size = self.total_size - len(indices)
+            if padding_size > 0:
+                indices += indices[:padding_size]
+        else:
+            indices = indices[:self.total_size]
+        
+        # 根据rank选择属于当前进程的indices
+        indices = indices[self.rank:self.total_size:self.num_replicas]
+        
+        return iter(indices)
+    
+    def __len__(self):
+        self._refresh_dist_params()
+        return self.num_samples
+    
+    def set_epoch(self, epoch):
+        """设置epoch，用于确保每个epoch的shuffle都不同"""
+        self.epoch = epoch
+
+def create_offset_dataloader_iters(dataloader_dict, start_iteration, logger):
+    """
+    创建带偏移的dataloader迭代器，快速跳转到指定迭代位置
+    智能处理不同类型的采样器和分布式环境
+    """
+    offset_iters = {}
+    
+    for dataset_name, dataloader in dataloader_dict.items():
+        dataset = dataloader.dataset
+        dataset_length = len(dataset)
+        
+        # 计算这个dataset在start_iteration时应该处于的位置
+        dataset_offset = start_iteration % dataset_length
+        
+        logger.info(f"Dataset {dataset_name}: length={dataset_length}, offset={dataset_offset} for iteration {start_iteration}")
+        
+        # 检查dataloader的配置
+        original_shuffle = getattr(dataloader, 'shuffle', False)
+        original_sampler = getattr(dataloader, 'sampler', None)
+        
+        # 根据采样器类型选择最优的跳转策略
+        if original_sampler is not None:
+            sampler_type = type(original_sampler).__name__
+            logger.info(f"Dataset {dataset_name} using sampler: {sampler_type}")
+            
+            # 对于特殊采样器，使用快速跳过方法
+            if sampler_type in ['PrtreidSampler', 'DistributedGroupedShuffleSampler']:
+                logger.info(f"Using fast-forward method for {sampler_type}")
+                dataloader_iter = iter(dataloader)
+                
+                # 快速跳过到目标位置（分批跳过以减少内存占用）
+                if dataset_offset > 0:
+                    logger.info(f"Fast-forwarding {dataset_name} by {dataset_offset} steps...")
+                    batch_skip_size = min(100, dataset_offset)  # 分批跳过，减少内存占用
+                    remaining_skips = dataset_offset
+                    
+                    while remaining_skips > 0:
+                        current_batch_skip = min(batch_skip_size, remaining_skips)
+                        for _ in range(current_batch_skip):
+                            try:
+                                next(dataloader_iter)
+                            except StopIteration:
+                                dataloader_iter = iter(dataloader)
+                                next(dataloader_iter)
+                        remaining_skips -= current_batch_skip
+                        if remaining_skips > 0:
+                            logger.info(f"Fast-forwarded {dataset_offset - remaining_skips}/{dataset_offset} steps for {dataset_name}")
+                
+                offset_iters[dataset_name] = dataloader_iter
+            else:
+                # 对于其他采样器，尝试创建offset sampler
+                logger.info(f"Creating offset sampler for {sampler_type}")
+                try:
+                    # 尝试复制原始sampler的参数
+                    offset_sampler = OffsetSampler(
+                        dataset, 
+                        start_offset=dataset_offset, 
+                        shuffle=True,  # 假设需要shuffle
+                        drop_last=getattr(original_sampler, 'drop_last', False)
+                    )
+                    
+                    # 创建新的dataloader
+                    from torch.utils.data import DataLoader
+                    offset_dataloader = DataLoader(
+                        dataset,
+                        batch_size=dataloader.batch_size,
+                        sampler=offset_sampler,
+                        num_workers=dataloader.num_workers,
+                        collate_fn=dataloader.collate_fn,
+                        pin_memory=getattr(dataloader, 'pin_memory', False),
+                        drop_last=getattr(dataloader, 'drop_last', False),
+                        prefetch_factor=getattr(dataloader, 'prefetch_factor', 2) if dataloader.num_workers > 0 else None,
+                        persistent_workers=getattr(dataloader, 'persistent_workers', False)
+                    )
+                    offset_iters[dataset_name] = iter(offset_dataloader)
+                except Exception as e:
+                    logger.warning(f"Failed to create offset sampler for {dataset_name}: {e}")
+                    logger.info(f"Falling back to fast-forward method")
+                    # 回退到快速跳过方法
+                    dataloader_iter = iter(dataloader)
+                    if dataset_offset > 0:
+                        for _ in range(dataset_offset):
+                            try:
+                                next(dataloader_iter)
+                            except StopIteration:
+                                dataloader_iter = iter(dataloader)
+                                next(dataloader_iter)
+                    offset_iters[dataset_name] = dataloader_iter
+        else:
+            # 标准dataloader (shuffle=True/False)
+            if original_shuffle:
+                logger.info(f"Creating offset sampler for shuffled dataset {dataset_name}")
+                offset_sampler = OffsetSampler(dataset, start_offset=dataset_offset, shuffle=True)
+                
+                from torch.utils.data import DataLoader
+                offset_dataloader = DataLoader(
+                    dataset,
+                    batch_size=dataloader.batch_size,
+                    sampler=offset_sampler,
+                    num_workers=dataloader.num_workers,
+                    collate_fn=dataloader.collate_fn,
+                    pin_memory=getattr(dataloader, 'pin_memory', False),
+                    drop_last=getattr(dataloader, 'drop_last', False),
+                    prefetch_factor=getattr(dataloader, 'prefetch_factor', 2) if dataloader.num_workers > 0 else None,
+                    persistent_workers=getattr(dataloader, 'persistent_workers', False)
+                )
+                offset_iters[dataset_name] = iter(offset_dataloader)
+            else:
+                logger.info(f"Fast-forwarding non-shuffled dataset {dataset_name}")
+                dataloader_iter = iter(dataloader)
+                if dataset_offset > 0:
+                    for _ in range(dataset_offset):
+                        try:
+                            next(dataloader_iter)
+                        except StopIteration:
+                            dataloader_iter = iter(dataloader)
+                            next(dataloader_iter)
+                offset_iters[dataset_name] = dataloader_iter
+    
+    return offset_iters
 
 def find_latest_checkpoint(outputs_dir):
     """
@@ -963,15 +1163,26 @@ def train_one_epoch(
     # # sampling_plan = create_balanced_sampling_plan(dataloader_lengths, max_iterations)
     # # 然后根据sampling_plan来索引数据
 
-    dataloader_iters = {task: iter(dataloader) for task, dataloader in dataloader_dict.items()}
-    len_tasks = len(dataloader_iters)
-
+    # 为了复现bug，允许从指定迭代开始训练
+    start_iteration = config.get("DEBUG_START_ITERATION", 0)
+    if start_iteration > 0:
+        logger.info(f"DEBUG MODE: Starting training from iteration {start_iteration} using fast-skip method")
+    
     # Track which dataloaders have been exhausted and reset
     dataloader_lengths = {task: len(dataloader) for task, dataloader in dataloader_dict.items()}
-    # dataloader_counters = {task: 0 for task in dataloader_dict.keys()}
     logger.info(f"Dataloader lengths: {dataloader_lengths}")
 
-    for cur_iter in range(max_iterations):
+    # 使用快速跳转方法创建dataloader迭代器
+    if start_iteration > 0:
+        logger.info(f"Creating offset dataloaders for iteration {start_iteration}...")
+        dataloader_iters = create_offset_dataloader_iters(dataloader_dict, start_iteration, logger)
+        logger.info(f"Fast-skip setup completed. Starting from iteration {start_iteration}")
+    else:
+        dataloader_iters = {task: iter(dataloader) for task, dataloader in dataloader_dict.items()}
+    
+    len_tasks = len(dataloader_iters)
+
+    for cur_iter in range(start_iteration, max_iterations):
         # {head_name: loss_dict}
         weighted_loss_dict = {}  # 用于backward的加权loss
         unweighted_loss_dict = {}  # 记录加权前的原始loss
@@ -979,17 +1190,25 @@ def train_one_epoch(
         
         # 逐任务处理，每个任务计算完立即backward以减少显存占用
         for dataset_name, dataloader_iter in dataloader_iters.items():
+            # 添加调试信息：监控数据加载
+            if start_iteration > 0 and cur_iter >= start_iteration and (cur_iter - start_iteration) < 20:
+                logger.info(f"DEBUG: Iteration {cur_iter}, processing dataset {dataset_name} on GPU {accelerator.process_index}")
+            
             with accelerator.autocast():
                 # batch = next(dataloader)
                 try:
                     batch = next(dataloader_iter)
                     # dataloader_counters[dataset_name] += 1
+                    if start_iteration > 0 and cur_iter >= start_iteration and (cur_iter - start_iteration) < 20:
+                        logger.info(f"DEBUG: Successfully loaded batch for dataset {dataset_name} at iteration {cur_iter}")
                 except StopIteration:
                     # Reset the dataloader iterator and counter when exhausted
                     logger.info(f"Dataset {dataset_name} dataloader exhausted at iteration {cur_iter}, resetting...")
                     dataloader_iters[dataset_name] = iter(dataloader_dict[dataset_name])
                     # dataloader_counters[dataset_name] = 1  # Reset counter to 1 (current batch)
                     batch = next(dataloader_iters[dataset_name])
+                    if start_iteration > 0 and cur_iter >= start_iteration and (cur_iter - start_iteration) < 20:
+                        logger.info(f"DEBUG: Reset and loaded batch for dataset {dataset_name} at iteration {cur_iter}")
                     
                 images, annotations, metas = batch.values()
                 if dataset_name in ["VideoCaption"]:
@@ -1031,12 +1250,20 @@ def train_one_epoch(
                     unweighted_loss_dict[head_name] = {k: v for k, v in loss_task_raw.items() if k in weight_dict}
                     weighted_loss_dict[head_name] = {k: (v * weight_dict[k]) for k, v in loss_task_raw.items() if k in weight_dict}
                     log_only_loss_dict[head_name] = {k: v for k, v in loss_task_raw.items() if k not in weight_dict}
-            
+                    
             # 立即对当前dataset所属的所有heads计算的loss进行backward，减少显存占用
             dataset_total_loss = sum(sum(weighted_loss_dict[head].values()) for head in datasets_to_heads[dataset_name])
             
+            # 添加调试信息：监控backward过程
+            if start_iteration > 0 and cur_iter >= start_iteration and (cur_iter - start_iteration) < 20:
+                logger.info(f"DEBUG: Backward for dataset {dataset_name}, loss={dataset_total_loss:.4f}, iteration {cur_iter}")
+            
             # dataset_total_loss /= (accumulate_steps * len_tasks)  # 除以任务数量进行平均
             accelerator.backward(dataset_total_loss)
+            
+            # 添加调试信息：检查backward后的状态
+            if start_iteration > 0 and cur_iter >= start_iteration and (cur_iter - start_iteration) < 20:
+                logger.info(f"DEBUG: Backward completed for dataset {dataset_name} at iteration {cur_iter}")
             
             # # 打印text_encoder的梯度norm
             # original_model = model.module if hasattr(model, 'module') else model
@@ -1050,6 +1277,13 @@ def train_one_epoch(
             # 可选：每个任务后清理CUDA缓存（会影响性能，但最大化显存释放）
             if config.get("AGGRESSIVE_MEMORY_CLEANUP", False):
                 torch.cuda.empty_cache()
+        
+        # 添加调试信息：监控GPU同步状态
+        if start_iteration > 0 and cur_iter >= start_iteration and (cur_iter - start_iteration) < 20:
+            logger.info(f"DEBUG: Before gradient update at iteration {cur_iter}, GPU {accelerator.process_index}")
+            # 检查是否所有GPU都到达了这一点
+            accelerator.wait_for_everyone()
+            logger.info(f"DEBUG: All GPUs synchronized before gradient update at iteration {cur_iter}")
         
         # 梯度裁剪和参数更新
         if (cur_iter + 1) % accumulate_steps == 0:

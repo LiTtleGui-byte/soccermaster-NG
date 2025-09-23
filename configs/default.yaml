@@ -2,6 +2,7 @@ SUPER_CONFIG_PATH:          # super (father) config path
 
 # Seed:
 SEED: 42
+DEBUG_START_ITERATION: 0
 
 # System Settings:
 NUM_WORKERS: 16
@@ -107,7 +108,14 @@ AUG_GAUSSIAN_BLUR_PROB: 0.2            # probability of applying gaussian blur
 AUG_ENABLE_RANDOM_CROP: False           # enable random crop (applied after ToTensor, before RandomResize)
 AUG_RANDOM_CROP_SIZE_RATIO_RANGE: [0.6, 1.0]  # range of crop size as ratio of original image
 AUG_RANDOM_CROP_PROB: 1.0              # probability of applying random crop
-# 7. mean and std:
+# 7. random affine transformation:
+AUG_ENABLE_RANDOM_AFFINE: False         # enable random affine transformation (applied after ToTensor, before RandomCrop)
+AUG_AFFINE_DEGREES: 10                  # range of degrees for rotation (-degrees, +degrees)
+AUG_AFFINE_TRANSLATE: [0.1, 0.1]        # tuple of maximum absolute fraction for horizontal and vertical translations
+AUG_AFFINE_SCALE: [0.9, 1.1]           # scaling factor interval (min_scale, max_scale)
+AUG_AFFINE_SHEAR: 5                     # range of degrees for shearing (-shear, +shear)
+AUG_AFFINE_PROB: 0.5                   # probability of applying random affine transformation
+# 8. mean and std:
 # imagenet
 # AUG_MEAN = [0.485, 0.456, 0.406]
 # AUG_STD = [0.229, 0.224, 0.225]
