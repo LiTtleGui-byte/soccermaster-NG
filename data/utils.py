@@ -1047,6 +1047,32 @@ v_lines = ['Side line top', 'Big rect. left top', 'Small rect. left top', 'Small
                    'Big rect. left bottom', 'Big rect. right top', 'Small rect. right top', 'Small rect. right bottom',
                               'Big rect. right bottom', 'Side line bottom']
 
+lines_dict = {
+    "Big rect. left bottom": [[0., 54.16, 0.], [16.5, 54.16, 0.]],
+    "Big rect. left main": [[16.5, 13.84, 0.], [16.5, 54.16, 0.]],
+    "Big rect. left top": [[16.5, 13.84, 0.], [0., 13.84, 0.]],
+    "Big rect. right bottom": [[88.5, 54.16, 0.], [105., 54.16, 0.]],
+    "Big rect. right main": [[88.5, 13.84, 0.], [88.5, 54.16, 0.]],
+    "Big rect. right top": [[88.5, 13.84, 0.], [105., 13.84, 0.]],
+    "Goal left crossbar": [[0., 37.66, -2.44], [0., 30.34, -2.44]],
+    "Goal left post left": [[0., 37.66, 0.], [0., 37.66, -2.44]],
+    "Goal left post right": [[0., 30.34, 0.], [0., 30.34, -2.44]],
+    "Goal right crossbar": [[105., 37.66, -2.44], [105., 30.34, -2.44]],
+    "Goal right post left": [[105., 30.34, 0.], [105., 30.34, -2.44]],
+    "Goal right post right": [[105., 37.66, 0.], [105., 37.66, -2.44]],
+    "Middle line": [[52.5, 0., 0.], [52.5, 68, 0.]],
+    "Side line bottom": [[0., 68., 0.], [105., 68., 0.]],
+    "Side line left": [[0., 0., 0.], [0., 68., 0.]],
+    "Side line right": [[105., 0., 0.], [105., 68., 0.]],
+    "Side line top": [[0., 0., 0.], [105., 0., 0.]],
+    "Small rect. left bottom": [[0., 43.16, 0.], [5.5, 43.16, 0.]],
+    "Small rect. left main": [[5.5, 43.16, 0.], [5.5, 24.84, 0.]],
+    "Small rect. left top": [[5.5, 24.84, 0.], [0., 24.84, 0.]],
+    "Small rect. right bottom": [[99.5, 43.16, 0.], [105., 43.16, 0.]],
+    "Small rect. right main": [[99.5, 43.16, 0.], [99.5, 24.84, 0.]],
+    "Small rect. right top": [[99.5, 24.84, 0.], [105., 24.84, 0.]]
+}
+
 def swap_top_bottom_names(line_name: str) -> str:
     x: str = 'top'
     y: str = 'bottom'
@@ -1087,3 +1113,206 @@ def correct_lines_labels_reverse(data):
         del data['Goal left post left ']
 
     return data
+
+def clip_line_to_image(x1, y1, x2, y2, img_width, img_height):
+    """
+    使用Cohen-Sutherland算法裁剪线段到图像边界内
+    
+    Args:
+        x1, y1, x2, y2: 线段两端点坐标（归一化坐标0-1）
+        img_width, img_height: 图像宽度和高度（像素）
+    
+    Returns:
+        tuple: (x1_new, y1_new, x2_new, y2_new) 如果线段与图像有交集
+        None: 如果线段完全在图像外
+    """
+    # 将归一化坐标转换为像素坐标
+    x1_px = x1 * img_width
+    y1_px = y1 * img_height
+    x2_px = x2 * img_width
+    y2_px = y2 * img_height
+    
+    # 使用OpenCV的clipLine函数
+    flag, (pt1_x, pt1_y), (pt2_x, pt2_y) = cv2.clipLine(
+        (0, 0, img_width, img_height), 
+        (int(x1_px), int(y1_px)), 
+        (int(x2_px), int(y2_px))
+    )
+    
+    if flag:
+        # 转换回归一化坐标
+        return (pt1_x / img_width, pt1_y / img_height, 
+                pt2_x / img_width, pt2_y / img_height)
+    else:
+        return None
+
+def clip_keypoints_to_image(visible_lines, img_width, img_height):
+    """
+    裁剪线段关键点到图像边界内
+    
+    Args:
+        visible_lines: 包含线段坐标的字典
+        img_width, img_height: 图像宽度和高度
+        
+    Returns:
+        裁剪后的线段字典，移除完全在图像外的线段
+    """
+    clipped_lines = {}
+    
+    for line_name, coords in visible_lines.items():
+        if line_name in lines_dict:
+            # 对于线段，进行裁剪
+            if len(coords) == 2:
+                x1, y1 = coords[0]
+                x2, y2 = coords[1]
+                
+                clipped_coords = clip_line_to_image(x1, y1, x2, y2, img_width, img_height)
+                
+                if clipped_coords is not None:
+                    # 线段至少部分在图像内，保留裁剪后的坐标
+                    x1_new, y1_new, x2_new, y2_new = clipped_coords
+                    clipped_lines[line_name] = [[x1_new, y1_new], [x2_new, y2_new]]
+                # 如果clipped_coords为None，则线段完全在图像外，不添加到结果中
+        else:
+            # 对于圆形点集，过滤掉在图像外的点
+            filtered_points = []
+            for coord in coords:
+                x, y = coord
+                # 检查点是否在图像范围内
+                if 0 <= x <= 1 and 0 <= y <= 1:
+                    filtered_points.append(coord)
+            
+            # 只有当有足够的点在图像内时才保留
+            if len(filtered_points) >= 3:  # 至少需要3个点才能形成有意义的圆弧/椭圆
+                clipped_lines[line_name] = filtered_points
+    
+    return clipped_lines
+
+def add_x_y_to_lines(lines):
+    new_lines = {}
+    for line_name, coords in lines.items():
+        new_lines[line_name] = []
+        for coord in coords:
+            new_lines[line_name].append({'x': coord[0], 'y': coord[1]})
+    return new_lines
+
+def get_visible_lines_coords(K, Rt, frame_height, frame_width):
+    """
+    获取可见线段和圆的归一化坐标(0-1)，并裁剪到图像边界内
+    
+    Args:
+        K: 内参矩阵
+        Rt: 外参矩阵
+        frame_height: 图像高度
+        frame_width: 图像宽度
+    
+    Returns:
+        dict: 包含可见线段和圆的坐标字典
+              key为线段/圆的名称，value为端点列表(归一化到0-1)
+    """
+    def get_intersection(p1, p2):
+        # 计算线段与z=0.1平面的交点
+        if p1[2] == p2[2]:  # 平行于z=0.1平面
+            return None
+        t = (0.1 - p1[2]) / (p2[2] - p1[2])
+        if 0 <= t <= 1:  # 交点在线段上
+            return p1 + t * (p2 - p1)
+        return None
+
+    visible_lines = {}
+    
+    # 处理lines_dict中的线段
+    for line_name, line in lines_dict.items():
+        w1 = line[0]
+        w2 = line[1]
+        i1 = Rt @ np.array([w1[0]-105/2, w1[1]-68/2, w1[2], 1])
+        i2 = Rt @ np.array([w2[0]-105/2, w2[1]-68/2, w2[2], 1])
+        
+        # 如果两点都在相机后方，则跳过
+        if i1[2] <= 0.1 and i2[2] <= 0.1:
+            continue
+            
+        # 如果有一个点在相机后方，计算与z=0.1平面的交点
+        if i1[2] <= 0.1 or i2[2] <= 0.1:
+            i1_3d = i1[:3]
+            i2_3d = i2[:3]
+            intersection = get_intersection(i1_3d, i2_3d)
+            if intersection is not None:
+                if i1[2] <= 0.1:
+                    i1[:3] = intersection
+                else:
+                    i2[:3] = intersection
+        
+        i1 = K @ i1
+        i2 = K @ i2
+        i1 /= i1[-1]
+        i2 /= i2[-1]
+        
+        # 归一化坐标到0-1
+        p1_norm = [i1[0] / frame_width, i1[1] / frame_height]
+        p2_norm = [i2[0] / frame_width, i2[1] / frame_height]
+        visible_lines[line_name] = [p1_norm, p2_norm]
+
+    # 处理圆形
+    r = 9.15
+    
+    # Circle left (pts1) - 采样20个点
+    pts1 = []
+    base_pos = np.array([11-105/2, 68/2-68/2, 0., 0.])
+    for ang in np.linspace(37, 143, 20):
+        ang = np.deg2rad(ang)
+        pos = base_pos + np.array([r*np.sin(ang), r*np.cos(ang), 0., 1.])
+        ipos = K @ (Rt @ pos)
+        ipos /= ipos[-1]
+        pts1.append([ipos[0] / frame_width, ipos[1] / frame_height])
+    visible_lines["Circle left"] = pts1
+
+    # Circle right (pts2) - 采样20个点
+    pts2 = []
+    base_pos = np.array([94-105/2, 68/2-68/2, 0., 0.])
+    for ang in np.linspace(217, 323, 20):
+        ang = np.deg2rad(ang)
+        pos = base_pos + np.array([r*np.sin(ang), r*np.cos(ang), 0., 1.])
+        ipos = K @ (Rt @ pos)
+        ipos /= ipos[-1]
+        pts2.append([ipos[0] / frame_width, ipos[1] / frame_height])
+    visible_lines["Circle right"] = pts2
+
+    # Circle central (pts3) - 采样20个点
+    pts3 = []
+    base_pos = np.array([0, 0, 0., 0.])
+    for ang in np.linspace(0, 360, 20):
+        ang = np.deg2rad(ang)
+        pos = base_pos + np.array([r*np.sin(ang), r*np.cos(ang), 0., 1.])
+        ipos = K @ (Rt @ pos)
+        ipos /= ipos[-1]
+        pts3.append([ipos[0] / frame_width, ipos[1] / frame_height])
+    visible_lines["Circle central"] = pts3
+
+    # 裁剪到图像边界内
+    clipped_lines = clip_keypoints_to_image(visible_lines, frame_width, frame_height)
+    clipped_lines = add_x_y_to_lines(clipped_lines)
+    
+    return clipped_lines
+
+def projection_from_cam_params_traditional(cam_params):
+    x_focal_length = cam_params['x_focal_length']
+    y_focal_length = cam_params['y_focal_length']
+    principal_point = np.array(cam_params['principal_point'])
+    position_meters = np.array(cam_params['position_meters'])
+    rotation = np.array(cam_params['rotation_matrix'])
+
+    # 内参矩阵
+    K = np.array([[x_focal_length, 0, principal_point[0]],
+                  [0, y_focal_length, principal_point[1]],
+                  [0, 0, 1]])
+    
+    # 外参矩阵
+    It = np.eye(4)[:-1]
+    It[:, -1] = -position_meters
+    Rt = rotation @ It
+    
+    # 投影矩阵
+    P = K @ Rt
+
+    return K, Rt, P

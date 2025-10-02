@@ -26,7 +26,7 @@ import copy
 import zipfile
 import pickle
 
-from data.utils import flip_annot_names, h_lines, v_lines, correct_lines_labels, correct_lines_labels_reverse
+from data.utils import flip_annot_names, h_lines, v_lines, correct_lines_labels, correct_lines_labels_reverse, get_visible_lines_coords, projection_from_cam_params_traditional
 
 class SoccerNetGSR_Detection(Dataset):
     def __init__(
@@ -278,6 +278,8 @@ class SoccerNetGSR_Detection(Dataset):
                 elif anno['supercategory']== 'pitch':
                     annotations[sequence_name][frame_idx]['lines'] = correct_lines_labels(anno['lines'])
                     # annotations[sequence_name][frame_idx]['lines'] = anno['lines']
+                    annotations[sequence_name][frame_idx]['valid_lines'] = True
+                    annotations[sequence_name][frame_idx]['valid_keypoints'] = True
                 else:
                     raise ValueError(f"Unknown annotation: {anno}")
                 
@@ -414,11 +416,24 @@ class SoccerNetGSR_Detection(Dataset):
                         
                 for id, row in image_data.iterrows():
                     frame_idx = int(row['id'][-6:]) - 1
-                    lines = row["lines"]
-                    if not isinstance(lines, dict):
-                        lines = {}
-                    annotations[processed_sequence_name][frame_idx]["lines"] = correct_lines_labels(correct_lines_labels_reverse(lines))
-                    # Convert lists to tensors in a single operation per frame
+                    cam_params = row["parameters"]
+                    if isinstance(cam_params, dict) and len(cam_params.keys()) > 0:
+                        K, Rt, P = projection_from_cam_params_traditional(cam_params)
+                        visible_lines = get_visible_lines_coords(K, Rt, self.sequence_infos[processed_sequence_name]["height"], self.sequence_infos[processed_sequence_name]["width"])
+                        valid_lines = True
+                        valid_keypoints = True
+                    else:
+                        visible_lines = {}
+                        valid_lines = False
+                        valid_keypoints = False
+                    annotations[processed_sequence_name][frame_idx]["lines"] = correct_lines_labels(visible_lines)
+                    annotations[processed_sequence_name][frame_idx]["valid_lines"] = valid_lines
+                    annotations[processed_sequence_name][frame_idx]["valid_keypoints"] = valid_keypoints
+                    # lines = row["lines"]
+                    # if not isinstance(lines, dict):
+                    #     lines = {}
+                    # annotations[processed_sequence_name][frame_idx]["lines"] = correct_lines_labels(correct_lines_labels_reverse(lines))
+                    
         for sequence_name in processed_sequence_names:
             for i in range(self.sequence_infos[sequence_name]["length"]):
                 frame_annotation = annotations[sequence_name][i]
@@ -770,10 +785,14 @@ class KeypointsLinesDetectionTransform:
     def __call__(self, image, annotation, metas):
         # 处理lines detection
         try:
-            line_db = LineKeypointsDB(annotation['lines'], image)
-            lines_target = line_db.get_tensor()
-            annotation['lines_target'] = torch.tensor(lines_target, dtype=torch.float32)
-            annotation['valid_lines'] = torch.tensor(True, dtype=torch.bool)
+            if ('valid_lines' in annotation and annotation['valid_lines']) or 'valid_lines' not in annotation:
+                line_db = LineKeypointsDB(annotation['lines'], image)
+                lines_target = line_db.get_tensor()
+                annotation['lines_target'] = torch.tensor(lines_target, dtype=torch.float32)
+                annotation['valid_lines'] = torch.tensor(True, dtype=torch.bool)
+            else:
+                annotation['lines_target'] = torch.zeros((self.num_lines, self.image_input_size//2, self.image_input_size//2), dtype=torch.float32)
+                annotation['valid_lines'] = torch.tensor(False, dtype=torch.bool)
         except Exception as e:
             annotation['lines_target'] = torch.zeros((self.num_lines, self.image_input_size//2, self.image_input_size//2), dtype=torch.float32)
             annotation['valid_lines'] = torch.tensor(False, dtype=torch.bool)
@@ -791,11 +810,16 @@ class KeypointsLinesDetectionTransform:
             extra_factor = 0.5
         
         try:
-            keypoints = KeypointsDB(annotation['lines'], image, extra_factor=extra_factor)
-            keypoints_target, keypoints_mask = keypoints.get_tensor_w_mask()
-            annotation['keypoints_target'] = torch.tensor(keypoints_target, dtype=torch.float32)
-            annotation['keypoints_mask'] = torch.tensor(keypoints_mask, dtype=torch.float32)
-            annotation['valid_keypoints'] = torch.tensor(True, dtype=torch.bool)
+            if ('valid_keypoints' in annotation and annotation['valid_keypoints']) or 'valid_keypoints' not in annotation:
+                keypoints = KeypointsDB(annotation['lines'], image, extra_factor=extra_factor)
+                keypoints_target, keypoints_mask = keypoints.get_tensor_w_mask()
+                annotation['keypoints_target'] = torch.tensor(keypoints_target, dtype=torch.float32)
+                annotation['keypoints_mask'] = torch.tensor(keypoints_mask, dtype=torch.float32)
+                annotation['valid_keypoints'] = torch.tensor(True, dtype=torch.bool)
+            else:
+                annotation['keypoints_target'] = torch.zeros((self.num_keypoints, self.image_input_size//2, self.image_input_size//2), dtype=torch.float32)
+                annotation['keypoints_mask'] = torch.zeros((self.num_keypoints), dtype=torch.float32)
+                annotation['valid_keypoints'] = torch.tensor(False, dtype=torch.bool)
         except Exception as e:
             annotation['keypoints_target'] = torch.zeros((self.num_keypoints, self.image_input_size//2, self.image_input_size//2), dtype=torch.float32)
             annotation['keypoints_mask'] = torch.zeros((self.num_keypoints), dtype=torch.float32)

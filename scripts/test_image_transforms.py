@@ -325,12 +325,12 @@ def apply_transforms_and_save(image_path, output_dir):
     # 将图片转换为[0,1]范围用于Color Jitter
     image_normalized = image_tensor.float() / 255.0
     # 将图片resize到224x224
-    image_normalized = torch.clamp(v2.functional.resize(image_normalized, [224, 224], interpolation=v2.InterpolationMode.BICUBIC), 0, 1)
+    image_normalized = torch.clamp(v2.functional.resize(image_normalized, [512, 512], interpolation=v2.InterpolationMode.BICUBIC), 0, 1)
     print(f"调整后图片尺寸: {image_normalized.shape}")
     
     # 调整annotation的bbox坐标以适应resize
     original_h, original_w = image_tensor.shape[1], image_tensor.shape[2]
-    scale_h, scale_w = 224 / original_h, 224 / original_w
+    scale_h, scale_w = 512 / original_h, 512 / original_w
     annotation_resized = copy.deepcopy(annotation)
     if len(annotation_resized["bbox"]) > 0:
         annotation_resized["bbox"][:, 0] *= scale_w  # x
