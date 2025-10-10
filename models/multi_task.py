@@ -1,6 +1,8 @@
 import os
 import torch
 from torch import nn
+import torch.nn.functional as F
+import math
 
 from models.siglip2 import SiglipBackbone
 from models.siglip2_unisoccer import SiglipBackbone as UniSoccerSiglipBackbone
@@ -26,6 +28,50 @@ from safetensors import safe_open
 #     else:
 #         raise ValueError(f"Unsupported backbone: {config['BACKBONE']}")
 #     return backbone
+
+def interpolate_position_embedding(checkpoint_pos_embed, model_pos_embed, patch_size=16):
+    """
+    对position embedding进行插值，使得不同分辨率的模型可以相互加载权重
+    
+    Args:
+        checkpoint_pos_embed: 从checkpoint加载的position embedding权重 [num_positions_old, embed_dim]
+        model_pos_embed: 当前模型的position embedding权重 [num_positions_new, embed_dim]
+        patch_size: patch大小，默认16
+    
+    Returns:
+        interpolated_pos_embed: 插值后的position embedding [num_positions_new, embed_dim]
+    """
+    num_positions_checkpoint = checkpoint_pos_embed.shape[0]
+    num_positions_model = model_pos_embed.shape[0]
+    embed_dim = checkpoint_pos_embed.shape[1]
+    
+    if num_positions_checkpoint == num_positions_model:
+        return checkpoint_pos_embed
+    
+    # 计算原始和目标的网格大小
+    sqrt_num_positions_checkpoint = int(num_positions_checkpoint ** 0.5)
+    sqrt_num_positions_model = int(num_positions_model ** 0.5)
+    
+    # 将position embedding reshape为2D网格
+    # [num_positions, embed_dim] -> [1, sqrt_num, sqrt_num, embed_dim]
+    checkpoint_pos_embed_2d = checkpoint_pos_embed.reshape(1, sqrt_num_positions_checkpoint, sqrt_num_positions_checkpoint, embed_dim)
+    # [1, sqrt_num, sqrt_num, embed_dim] -> [1, embed_dim, sqrt_num, sqrt_num]
+    checkpoint_pos_embed_2d = checkpoint_pos_embed_2d.permute(0, 3, 1, 2)
+    
+    # 使用双三次插值进行上采样或下采样
+    interpolated_pos_embed = F.interpolate(
+        checkpoint_pos_embed_2d,
+        size=(sqrt_num_positions_model, sqrt_num_positions_model),
+        mode='bicubic',
+        align_corners=False
+    )
+    
+    # [1, embed_dim, sqrt_num_new, sqrt_num_new] -> [1, sqrt_num_new, sqrt_num_new, embed_dim]
+    interpolated_pos_embed = interpolated_pos_embed.permute(0, 2, 3, 1)
+    # [1, sqrt_num_new, sqrt_num_new, embed_dim] -> [num_positions_new, embed_dim]
+    interpolated_pos_embed = interpolated_pos_embed.view(num_positions_model, embed_dim)
+    
+    return interpolated_pos_embed
 
 class MultiTaskingSigLIP(nn.Module):
     def __init__(self, config, logger=None):
@@ -152,6 +198,85 @@ class MultiTaskingSigLIP(nn.Module):
             else:
                 print(f"Saved {head_name} head to: {head_path}")
     
+    def _interpolate_pos_embed_if_needed(self, checkpoint_state_dict: dict, logger=None):
+        """
+        检查并插值position embedding，使得不同分辨率的模型可以相互加载权重
+        
+        Args:
+            checkpoint_state_dict: 从checkpoint加载的state dict
+            logger: Logger instance for logging messages
+            
+        Returns:
+            修改后的state dict
+        """
+        # 尝试获取position embedding的key
+        pos_embed_keys = [
+            'vision_model.embeddings.position_embedding.weight',  # 标准SiglipVisionModel
+            # 'embeddings.position_embedding.weight',  # TimesformerSiglipVisionModel
+            'vision_model_embedding.position_embedding.weight',  # UniSoccerBackbone
+        ]
+        
+        checkpoint_pos_embed_key = None
+        for key in pos_embed_keys:
+            if key in checkpoint_state_dict:
+                checkpoint_pos_embed_key = key
+                break
+        
+        if checkpoint_pos_embed_key is None:
+            # 没有找到position embedding，直接返回
+            if logger is not None:
+                logger.info("没有找到position embedding，跳过插值")
+            else:
+                print("没有找到position embedding，跳过插值")
+            return checkpoint_state_dict
+        
+        # 获取当前模型的position embedding
+        model_pos_embed = None
+        try:
+            if hasattr(self.backbone.vision_model, 'vision_model'):
+                # 标准的SiglipVisionModel
+                model_pos_embed = self.backbone.vision_model.vision_model.embeddings.position_embedding.weight
+            # elif hasattr(self.backbone.vision_model, 'embeddings'):
+            #     # TimesformerSiglipVisionModel
+            #     model_pos_embed = self.backbone.vision_model.embeddings.position_embedding.weight
+            elif hasattr(self.backbone.vision_model, 'vision_model_embedding'):
+                # UniSoccerBackbone
+                model_pos_embed = self.backbone.vision_model.vision_model_embedding.position_embedding.weight
+        except AttributeError:
+            if logger is not None:
+                logger.warning("Could not access model's position embedding, skipping interpolation")
+            else:
+                print("Warning: Could not access model's position embedding, skipping interpolation")
+            return checkpoint_state_dict
+        
+        if model_pos_embed is None:
+            return checkpoint_state_dict
+        
+        checkpoint_pos_embed = checkpoint_state_dict[checkpoint_pos_embed_key]
+        
+        # 检查维度是否匹配
+        if checkpoint_pos_embed.shape[0] != model_pos_embed.shape[0]:
+            if logger is not None:
+                logger.info(f"Position embedding size mismatch: checkpoint={checkpoint_pos_embed.shape[0]}, model={model_pos_embed.shape[0]}")
+                logger.info(f"Interpolating position embedding from {int(checkpoint_pos_embed.shape[0]**0.5)}x{int(checkpoint_pos_embed.shape[0]**0.5)} to {int(model_pos_embed.shape[0]**0.5)}x{int(model_pos_embed.shape[0]**0.5)}")
+            else:
+                print(f"Position embedding size mismatch: checkpoint={checkpoint_pos_embed.shape[0]}, model={model_pos_embed.shape[0]}")
+                print(f"Interpolating position embedding from {int(checkpoint_pos_embed.shape[0]**0.5)}x{int(checkpoint_pos_embed.shape[0]**0.5)} to {int(model_pos_embed.shape[0]**0.5)}x{int(model_pos_embed.shape[0]**0.5)}")
+            
+            # 进行插值
+            interpolated_pos_embed = interpolate_position_embedding(
+                checkpoint_pos_embed, 
+                model_pos_embed
+            )
+            checkpoint_state_dict[checkpoint_pos_embed_key] = interpolated_pos_embed
+            
+            if logger is not None:
+                logger.info("Position embedding interpolation completed successfully")
+            else:
+                print("Position embedding interpolation completed successfully")
+        
+        return checkpoint_state_dict
+    
     def load_checkpoint(self, checkpoint_dir: str, logger=None, load_heads: bool = True):
         """
         Load model checkpoint including backbone, text encoder, and task heads
@@ -197,6 +322,8 @@ class MultiTaskingSigLIP(nn.Module):
         if os.path.exists(backbone_ckpt_path_hf):
             with safe_open(backbone_ckpt_path_hf, framework="pt") as f:
                 backbone_state_dict = {k: f.get_tensor(k) for k in f.keys()}
+                # 检查并插值position embedding
+                backbone_state_dict = self._interpolate_pos_embed_if_needed(backbone_state_dict, logger)
                 self.backbone.vision_model.load_state_dict(backbone_state_dict, strict=False)
                 if logger is not None:
                     logger.info(f"Loaded backbone weights from: {backbone_ckpt_path_hf}")
@@ -204,6 +331,8 @@ class MultiTaskingSigLIP(nn.Module):
                     print(f"Loaded backbone weights from: {backbone_ckpt_path_hf}")
         elif os.path.exists(backbone_ckpt_path_unisoccer):
             backbone_state_dict = torch.load(backbone_ckpt_path_unisoccer, map_location="cpu")
+            # 检查并插值position embedding
+            backbone_state_dict = self._interpolate_pos_embed_if_needed(backbone_state_dict, logger)
             self.backbone.vision_model.load_state_dict(backbone_state_dict, strict=False)
             if logger is not None:
                 logger.info(f"Loaded backbone weights from: {backbone_ckpt_path_unisoccer}")

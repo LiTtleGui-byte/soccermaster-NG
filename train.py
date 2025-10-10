@@ -599,7 +599,7 @@ def verify_parameter_learning_rates(model, optimizer, logger):
     logger.info(f"参数组学习率设置详情:")
     for group_name, info in param_lr_summary.items():
         logger.info(f"  组名: {group_name}")
-        logger.info(f"    学习率: {info['lr']:.0e}")
+        logger.info(f"    学习率: {info['lr']:.2e}")
         logger.info(f"    参数数量: {info['param_count']}")
         
         # 只显示前几个参数名称，避免日志过长
