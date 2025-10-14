@@ -6,6 +6,7 @@ import math
 
 from models.siglip2 import SiglipBackbone
 from models.siglip2_unisoccer import SiglipBackbone as UniSoccerSiglipBackbone
+from models.pure_siglip import PureSiglipBackbone
 from models.deformable_detr.deformable_detr import build_deformable_detr_head
 from models.lines_detection import build_lines_detection_head
 from models.keypoints_detection import build_keypoints_detection_head
@@ -85,6 +86,8 @@ class MultiTaskingSigLIP(nn.Module):
             SiglipBackboneType = SiglipBackbone
         elif siglip_backbone_type == 'unisoccer':
             SiglipBackboneType = UniSoccerSiglipBackbone
+        elif siglip_backbone_type == 'pure_siglip':
+            SiglipBackboneType = PureSiglipBackbone
         else:
             raise ValueError(f"Unsupported SIGLIP_BACKBONE_TYPE: {siglip_backbone_type}. Supported types: 'standard', 'unisoccer'")
         self.backbone = SiglipBackboneType(

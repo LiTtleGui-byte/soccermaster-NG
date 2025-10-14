@@ -1,0 +1,120 @@
+# ------------------------------------------------------------------------
+# Deformable DETR
+# Copyright (c) 2020 SenseTime. All Rights Reserved.
+# Licensed under the Apache License, Version 2.0 [see LICENSE for details]
+# ------------------------------------------------------------------------
+# Modified from DETR (https://github.com/facebookresearch/detr)
+# Copyright (c) Facebook, Inc. and its affiliates. All Rights Reserved
+# ------------------------------------------------------------------------
+
+"""
+Backbone modules.
+"""
+import os
+import torch
+import torch.nn.functional as F
+from torch import nn
+from typing import Optional, List
+
+from models.deformable_detr.position_encoding import build_position_encoding
+from transformers import AutoProcessor, SiglipVisionModel, SiglipVisionConfig, SiglipTextModel, AutoTokenizer
+from models.modeling_timesformer_siglip import SiglipVisionModel as TimesformerSiglipVisionModel
+
+
+class PureSiglipBackbone(nn.Module):
+    def __init__(self, backbone_type: str, 
+                 num_frames: int,
+                 ckpt_path: str,
+                 stage_1_ckpt_dir: str,
+                 text_encoder_ckpt_path: str,
+                 use_lora: bool,
+                 use_temporal_gate: bool,
+                 freeze_vision_encoder: bool,
+                 freeze_text_encoder: bool = True,
+                 hidden_dim: int = 768):
+        super().__init__()
+        assert backbone_type in ['image', 'video']
+        self.vision_model = SiglipVisionModel.from_pretrained(ckpt_path, device_map="cpu")
+        if backbone_type == 'video':
+            self.num_frames = num_frames
+        self.backbone_type = backbone_type
+        
+        self.text_model = TextEncoder(text_encoder_ckpt_path)
+        
+        if freeze_vision_encoder:
+            for param in self.vision_model.parameters():
+                param.requires_grad = False
+        else:
+            for param in self.vision_model.parameters():
+                param.requires_grad = True
+        
+        if freeze_text_encoder:
+            for param in self.text_model.parameters():
+                param.requires_grad = False
+        else:
+            for param in self.text_model.parameters():
+                param.requires_grad = True
+        
+        if use_lora:
+            raise NotImplementedError("Siglip does not support LoRA.")
+        
+    def forward(self, images: torch.Tensor, temporal_attention_mask: Optional[torch.Tensor] = None, text: Optional[List[str]] = None):
+        if self.backbone_type == 'video':
+            B, T, _, _, _ = images.shape
+            images = images.reshape(images.shape[0] * images.shape[1], *images.shape[2:])
+        vision_outputs = self.vision_model(images, output_hidden_states=True)
+        
+        if text is not None:
+            # 过滤出非None的text并记录其索引
+            valid_texts = []
+            valid_indices = []
+            for i, t in enumerate(text):
+                if t is not None:
+                    valid_texts.append(t)
+                    valid_indices.append(i)
+            
+            # 创建和原始batch_size匹配的tensor，None位置用零向量填充
+            batch_size = len(text)
+            text_dim = 768
+            text_pooled_output = torch.zeros(batch_size, text_dim, device=images.device, dtype=images.dtype)
+            
+            # 如果valid_texts为空，则返回全0，不要返回None
+            if valid_texts:
+                # 对有效的text进行编码
+                text_pooled_output_valid = self.text_model(valid_texts)[0] # only get the pooled output
+                # 填充有效text的特征到对应位置
+                for valid_idx, original_idx in enumerate(valid_indices):
+                    text_pooled_output[original_idx] = text_pooled_output_valid[valid_idx]
+        else:
+            text_pooled_output = None
+        
+        last_hidden_state = vision_outputs.last_hidden_state # [N, L, D] or [N, T, L, D]
+        hidden_states = vision_outputs.hidden_states  # 修正属性名
+        pooled_output = vision_outputs.pooler_output # [N, D] or [N, T, D]
+        if self.backbone_type == 'video':
+            pooled_output = pooled_output.reshape(B, T, -1)
+            last_hidden_state = last_hidden_state.reshape(B, T, *last_hidden_state.shape[1:])
+            hidden_states = [hs.reshape(B, T, *hs.shape[1:]) for hs in hidden_states]
+        
+        output = {'global_features': pooled_output, 'local_features': last_hidden_state, 'hidden_states': hidden_states, 'text_features': text_pooled_output}
+        return output
+    
+class TextEncoder(nn.Module):
+    def __init__(self, model_name: str):
+        super().__init__()
+        
+        self.model_name = model_name
+        self.model = SiglipTextModel.from_pretrained(model_name, device_map="cpu")
+        self.tokenizer = AutoTokenizer.from_pretrained(model_name, device_map="cpu")
+
+    def forward(self, text):
+        # important: make sure to set padding="max_length" as that's how the model was trained
+        if 'siglip2' in self.model_name:
+            inputs = self.tokenizer(text=text, padding="max_length", max_length=64, return_tensors="pt", truncation=True)
+        else:
+            inputs = self.tokenizer(text=text, padding="max_length", return_tensors="pt", truncation=True)
+        inputs["input_ids"] = inputs["input_ids"].to(self.model.device)
+        outputs = self.model(**inputs)
+        last_hidden_state = outputs.last_hidden_state
+        pooled_output = outputs.pooler_output  # pooled (EOS token) states
+        return pooled_output, last_hidden_state

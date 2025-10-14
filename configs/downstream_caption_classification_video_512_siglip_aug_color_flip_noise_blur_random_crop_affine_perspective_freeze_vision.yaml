@@ -1,18 +1,18 @@
 SUPER_CONFIG_PATH: ./configs/default.yaml
-
+SEED: 43
 AUG_RESIZE_SCALES: [512]
 AUG_MAX_SIZE: 512
 AUG_RANDOM_RESIZE: [512]
 
 BACKBONE_TYPE: video
-SIGLIP_BACKBONE_TYPE: unisoccer
+SIGLIP_BACKBONE_TYPE: pure_siglip
 DETECTION_DATA_TYPE: video
 CKPT_PATH: ./pretrained_models/google/siglip2-base-patch16-512
 TEXT_ENCODER_CKPT_PATH: ./pretrained_models/google/siglip2-base-patch16-512
-FREEZE_VISION_ENCODER: False
+FREEZE_VISION_ENCODER: True
 FREEZE_TEXT_ENCODER: True
 LOAD_CHECKPOINTS: True
-STAGE_1_CKPT_DIR: ./outputs/video_512_multitask_wo_camera_from_hf_aug_color_flip_noise_blur_random_crop_affine_perspective/epoch_12
+STAGE_1_CKPT_DIR: ./pretrained_models/google/siglip2-base-patch16-512
 LR_WARMUP_EPOCHS: 0
 LOAD_HEADS: False
 
