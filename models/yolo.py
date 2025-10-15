@@ -25,6 +25,8 @@ class YOLOModel(nn.Module):
         super().__init__()
         self.config = config
         self.model = YOLO(config['YOLO_MODEL_PATH'])
+        self.yolo_imgsz = config['YOLO_IMGSZ']
+        self.yolo_use_rect = config['YOLO_USE_RECT']
         
         all_heads = []
         for dataset, heads in config["DATASETS_TO_HEADS"].items():
@@ -43,7 +45,7 @@ class YOLOModel(nn.Module):
         #     images = images.reshape(bs * num_frames, *images.shape[2:])
         # else:
         #     bs, _, _, _ = images.shape
-        results_by_image = self.model(images)
+        results_by_image = self.model(images, imgsz=self.yolo_imgsz, rect=self.yolo_use_rect)
         device = accelerator.device
         num_queries = 300
         pred_logits_batch = []

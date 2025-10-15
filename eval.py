@@ -136,7 +136,9 @@ def evaluation_engine(config: dict, checkpoint_path: str, log_dir: str = None,
     # 设置默认log_dir
     if log_dir is None:
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        # checkpoint_name = os.path.basename(checkpoint_path.rstrip('/'))
         checkpoint_name = os.path.basename(checkpoint_path.rstrip('/'))
+        checkpoint_name = os.path.basename(config["STAGE_1_CKPT_DIR"].rstrip('/'))
         log_dir = f"eval_logs_{checkpoint_name}_{timestamp}"
     
     # Init Logger
@@ -174,7 +176,7 @@ def evaluation_engine(config: dict, checkpoint_path: str, log_dir: str = None,
     
     # Load checkpoint
     if config["MODEL_ARCH"] == "multitask":
-        model.load_checkpoint(checkpoint_path)
+        model.load_checkpoint(config["STAGE_1_CKPT_DIR"], logger, load_heads=config["LOAD_HEADS"])
     
     # Prepare model and dataloaders
     model = accelerator.prepare(model)
