@@ -44,7 +44,7 @@ class DeformableDetrHead(nn.Module):
     """ This is the Deformable DETR module that performs object detection """
     def __init__(self, position_encoding, transformer, num_classes, num_queries, num_feature_levels, backbone_strides, backbone_num_channels,
                  aux_loss=True, with_box_refine=False, two_stage=False, detection_data_type = "image", backbone_type='image',
-                 enable_role_classification=True, enable_jn_classification=True):
+                 enable_role_classification=True, enable_jn_classification=True, local_features_type='late'):
         """ Initializes the model.
         Parameters:
             backbone: torch module of the backbone to be used. See backbone.py
@@ -116,6 +116,7 @@ class DeformableDetrHead(nn.Module):
         self.two_stage = two_stage
         self.detection_data_type = detection_data_type
         self.backbone_type = backbone_type
+        self.local_features_type = local_features_type
 
         prior_prob = 0.01
         bias_value = -math.log((1 - prior_prob) / prior_prob)
@@ -184,7 +185,26 @@ class DeformableDetrHead(nn.Module):
                - "aux_outputs": Optional, only returned when auxilary losses are activated. It is a list of
                                 dictionnaries containing the two above keys for each decoder layer.
         """
-        global_features, local_features = backbone_outputs['global_features'], backbone_outputs['local_features']
+        global_features = backbone_outputs['global_features']
+        
+        # Select local features based on configuration
+        if self.local_features_type == 'early':
+            local_features = backbone_outputs['local_features_early']
+        elif self.local_features_type == 'late':
+            local_features = backbone_outputs['local_features_late']
+        elif self.local_features_type == 'both':
+            # Concatenate early and late features along the channel dimension
+            local_features_early = backbone_outputs['local_features_early']
+            local_features_late = backbone_outputs['local_features_late']
+            if self.backbone_type == 'video':
+                # [B, T, N, D] -> concatenate on D dimension
+                local_features = torch.cat([local_features_early, local_features_late], dim=-1)
+            else:
+                # [B, N, D] -> concatenate on D dimension
+                local_features = torch.cat([local_features_early, local_features_late], dim=-1)
+        else:
+            # Fallback to default behavior for backward compatibility
+            local_features = backbone_outputs.get('local_features', backbone_outputs['local_features_late'])
         # if self.backbone_type == 'video' and self.detection_data_type == 'image':
         if self.backbone_type == 'video':
             bs, num_frames, _, _ = local_features.shape
@@ -1168,6 +1188,16 @@ def build_deformable_detr_head(config: dict):
     args = cvt_config_to_args(config)
     device = torch.device(args.device)
     
+    # Adjust backbone_num_channels based on local_features_type
+    local_features_type = config.get("DETR_LOCAL_FEATURES_TYPE", "late")
+    base_channels = config["BACKBONE_HIDDEN_DIM"]
+    
+    if local_features_type == 'both':
+        # When concatenating early and late features, channels are doubled
+        backbone_num_channels = [base_channels * 2]
+    else:
+        backbone_num_channels = [base_channels]
+    
     head = DeformableDetrHead(
         position_encoding = build_position_encoding(args),
         transformer = build_deforamble_transformer(args),
@@ -1175,7 +1205,7 @@ def build_deformable_detr_head(config: dict):
         num_queries=args.num_queries,
         num_feature_levels=args.num_feature_levels,
         backbone_strides=args.backbone_strides,
-        backbone_num_channels=args.backbone_num_channels,
+        backbone_num_channels=backbone_num_channels,  # Use adjusted channels
         aux_loss=args.aux_loss,
         with_box_refine=args.with_box_refine,
         two_stage=args.two_stage,
@@ -1183,6 +1213,7 @@ def build_deformable_detr_head(config: dict):
         backbone_type=config["BACKBONE_TYPE"],
         enable_role_classification=config["DETR_ENABLE_ROLE_CLASSIFICATION"],
         enable_jn_classification=config["DETR_ENABLE_JN_CLASSIFICATION"],
+        local_features_type=local_features_type,
     )
     return head
 

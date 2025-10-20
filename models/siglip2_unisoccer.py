@@ -157,6 +157,10 @@ class SiglipBackbone(nn.Module):
             hidden_states = vision_outputs.hidden_states  # 修正属性名
             pooled_output = vision_outputs.pooler_output # [N, D] or [N, T, D]
         
+        # For unisoccer (without part_temporal), early and late features are the same
+        local_features_early = last_hidden_state
+        local_features_late = last_hidden_state
+        
         if text is not None:
             # 过滤出非None的text并记录其索引
             valid_texts = []
@@ -182,7 +186,14 @@ class SiglipBackbone(nn.Module):
         else:
             text_pooled_output = None
         
-        output = {'global_features': pooled_output, 'local_features': last_hidden_state, 'hidden_states': hidden_states, 'text_features': text_pooled_output}
+        output = {
+            'global_features': pooled_output, 
+            'local_features': last_hidden_state,  # For backward compatibility
+            'local_features_early': local_features_early, 
+            'local_features_late': local_features_late,
+            'hidden_states': hidden_states, 
+            'text_features': text_pooled_output
+        }
         return output
     
 class TextEncoder(nn.Module):

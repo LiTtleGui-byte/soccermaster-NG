@@ -17,7 +17,7 @@ from accelerate.utils.operations import gather_object
 class KeypointsDetection(nn.Module):
     """KeypointsDetection模块，用于关键点检测"""
     
-    def __init__(self, backbone_num_channels, num_keypoints, backbone_type='image'):
+    def __init__(self, backbone_num_channels, num_keypoints, backbone_type='image', local_features_type='late'):
         """
         初始化KeypointsDetection模块
         
@@ -25,10 +25,16 @@ class KeypointsDetection(nn.Module):
             backbone_num_channels: backbone输出通道数
             num_keypoints: 关键点数量
             backbone_type: backbone类型，'image'或'video'
+            local_features_type: str, 'early', 'late', or 'both' to select which local features to use
         """
         super().__init__()
         self.backbone_type = backbone_type
-        self.keypoints_head = KeypointsHead(dim_in=backbone_num_channels[0], num_keypoints=num_keypoints)
+        self.local_features_type = local_features_type
+        
+        # Adjust input dimension if using 'both' (concatenated features)
+        input_dim = backbone_num_channels[0] * 2 if local_features_type == 'both' else backbone_num_channels[0]
+        
+        self.keypoints_head = KeypointsHead(dim_in=input_dim, num_keypoints=num_keypoints)
 
     def forward(self, backbone_outputs, metas, is_training: bool = False):
         """
@@ -42,7 +48,26 @@ class KeypointsDetection(nn.Module):
         Returns:
             包含pred_keypoints_heatmap的字典
         """
-        global_features, local_features = backbone_outputs['global_features'], backbone_outputs['local_features']
+        global_features = backbone_outputs['global_features']
+        
+        # Select local features based on configuration
+        if self.local_features_type == 'early':
+            local_features = backbone_outputs['local_features_early']
+        elif self.local_features_type == 'late':
+            local_features = backbone_outputs['local_features_late']
+        elif self.local_features_type == 'both':
+            # Concatenate early and late features along the channel dimension
+            local_features_early = backbone_outputs['local_features_early']
+            local_features_late = backbone_outputs['local_features_late']
+            if self.backbone_type == 'video':
+                # [B, T, N, D] -> concatenate on D dimension
+                local_features = torch.cat([local_features_early, local_features_late], dim=-1)
+            else:
+                # [B, N, D] -> concatenate on D dimension
+                local_features = torch.cat([local_features_early, local_features_late], dim=-1)
+        else:
+            # Fallback to default behavior for backward compatibility
+            local_features = backbone_outputs.get('local_features', backbone_outputs['local_features_late'])
         
         bs, num_frames = None, None
         if self.backbone_type == 'video':
@@ -638,11 +663,13 @@ def build_keypoints_detection_head(config: dict):
     backbone_num_channels = [config['BACKBONE_HIDDEN_DIM']]
     num_keypoints = config['NUM_KEYPOINTS']
     backbone_type = config['BACKBONE_TYPE']
+    local_features_type = config.get("KEYPOINTS_LOCAL_FEATURES_TYPE", "late")
     
     return KeypointsDetection(
         backbone_num_channels=backbone_num_channels,
         num_keypoints=num_keypoints,
-        backbone_type=backbone_type
+        backbone_type=backbone_type,
+        local_features_type=local_features_type
     )
 
 

@@ -203,6 +203,12 @@ NUM_LINES: 24
 DETECTION_DATA_TYPE: image
 EVAL_SCORE_THRESHOLD: 0.5
 
+# Local features selection for different heads (when using unisoccer_part_temporal):
+# Options: 'early' (temporal_start_layer features), 'late' (last layer features), 'both' (concatenate both)
+DETR_LOCAL_FEATURES_TYPE: late          # For SoccerNetGSR_Detection head
+LINES_LOCAL_FEATURES_TYPE: late         # For LinesDetection head  
+KEYPOINTS_LOCAL_FEATURES_TYPE: late     # For KeypointsDetection head
+
 # Lines Head settings:
 LINES_HEAD_TYPE: default  # 'default' for LinesHead, 'dpt' for DPTLinesHead
 DPT_SELECTED_LAYERS: [2, 5, 8, 11]  # 当使用DPT时，选择的SigLIP hidden_states层索引 (0-11)

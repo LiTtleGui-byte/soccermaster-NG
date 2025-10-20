@@ -26,7 +26,7 @@ from accelerate.utils.operations import gather_object
 
 class LinesDetection(nn.Module):
     """ This is the Deformable DETR module that performs object detection """
-    def __init__(self, backbone_num_channels, num_lines, backbone_type='image', head_type='default', selected_layers=None):
+    def __init__(self, backbone_num_channels, num_lines, backbone_type='image', head_type='default', selected_layers=None, local_features_type='late'):
         """ Initializes the model.
         Parameters:
             backbone: torch module of the backbone to be used. See backbone.py
@@ -39,17 +39,22 @@ class LinesDetection(nn.Module):
             two_stage: two-stage Deformable DETR
             head_type: str, 'default' for LinesHead, 'dpt' for DPTLinesHead
             selected_layers: list, 当使用DPT时选择的层索引
+            local_features_type: str, 'early', 'late', or 'both' to select which local features to use
         """
         # TODO: find a way to handle positional encoding, strides, channels, etc.
         super().__init__()
         self.backbone_type = backbone_type
         self.head_type = head_type
         self.selected_layers = selected_layers
+        self.local_features_type = local_features_type
+        
+        # Adjust input dimension if using 'both' (concatenated features)
+        input_dim = backbone_num_channels[0] * 2 if local_features_type == 'both' else backbone_num_channels[0]
         
         if head_type == 'dpt':
-            self.lines_head = DPTLinesHead(dim_in=backbone_num_channels[0], num_lines=num_lines)
+            self.lines_head = DPTLinesHead(dim_in=input_dim, num_lines=num_lines)
         else:
-            self.lines_head = LinesHead(dim_in=backbone_num_channels[0], num_lines=num_lines)
+            self.lines_head = LinesHead(dim_in=input_dim, num_lines=num_lines)
 
     def forward(self, backbone_outputs, metas, is_training: bool = False):
         """ The forward expects a NestedTensor, which consists of:
@@ -66,8 +71,27 @@ class LinesDetection(nn.Module):
                - "aux_outputs": Optional, only returned when auxilary losses are activated. It is a list of
                                 dictionnaries containing the two above keys for each decoder layer.
         """
-        global_features, local_features = backbone_outputs['global_features'], backbone_outputs['local_features']
+        global_features = backbone_outputs['global_features']
         hidden_states = backbone_outputs['hidden_states']
+        
+        # Select local features based on configuration
+        if self.local_features_type == 'early':
+            local_features = backbone_outputs['local_features_early']
+        elif self.local_features_type == 'late':
+            local_features = backbone_outputs['local_features_late']
+        elif self.local_features_type == 'both':
+            # Concatenate early and late features along the channel dimension
+            local_features_early = backbone_outputs['local_features_early']
+            local_features_late = backbone_outputs['local_features_late']
+            if self.backbone_type == 'video':
+                # [B, T, N, D] -> concatenate on D dimension
+                local_features = torch.cat([local_features_early, local_features_late], dim=-1)
+            else:
+                # [B, N, D] -> concatenate on D dimension
+                local_features = torch.cat([local_features_early, local_features_late], dim=-1)
+        else:
+            # Fallback to default behavior for backward compatibility
+            local_features = backbone_outputs.get('local_features', backbone_outputs['local_features_late'])
         
         bs, num_frames = None, None
         if self.backbone_type == 'video':
@@ -606,13 +630,15 @@ def build_lines_detection_head(config: dict):
     backbone_type = config["BACKBONE_TYPE"]
     head_type = config["LINES_HEAD_TYPE"]  # 默认使用原来的LinesHead
     selected_layers = config["DPT_SELECTED_LAYERS"]  # DPT选择的层
+    local_features_type = config.get("LINES_LOCAL_FEATURES_TYPE", "late")
     
     head = LinesDetection(
         backbone_num_channels=backbone_num_channels,
         num_lines=num_lines,
         backbone_type=backbone_type,
         head_type=head_type,
-        selected_layers=selected_layers
+        selected_layers=selected_layers,
+        local_features_type=local_features_type
     )
     return head
 
