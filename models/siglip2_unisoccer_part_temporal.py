@@ -23,16 +23,17 @@ from timm.models.layers import DropPath
 from einops import rearrange
 
 class ResidualAttentionBlock(nn.Module):
-    def __init__(self, res_idx, d_model=768, n_head=12, drop_path=0., attn_mask=None, dropout=0., attention_type='divided_space_time', model_name="google/siglip-base-patch16-224"):
+    def __init__(self, res_idx, d_model=768, n_head=12, drop_path=0., attn_mask=None, dropout=0., attention_type='divided_space_time', model_name="google/siglip-base-patch16-224", use_temporal=True):
         super().__init__()
         model = SiglipVisionModel.from_pretrained(model_name)
         vision_model = model.vision_model
 
         self.drop_path = DropPath(drop_path) if drop_path > 0. else nn.Identity()
+        self.use_temporal = use_temporal
         # print(f'Droppath: {drop_path}')
 
         # Temporal Attention Parameters
-        if attention_type == 'divided_space_time':
+        if attention_type == 'divided_space_time' and use_temporal:
             self.temporal_norm1 = nn.LayerNorm(d_model)
             self.temporal_attn = nn.MultiheadAttention(d_model, n_head, dropout=dropout, batch_first=True)
             self.temporal_fc = nn.Linear(d_model, d_model)
@@ -49,28 +50,35 @@ class ResidualAttentionBlock(nn.Module):
 
     def forward(self, x, B, T):
         # divided_space_time 
+        
+        if self.use_temporal:
+            ## Temporal 
+            xt = rearrange(x, '(b t) n m -> (b n) t m', b=B, t=T)
+            res_temporal = self.drop_path(self.temporal_attention(self.temporal_norm1(xt)))
+            res_temporal = rearrange(res_temporal, '(b n) t m -> (b t) n m', b=B, t=T)
+            res_temporal = self.temporal_fc(res_temporal)
+            xt = x + self.temporal_alpha_attn.tanh() * res_temporal # 180 196 768
 
-        ## Temporal 
-        xt = rearrange(x, '(b t) n m -> (b n) t m', b=B, t=T)
-        res_temporal = self.drop_path(self.temporal_attention(self.temporal_norm1(xt)))
-        res_temporal = rearrange(res_temporal, '(b n) t m -> (b t) n m', b=B, t=T)
-        res_temporal = self.temporal_fc(res_temporal)
-        xt = x + self.temporal_alpha_attn.tanh() * res_temporal # 180 196 768
-
-        ## Spatial
-        xs = xt # always 180 196 768
-        res_spatial = self.encoder(xs, self.attn_mask)[0]
+            ## Spatial
+            xs = xt # always 180 196 768
+            res_spatial = self.encoder(xs, self.attn_mask)[0]
+        else:
+            ## Spatial only (no temporal attention)
+            res_spatial = self.encoder(x, self.attn_mask)[0]
         
         return res_spatial
     
 
 class Timesformer(nn.Module):
-    def __init__(self, width, layers, heads, model_name, drop_path=0., checkpoint_num=0, dropout=0.):
+    def __init__(self, width, layers, heads, model_name, drop_path=0., checkpoint_num=0, dropout=0., temporal_start_layer=0):
         super().__init__()
         dpr = [x.item() for x in torch.linspace(0, drop_path, layers)]
         self.resblocks = nn.ModuleList()
+        self.temporal_start_layer = temporal_start_layer
         for idx in range(layers):
-            self.resblocks.append(ResidualAttentionBlock(d_model=width, n_head=heads, res_idx=idx, drop_path=dpr[idx], dropout=dropout, model_name=model_name))
+            # Only enable temporal attention for layers >= temporal_start_layer
+            use_temporal = (idx >= temporal_start_layer)
+            self.resblocks.append(ResidualAttentionBlock(d_model=width, n_head=heads, res_idx=idx, drop_path=dpr[idx], dropout=dropout, model_name=model_name, use_temporal=use_temporal))
         self.checkpoint_num = checkpoint_num
             
     def forward(self, x, B, T):
@@ -82,14 +90,16 @@ class Timesformer(nn.Module):
         return x
     
 class UniSoccerBackbone(nn.Module):
-    def __init__(self, ckpt_path: str, num_frames: int, stage_1_backbone_dir: str, hidden_dim: int = 768):
+    def __init__(self, ckpt_path: str, num_frames: int, stage_1_backbone_dir: str, hidden_dim: int = 768, temporal_start_layer: int = 8):
         super().__init__()
 
         model = SiglipVisionModel.from_pretrained(ckpt_path, device_map="cpu")
         siglip_vision_model = model.vision_model
         self.vision_model_embedding = siglip_vision_model.embeddings
         config = SiglipVisionConfig.from_pretrained(ckpt_path)
-        self.timesformer = Timesformer(width=hidden_dim, layers=config.num_hidden_layers, heads=config.num_attention_heads, model_name=ckpt_path, drop_path=0., checkpoint_num=0, dropout=0.)
+        self.temporal_start_layer = temporal_start_layer
+        self.num_layers = config.num_hidden_layers
+        self.timesformer = Timesformer(width=hidden_dim, layers=config.num_hidden_layers, heads=config.num_attention_heads, model_name=ckpt_path, drop_path=0., checkpoint_num=0, dropout=0., temporal_start_layer=temporal_start_layer)
         self.post_norm = siglip_vision_model.post_layernorm
         self.head = siglip_vision_model.head
         self.temporal_embedding = nn.Parameter(torch.zeros(1, num_frames, hidden_dim))
@@ -98,15 +108,30 @@ class UniSoccerBackbone(nn.Module):
         B, T, _, _, _ = images.shape
         images = rearrange(images, 'b t c h w -> (b t) c h w')
         x = self.vision_model_embedding(images)
+        
+        # Process spatial-only layers (before temporal_start_layer)
+        for idx in range(self.temporal_start_layer):
+            x = self.timesformer.resblocks[idx](x, B, T)
+        
+        # Save output at temporal_start_layer as local_features
+        local_features = x  # [B*T, N, D]
+        local_features = rearrange(local_features, '(b t) n m -> b t n m', b=B, t=T)
+        
+        # Add temporal embedding before temporal layers
         x = rearrange(x, '(b t) n m -> b n t m', b=B, t=T)
         x = x + self.temporal_embedding
         x = rearrange(x, 'b n t m -> (b t) n m')
-        x = self.timesformer(x, B, T)
-        x2 = self.post_norm(x) # [B*T, N, D]
+        
+        # Process temporal layers (from temporal_start_layer to end)
+        for idx in range(self.temporal_start_layer, self.num_layers):
+            x = self.timesformer.resblocks[idx](x, B, T)
+        
+        # Generate global features
+        x2 = self.post_norm(x)  # [B*T, N, D]
         x2 = self.head(x2)
-        x = rearrange(x, '(b t) n m -> b t n m', b=B, t=T)
         x2 = rearrange(x2, '(b t) m -> b t m', b=B, t=T)
-        return x, None, x2
+        
+        return local_features, None, x2
 
 class SiglipBackbone(nn.Module):
     def __init__(self, backbone_type: str, 
@@ -118,8 +143,8 @@ class SiglipBackbone(nn.Module):
                  use_temporal_gate: bool,
                  freeze_vision_encoder: bool = False,
                  freeze_text_encoder: bool = True,
-                #  hidden_dim: int = 768):
-                 hidden_dim: int = 1024):
+                 hidden_dim: int = 768,
+                 temporal_start_layer: int = 8):
         super().__init__()
         assert backbone_type in ['image', 'video']
         if backbone_type == 'image':
@@ -128,7 +153,7 @@ class SiglipBackbone(nn.Module):
             stage_1_backbone_dir = os.path.join(stage_1_ckpt_dir, 'backbone')
             if not os.path.exists(stage_1_backbone_dir):
                 stage_1_backbone_dir = stage_1_ckpt_dir
-            self.vision_model = UniSoccerBackbone(ckpt_path, num_frames, stage_1_backbone_dir, hidden_dim)
+            self.vision_model = UniSoccerBackbone(ckpt_path, num_frames, stage_1_backbone_dir, hidden_dim, temporal_start_layer)
             
         self.backbone_type = backbone_type
         self.hidden_dim = hidden_dim

@@ -11,7 +11,7 @@ os.environ["TOKENIZERS_PARALLELISM"] = "false"
 
 import torch
 from torch.optim import AdamW
-from torch.optim.lr_scheduler import MultiStepLR
+from torch.optim.lr_scheduler import MultiStepLR, CosineAnnealingLR, _LRScheduler
 from torch.utils.data import DataLoader
 import torch.nn as nn
 from datetime import timedelta
@@ -33,6 +33,52 @@ from configs.util import load_super_config, update_config, yaml_to_dict
 from models.build import build_loss_fn, build_metrics_fn
 from torch.utils.data import Sampler
 import random
+import math
+
+class CosineAnnealingLRWithWarmup(_LRScheduler):
+    """
+    Cosine Annealing LR scheduler that starts after warmup epochs.
+    During warmup epochs, this scheduler does nothing (lr is controlled by warmup function).
+    After warmup, it applies cosine annealing from the base lr to min_lr.
+    """
+    def __init__(self, optimizer, warmup_epochs, total_epochs, min_lr=1e-8, last_epoch=-1):
+        """
+        Args:
+            optimizer: Wrapped optimizer
+            warmup_epochs: Number of warmup epochs (scheduler starts after this)
+            total_epochs: Total number of training epochs
+            min_lr: Minimum learning rate (can be a single value or list for each param group)
+            last_epoch: The index of last epoch
+        """
+        self.warmup_epochs = warmup_epochs
+        self.total_epochs = total_epochs
+        self.cosine_epochs = total_epochs - warmup_epochs
+        
+        # Handle min_lr - can be single value or list
+        if not isinstance(min_lr, (list, tuple)):
+            self.min_lrs = [min_lr] * len(optimizer.param_groups)
+        else:
+            if len(min_lr) != len(optimizer.param_groups):
+                raise ValueError(f"Expected {len(optimizer.param_groups)} min_lrs, got {len(min_lr)}")
+            self.min_lrs = list(min_lr)
+        
+        super(CosineAnnealingLRWithWarmup, self).__init__(optimizer, last_epoch)
+    
+    def get_lr(self):
+        # During warmup, return base_lrs (warmup function will override these)
+        if self.last_epoch < self.warmup_epochs:
+            return [group['lr'] for group in self.optimizer.param_groups]
+        
+        # After warmup, apply cosine annealing
+        # Calculate progress in cosine phase (0 to 1)
+        cosine_epoch = self.last_epoch - self.warmup_epochs
+        progress = cosine_epoch / self.cosine_epochs
+        
+        # Cosine annealing formula: min_lr + (base_lr - min_lr) * (1 + cos(pi * progress)) / 2
+        return [
+            min_lr + (base_lr - min_lr) * (1 + math.cos(math.pi * progress)) / 2
+            for base_lr, min_lr in zip(self.base_lrs, self.min_lrs)
+        ]
 
 class OffsetSampler(Sampler):
     """自定义采样器，支持从指定位置开始采样，兼容分布式训练"""
@@ -692,11 +738,27 @@ def train_engine(config: dict):
     # Create optimizer with parameter groups
     param_groups = create_param_groups(model, config)
     optimizer = AdamW(param_groups)
-    scheduler = MultiStepLR(
-        optimizer=optimizer,
-        milestones=config["SCHEDULER_MILESTONES"],
-        gamma=config["SCHEDULER_GAMMA"],
-    )
+    
+    # Create learning rate scheduler based on config
+    scheduler_type = config.get("SCHEDULER_TYPE", "MultiStepLR")
+    if scheduler_type == "MultiStepLR":
+        scheduler = MultiStepLR(
+            optimizer=optimizer,
+            milestones=config["SCHEDULER_MILESTONES"],
+            gamma=config["SCHEDULER_GAMMA"],
+        )
+        logger.info(f"Using MultiStepLR scheduler with milestones={config['SCHEDULER_MILESTONES']}, gamma={config['SCHEDULER_GAMMA']}")
+    elif scheduler_type == "CosineAnnealingLR":
+        scheduler = CosineAnnealingLRWithWarmup(
+            optimizer=optimizer,
+            warmup_epochs=config["LR_WARMUP_EPOCHS"],
+            total_epochs=config["EPOCHS"],
+            min_lr=config["SCHEDULER_MIN_LR"],
+        )
+        logger.info(f"Using CosineAnnealingLR scheduler with warmup_epochs={config['LR_WARMUP_EPOCHS']}, "
+                   f"total_epochs={config['EPOCHS']}, min_lr={config['SCHEDULER_MIN_LR']}")
+    else:
+        raise ValueError(f"Unknown scheduler type: {scheduler_type}. Supported types: 'MultiStepLR', 'CosineAnnealingLR'")
     
     
     

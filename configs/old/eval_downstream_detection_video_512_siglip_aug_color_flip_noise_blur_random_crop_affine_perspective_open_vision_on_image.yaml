@@ -15,7 +15,7 @@ LOAD_CHECKPOINTS: True
 STAGE_1_CKPT_DIR: ./outputs/downstream_detection_video_512_siglip_aug_color_flip_noise_blur_random_crop_affine_perspective_open_vision/epoch_9
 RESUME_TRAINING: False
 LR_WARMUP_EPOCHS: 0
-LOAD_HEADS: False
+LOAD_HEADS: True
 
 LINES_HEAD_TYPE: default
 

@@ -29,3 +29,5 @@ models/bak
 .cursorignore
 pyrightconfig.json
 soccerbackbone.egg-info
+
+.DS_Store

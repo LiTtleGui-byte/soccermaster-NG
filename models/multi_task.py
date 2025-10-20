@@ -6,6 +6,7 @@ import math
 
 from models.siglip2 import SiglipBackbone
 from models.siglip2_unisoccer import SiglipBackbone as UniSoccerSiglipBackbone
+from models.siglip2_unisoccer_part_temporal import SiglipBackbone as UniSoccerPartTemporalSiglipBackbone
 from models.pure_siglip import PureSiglipBackbone
 from models.deformable_detr.deformable_detr import build_deformable_detr_head
 from models.lines_detection import build_lines_detection_head
@@ -86,22 +87,32 @@ class MultiTaskingSigLIP(nn.Module):
             SiglipBackboneType = SiglipBackbone
         elif siglip_backbone_type == 'unisoccer':
             SiglipBackboneType = UniSoccerSiglipBackbone
+        elif siglip_backbone_type == 'unisoccer_part_temporal':
+            SiglipBackboneType = UniSoccerPartTemporalSiglipBackbone
         elif siglip_backbone_type == 'pure_siglip':
             SiglipBackboneType = PureSiglipBackbone
         else:
-            raise ValueError(f"Unsupported SIGLIP_BACKBONE_TYPE: {siglip_backbone_type}. Supported types: 'standard', 'unisoccer'")
-        self.backbone = SiglipBackboneType(
-            config['BACKBONE_TYPE'], 
-            config['NUM_FRAMES'], 
-            config['CKPT_PATH'], 
-            config['STAGE_1_CKPT_DIR'], 
-            config['TEXT_ENCODER_CKPT_PATH'], 
-            False, 
-            config['BACKBONE_USE_TEMPORAL_GATE'], 
-            config['FREEZE_VISION_ENCODER'],
-            config['FREEZE_TEXT_ENCODER'],
-            config['BACKBONE_HIDDEN_DIM']
-        )
+            raise ValueError(f"Unsupported SIGLIP_BACKBONE_TYPE: {siglip_backbone_type}. Supported types: 'standard', 'unisoccer', 'unisoccer_part_temporal', 'pure_siglip'")
+        
+        # Prepare backbone initialization arguments
+        backbone_args = {
+            'backbone_type': config['BACKBONE_TYPE'],
+            'num_frames': config['NUM_FRAMES'],
+            'ckpt_path': config['CKPT_PATH'],
+            'stage_1_ckpt_dir': config['STAGE_1_CKPT_DIR'],
+            'text_encoder_ckpt_path': config['TEXT_ENCODER_CKPT_PATH'],
+            'use_lora': False,
+            'use_temporal_gate': config['BACKBONE_USE_TEMPORAL_GATE'],
+            'freeze_vision_encoder': config['FREEZE_VISION_ENCODER'],
+            'freeze_text_encoder': config['FREEZE_TEXT_ENCODER'],
+            'hidden_dim': config['BACKBONE_HIDDEN_DIM']
+        }
+        
+        # Add temporal_start_layer for unisoccer_part_temporal
+        if siglip_backbone_type == 'unisoccer_part_temporal':
+            backbone_args['temporal_start_layer'] = config.get('TEMPORAL_START_LAYER', 8)
+        
+        self.backbone = SiglipBackboneType(**backbone_args)
         if logger is not None:
             logger.info(f"Using SiglipBackbone type: {siglip_backbone_type}")
         else:
