@@ -23,7 +23,7 @@ from timm.models.layers import DropPath
 from einops import rearrange
 
 class ResidualAttentionBlock(nn.Module):
-    def __init__(self, res_idx, d_model=768, n_head=12, drop_path=0., attn_mask=None, dropout=0., attention_type='divided_space_time', model_name="google/siglip-base-patch16-224", use_temporal=True):
+    def __init__(self, res_idx, d_model, n_head, drop_path=0., attn_mask=None, dropout=0., attention_type='divided_space_time', model_name="google/siglip-base-patch16-224", use_temporal=True):
         super().__init__()
         model = SiglipVisionModel.from_pretrained(model_name)
         vision_model = model.vision_model
@@ -78,7 +78,7 @@ class Timesformer(nn.Module):
         for idx in range(layers):
             # Only enable temporal attention for layers >= temporal_start_layer
             use_temporal = (idx >= temporal_start_layer)
-            self.resblocks.append(ResidualAttentionBlock(d_model=width, n_head=heads, res_idx=idx, drop_path=dpr[idx], dropout=dropout, model_name=model_name, use_temporal=use_temporal))
+            self.resblocks.append(ResidualAttentionBlock(res_idx=idx, d_model=width, n_head=heads, drop_path=dpr[idx], dropout=dropout, model_name=model_name, use_temporal=use_temporal))
         self.checkpoint_num = checkpoint_num
             
     def forward(self, x, B, T):

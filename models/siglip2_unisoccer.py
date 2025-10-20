@@ -23,7 +23,7 @@ from timm.models.layers import DropPath
 from einops import rearrange
 
 class ResidualAttentionBlock(nn.Module):
-    def __init__(self, res_idx, d_model=768, n_head=12, drop_path=0., attn_mask=None, dropout=0., attention_type='divided_space_time', model_name="google/siglip-base-patch16-224"):
+    def __init__(self, res_idx, d_model, n_head, drop_path=0., attn_mask=None, dropout=0., attention_type='divided_space_time', model_name="google/siglip-base-patch16-224"):
         super().__init__()
         model = SiglipVisionModel.from_pretrained(model_name)
         vision_model = model.vision_model
@@ -70,7 +70,7 @@ class Timesformer(nn.Module):
         dpr = [x.item() for x in torch.linspace(0, drop_path, layers)]
         self.resblocks = nn.ModuleList()
         for idx in range(layers):
-            self.resblocks.append(ResidualAttentionBlock(d_model=width, n_head=heads, res_idx=idx, drop_path=dpr[idx], dropout=dropout, model_name=model_name))
+            self.resblocks.append(ResidualAttentionBlock(res_idx=idx, d_model=width, n_head=heads, drop_path=dpr[idx], dropout=dropout, model_name=model_name))
         self.checkpoint_num = checkpoint_num
             
     def forward(self, x, B, T):
@@ -118,8 +118,7 @@ class SiglipBackbone(nn.Module):
                  use_temporal_gate: bool,
                  freeze_vision_encoder: bool = False,
                  freeze_text_encoder: bool = True,
-                #  hidden_dim: int = 768):
-                 hidden_dim: int = 1024):
+                 hidden_dim: int = 768):
         super().__init__()
         assert backbone_type in ['image', 'video']
         if backbone_type == 'image':
