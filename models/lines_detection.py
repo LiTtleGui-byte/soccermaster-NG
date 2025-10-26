@@ -630,7 +630,7 @@ def build_lines_detection_head(config: dict):
     backbone_type = config["BACKBONE_TYPE"]
     head_type = config["LINES_HEAD_TYPE"]  # 默认使用原来的LinesHead
     selected_layers = config["DPT_SELECTED_LAYERS"]  # DPT选择的层
-    local_features_type = config.get("LINES_LOCAL_FEATURES_TYPE", "late")
+    local_features_type = config["LINES_LOCAL_FEATURES_TYPE"]
     
     head = LinesDetection(
         backbone_num_channels=backbone_num_channels,

@@ -13,7 +13,7 @@ FREEZE_TEXT_ENCODER: False
 LOAD_CHECKPOINTS: True
 STAGE_1_CKPT_DIR: ./pretrained_models/google/siglip2-large-patch16-512
 BACKBONE_HIDDEN_DIM: 1024
-
+EPOCHS: 20
 SCHEDULER_TYPE: CosineAnnealingLR
 
 LINES_HEAD_TYPE: default

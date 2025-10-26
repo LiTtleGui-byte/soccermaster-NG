@@ -23,7 +23,7 @@ from timm.models.layers import DropPath
 from einops import rearrange
 
 class ResidualAttentionBlock(nn.Module):
-    def __init__(self, res_idx, d_model=768, n_head=12, drop_path=0., attn_mask=None, dropout=0., attention_type='divided_space_time', model_name="google/siglip-base-patch16-224", use_temporal=True):
+    def __init__(self, res_idx, d_model, n_head, drop_path=0., attn_mask=None, dropout=0., attention_type='divided_space_time', model_name="google/siglip-base-patch16-224", use_temporal=True):
         super().__init__()
         model = SiglipVisionModel.from_pretrained(model_name)
         vision_model = model.vision_model
@@ -78,7 +78,7 @@ class Timesformer(nn.Module):
         for idx in range(layers):
             # Only enable temporal attention for layers >= temporal_start_layer
             use_temporal = (idx >= temporal_start_layer)
-            self.resblocks.append(ResidualAttentionBlock(d_model=width, n_head=heads, res_idx=idx, drop_path=dpr[idx], dropout=dropout, model_name=model_name, use_temporal=use_temporal))
+            self.resblocks.append(ResidualAttentionBlock(res_idx=idx, d_model=width, n_head=heads, drop_path=dpr[idx], dropout=dropout, model_name=model_name, use_temporal=use_temporal))
         self.checkpoint_num = checkpoint_num
             
     def forward(self, x, B, T):
@@ -113,9 +113,9 @@ class UniSoccerBackbone(nn.Module):
         for idx in range(self.temporal_start_layer):
             x = self.timesformer.resblocks[idx](x, B, T)
         
-        # Save output at temporal_start_layer as local_features
-        local_features = x  # [B*T, N, D]
-        local_features = rearrange(local_features, '(b t) n m -> b t n m', b=B, t=T)
+        # Save output at temporal_start_layer as early local_features
+        local_features_early = x  # [B*T, N, D]
+        local_features_early = rearrange(local_features_early, '(b t) n m -> b t n m', b=B, t=T)
         
         # Add temporal embedding before temporal layers
         x = rearrange(x, '(b t) n m -> b n t m', b=B, t=T)
@@ -126,12 +126,16 @@ class UniSoccerBackbone(nn.Module):
         for idx in range(self.temporal_start_layer, self.num_layers):
             x = self.timesformer.resblocks[idx](x, B, T)
         
+        # Save output at last layer as late local_features
+        local_features_late = x  # [B*T, N, D]
+        local_features_late = rearrange(local_features_late, '(b t) n m -> b t n m', b=B, t=T)
+        
         # Generate global features
         x2 = self.post_norm(x)  # [B*T, N, D]
         x2 = self.head(x2)
         x2 = rearrange(x2, '(b t) m -> b t m', b=B, t=T)
         
-        return local_features, None, x2
+        return local_features_early, local_features_late, None, x2
 
 class SiglipBackbone(nn.Module):
     def __init__(self, backbone_type: str, 
@@ -176,12 +180,18 @@ class SiglipBackbone(nn.Module):
         
     def forward(self, images: torch.Tensor, temporal_attention_mask: Optional[torch.Tensor] = None, text: Optional[List[str]] = None):
         if self.backbone_type == 'video':
-            last_hidden_state, hidden_states, pooled_output = self.vision_model(images, temporal_attention_mask, text)
+            # unisoccer_part_temporal returns (local_features_early, local_features_late, hidden_states, pooled_output)
+            local_features_early, local_features_late, hidden_states, pooled_output = self.vision_model(images, temporal_attention_mask, text)
+            # For backward compatibility, also provide last_hidden_state (use late features as default)
+            last_hidden_state = local_features_late
         else:
             vision_outputs = self.vision_model(images, output_hidden_states=True)
             last_hidden_state = vision_outputs.last_hidden_state # [N, L, D] or [N, T, L, D]
             hidden_states = vision_outputs.hidden_states  # 修正属性名
             pooled_output = vision_outputs.pooler_output # [N, D] or [N, T, D]
+            # For image mode, early and late features are the same
+            local_features_early = last_hidden_state
+            local_features_late = last_hidden_state
         
         if text is not None:
             # 过滤出非None的text并记录其索引
@@ -208,7 +218,14 @@ class SiglipBackbone(nn.Module):
         else:
             text_pooled_output = None
         
-        output = {'global_features': pooled_output, 'local_features': last_hidden_state, 'hidden_states': hidden_states, 'text_features': text_pooled_output}
+        output = {
+            'global_features': pooled_output, 
+            'local_features': last_hidden_state,  # For backward compatibility
+            'local_features_early': local_features_early, 
+            'local_features_late': local_features_late,
+            'hidden_states': hidden_states, 
+            'text_features': text_pooled_output
+        }
         return output
     
 class TextEncoder(nn.Module):
