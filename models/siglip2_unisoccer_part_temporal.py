@@ -21,6 +21,7 @@ from transformers import AutoProcessor, SiglipVisionModel, SiglipVisionConfig, S
 from models.modeling_timesformer_siglip import SiglipVisionModel as TimesformerSiglipVisionModel
 from timm.models.layers import DropPath
 from einops import rearrange
+import torch.utils.checkpoint as checkpoint
 
 class ResidualAttentionBlock(nn.Module):
     def __init__(self, res_idx, d_model, n_head, drop_path=0., attn_mask=None, dropout=0., attention_type='divided_space_time', model_name="google/siglip-base-patch16-224", use_temporal=True):
@@ -80,13 +81,14 @@ class Timesformer(nn.Module):
             use_temporal = (idx >= temporal_start_layer)
             self.resblocks.append(ResidualAttentionBlock(res_idx=idx, d_model=width, n_head=heads, drop_path=dpr[idx], dropout=dropout, model_name=model_name, use_temporal=use_temporal))
         self.checkpoint_num = checkpoint_num
+        # self.checkpoint_num = 24
             
     def forward(self, x, B, T):
         for idx, blk in enumerate(self.resblocks):
-            # if idx < self.checkpoint_num:
-            #     x = checkpoint.checkpoint(blk, x)
-            # else:
-            x = blk(x, B, T)
+            if idx < self.checkpoint_num:
+                x = checkpoint.checkpoint(blk, x)
+            else:
+                x = blk(x, B, T)
         return x
     
 class UniSoccerBackbone(nn.Module):

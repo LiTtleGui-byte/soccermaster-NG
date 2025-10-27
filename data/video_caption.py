@@ -416,7 +416,7 @@ class DistributedGroupedShuffleSampler(Sampler[int]):
 if __name__ == "__main__":
     
     def set_transform(
-            model_name = "/remote-home/jiayuanrao/huggingface_models/models--google--siglip-base-patch16-224/snapshots/cc3289c7ee0594a9e640dbf5580511cdcca21837"
+            model_name = "./pretrained_models/google/siglip2-base-patch16-224"
         ):
         from transformers import AutoProcessor
         # 创建 SiglipProcessor 实例

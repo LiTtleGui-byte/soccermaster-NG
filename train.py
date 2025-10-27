@@ -26,7 +26,6 @@ import glob
 from data.build import build_dataloader
 from utils.logger import Logger, MetricsTracker, TPS, Metrics
 from models.multi_task import MultiTaskingSigLIP
-from models.yolo import YOLOModel
 from runtime_option import runtime_option
 from utils.misc import is_distributed, set_seed
 from configs.util import load_super_config, update_config, yaml_to_dict
@@ -726,6 +725,7 @@ def train_engine(config: dict):
     if config["MODEL_ARCH"] == "multitask":
         model = MultiTaskingSigLIP(config=config, logger=logger)
     elif config["MODEL_ARCH"] == "yolo":
+        from models.yolo import YOLOModel
         model = YOLOModel(config=config, logger=logger)
     else:
         raise ValueError(f"Invalid model architecture: {config['MODEL_ARCH']}")
