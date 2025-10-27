@@ -46,7 +46,6 @@ class SoccerNetGSR_Detection(Dataset):
             use_extra_data: bool = False,
             extra_data_path: str = "",
             extra_data_only: bool = False,
-            extra_data_only_use_1000: bool = False,
             train_keypoints_or_lines_detection: bool = True,
             train_camera_regression: bool = True,
     ):
@@ -67,7 +66,6 @@ class SoccerNetGSR_Detection(Dataset):
         self.use_extra_data = use_extra_data
         self.extra_data_path = extra_data_path
         self.extra_data_only = extra_data_only
-        self.extra_data_only_use_1000 = extra_data_only_use_1000
         self.train_keypoints_or_lines_detection = train_keypoints_or_lines_detection
         self.train_camera_regression = train_camera_regression
         
@@ -79,20 +77,16 @@ class SoccerNetGSR_Detection(Dataset):
         self.image_paths = defaultdict(list)
         
         self.annotations = dict()
-        
-        # 用于标记哪些 sequence 是 extra_data (lazy load)
-        self.extra_data_sequences = set()  # 记录哪些 sequence 是 extra_data
-        # extra_data 的 pkl 文件路径映射
-        self.extra_data_pkl_paths = dict()  # {sequence_name: pkl_path}
-        
         if not (extra_data_only and self.split == 'train'):
             image_paths = self._get_image_paths()
             self.image_paths.update(image_paths)
             annotations = self._get_annotations()
             self.annotations.update(annotations)
         if use_extra_data and self.split == 'train':
-            # Lazy load: 只初始化 metadata 和路径，不加载实际的 annotations
-            self._init_extra_data_lazy()
+            extra_data_image_paths = self._get_extra_data_image_paths()
+            self.image_paths.update(extra_data_image_paths)
+            extra_data_annotations = self._get_extra_data_annotations()
+            self.annotations.update(extra_data_annotations)
             
         # self.ann_is_legals = self._decouple_is_legal()
         self.set_sample_position()
@@ -347,234 +341,25 @@ class SoccerNetGSR_Detection(Dataset):
                 annotations[sequence_name][i]["is_legal"] = is_legal(annotations[sequence_name][i])
         return annotations
     
-    def _init_extra_data_lazy(self):
-        """
-        Lazy load 初始化：只加载 metadata 和路径，不加载实际的 annotations
-        """
-        # 获取 extra_data 目录路径
-        extra_data_dir = os.path.dirname(self.extra_data_path)
-        if self.extra_data_path.endswith('.pkl'):
-            # 如果 extra_data_path 是 pkl 文件，则使用同名目录
-            extra_data_dir = self.extra_data_path.replace('.pkl', '')
-        
-        # 检查目录是否存在
-        if not os.path.exists(extra_data_dir):
-            print(f"Warning: Extra data directory not found: {extra_data_dir}")
-            print("Please run split_extracted_info.py first to split the pkl file.")
-            return
-        
-        # 获取所有的 pkl 文件
-        pkl_files = [f for f in os.listdir(extra_data_dir) if f.endswith('.pkl')]
-        
-        # 如果需要只使用前1000个
-        if self.extra_data_only_use_1000:
-            pkl_files = [f for f in pkl_files if int(f.split('-')[-1].replace('.pkl', '')[-4:]) <= 1000] # 这里有点小bug，可以考虑修改
-        
-        print(f"Found {len(pkl_files)} extra data sequences to load lazily")
-        
-        for pkl_file in pkl_files:
-            processed_sequence_name = pkl_file.replace('.pkl', '')
-            pkl_path = os.path.join(extra_data_dir, pkl_file)
-            
-            # 只读取 metadata 获取 frame 数量，不保存 annotations
-            with open(pkl_path, 'rb') as f:
-                sequence_data = pickle.load(f)
-            num_frames = len(sequence_data)
-            del sequence_data  # 立即释放内存
-            
-            # 保存 sequence info
-            self.sequence_infos[processed_sequence_name] = {
-                "width": 1920,
-                "height": 1080,
-                "length": num_frames,
-                "is_static": False,
-                "is_extra_data": True,
-            }
-            
-            # 标记为 extra_data sequence 并保存 pkl 路径
-            self.extra_data_sequences.add(processed_sequence_name)
-            self.extra_data_pkl_paths[processed_sequence_name] = pkl_path
-            
-            # 初始化 image paths
-            sequence_dir = self._get_sequence_dir(self.data_dir, 'sn500', processed_sequence_name)
-            for i in range(num_frames):
-                image_path = self._get_image_path(sequence_dir, i)
-                self.image_paths[processed_sequence_name].append(image_path)
-            
-            # 初始化空的 annotations（用于 set_sample_position）
-            # 注意：这里只存储占位符，不存储实际的 annotation 数据
-            self.annotations[processed_sequence_name] = []
-            for i in range(num_frames):
-                # 只创建一个占位符，标记为 legal 以便在 set_sample_position 中被采样
-                self.annotations[processed_sequence_name].append({
-                    "is_legal": True,  # 暂时标记为 legal，实际加载时再判断
-                    "lazy_load": True,  # 标记需要 lazy load
-                })
-        
-        print(f"Lazy load initialization completed for {len(pkl_files)} sequences")
-    
-    def _process_extra_data_frame(self, sequence_name, frame_id, frame_data):
-        """
-        处理单个 frame 的数据，将其转换为 annotation dict
-        
-        Args:
-            sequence_name: 格式如 'SNGS-0001'
-            frame_id: frame id（从 1 开始）
-            frame_data: 单个 frame 的原始数据
-        
-        Returns:
-            frame_annotation: 单个 frame 的 annotation dict
-        """
-        frame_annotation = {
-            "id": [],
-            "category": [],
-            "bbox": [],
-            "visibility": [],
-            "role": [],
-            "jersey": [],
-            "digit_head": [],
-            "digit_tail": [],
-            "legibility_score": [],
-        }
-        
-        # 处理 people
-        if 'people' in frame_data:
-            for person in frame_data['people']:
-                frame_annotation["id"].append(person['id'])
-                frame_annotation["category"].append(0)
-                frame_annotation["bbox"].append(person['bbox_ltwh'].tolist())
-                frame_annotation["visibility"].append(1.0)
-                frame_annotation["role"].append(role_mapping[person['role']])
-                frame_annotation["legibility_score"].append(person['legibility_score'])
-                
-                jn = person['jersey_number'] if person['legibility_score'] > 0.5 else None
-                jn = str(int(jn)) if jn is not None else None
-                if (jn is not None) and (int(jn) < 0 or int(jn) > 99):
-                    jn = None
-                
-                frame_annotation["jersey"].append(jn_mapping[jn])
-                if jn is not None:
-                    if len(jn) == 1:
-                        frame_annotation["digit_tail"].append(digit_tail_mapping[jn])
-                        frame_annotation["digit_head"].append(digit_head_mapping[None])
-                    elif len(jn) == 2:
-                        frame_annotation["digit_head"].append(digit_head_mapping[jn[0]])
-                        frame_annotation["digit_tail"].append(digit_tail_mapping[jn[1]])
-                    else:
-                        frame_annotation["digit_head"].append(digit_head_mapping[None])
-                        frame_annotation["digit_tail"].append(digit_tail_mapping[None])
-                else:
-                    frame_annotation["digit_head"].append(digit_head_mapping[None])
-                    frame_annotation["digit_tail"].append(digit_tail_mapping[None])
-        
-        # 处理相机参数和 lines
-        if frame_data['valid_cam_params']:
-            frame_annotation["valid_lines"] = True
-            frame_annotation["valid_keypoints"] = True
-            frame_annotation["lines"] = correct_lines_labels(get_visible_lines_coords(
-                frame_data["K"], frame_data["R"], 
-                self.sequence_infos[sequence_name]["height"], 
-                self.sequence_infos[sequence_name]["width"]))
-        else:
-            frame_annotation["valid_lines"] = False
-            frame_annotation["valid_keypoints"] = False
-            frame_annotation["lines"] = {}
-        
-        # 转换为 tensor
-        if len(frame_annotation["id"]) > 0:
-            frame_annotation["id"] = torch.tensor(frame_annotation["id"], dtype=torch.int64)
-            frame_annotation["category"] = torch.tensor(frame_annotation["category"], dtype=torch.int64)
-            frame_annotation["bbox"] = torch.tensor(frame_annotation["bbox"], dtype=torch.float32)
-            frame_annotation["visibility"] = torch.tensor(frame_annotation["visibility"], dtype=torch.float32)
-            frame_annotation["role"] = torch.tensor(frame_annotation["role"], dtype=torch.int64)
-            frame_annotation["jersey"] = torch.tensor(frame_annotation["jersey"], dtype=torch.int64)
-            frame_annotation["digit_head"] = torch.tensor(frame_annotation["digit_head"], dtype=torch.int64)
-            frame_annotation["digit_tail"] = torch.tensor(frame_annotation["digit_tail"], dtype=torch.int64)
-            frame_annotation["legibility_score"] = torch.tensor(frame_annotation["legibility_score"], dtype=torch.float32)
-        else:
-            # Empty frame
-            frame_annotation["id"] = torch.zeros((0, ), dtype=torch.int64)
-            frame_annotation["category"] = torch.zeros((0, ), dtype=torch.int64)
-            frame_annotation["bbox"] = torch.zeros((0, 4), dtype=torch.float32)
-            frame_annotation["visibility"] = torch.zeros((0, ), dtype=torch.float32)
-            frame_annotation["role"] = torch.zeros((0, ), dtype=torch.int64)
-            frame_annotation["jersey"] = torch.zeros((0, ), dtype=torch.int64)
-            frame_annotation["digit_head"] = torch.zeros((0, ), dtype=torch.int64)
-            frame_annotation["digit_tail"] = torch.zeros((0, ), dtype=torch.int64)
-            frame_annotation["legibility_score"] = torch.zeros((0, ), dtype=torch.float32)
-        
-        # 判断是否 legal
-        frame_annotation["is_legal"] = is_legal(frame_annotation)
-        
-        return frame_annotation
-    
-    def _load_extra_data_frames(self, sequence_name, frame_indices):
-        """
-        从磁盘临时加载多个 frames 的 annotations，只读取一次 pkl 文件
-        
-        Args:
-            sequence_name: 格式如 'SNGS-0001'
-            frame_indices: frame 索引列表（从 0 开始）
-        
-        Returns:
-            annotations: frame annotations 列表
-        """
-        # 获取 pkl 文件路径
-        pkl_path = self.extra_data_pkl_paths[sequence_name]
-        
-        # 一次性加载 sequence 数据
-        with open(pkl_path, 'rb') as f:
-            sequence_data = pickle.load(f)
-        
-        annotations = []
-        for frame_idx in frame_indices:
-            # frame_id 从 1 开始，frame_idx 从 0 开始
-            frame_id = frame_idx + 1
-            
-            if frame_id in sequence_data:
-                frame_data = sequence_data[frame_id]
-                frame_annotation = self._process_extra_data_frame(sequence_name, frame_id, frame_data)
-            else:
-                # 如果 frame_id 不存在，创建一个空的 annotation
-                frame_annotation = {
-                    "id": torch.zeros((0, ), dtype=torch.int64),
-                    "category": torch.zeros((0, ), dtype=torch.int64),
-                    "bbox": torch.zeros((0, 4), dtype=torch.float32),
-                    "visibility": torch.zeros((0, ), dtype=torch.float32),
-                    "role": torch.zeros((0, ), dtype=torch.int64),
-                    "jersey": torch.zeros((0, ), dtype=torch.int64),
-                    "digit_head": torch.zeros((0, ), dtype=torch.int64),
-                    "digit_tail": torch.zeros((0, ), dtype=torch.int64),
-                    "legibility_score": torch.zeros((0, ), dtype=torch.float32),
-                    "valid_lines": False,
-                    "valid_keypoints": False,
-                    "lines": {},
-                    "is_legal": True,
-                }
-            
-            annotations.append(frame_annotation)
-        
-        # 释放 sequence_data
-        del sequence_data
-        
-        return annotations
-    
-    def _get_extra_data_image_paths(self, extra_data):
+    def _get_extra_data_image_paths(self):
         """
         Get image paths for extra data sequences
         """
         image_paths = defaultdict(list)
         
-        sequence_names = list(set(extra_data.keys()))
+        # Get sequence names from the zip file
+        with zipfile.ZipFile(self.extra_data_path) as zf:
+            name_list = zf.namelist()
+            # Extract sequence names from pickle files (excluding '_image' files)
+            sequence_names = list(set(name[:-4] for name in name_list if name.endswith('.pkl') and '_image' not in name))
         
         processed_sequence_names = [f'SNGS-{name}' for name in sequence_names]
         
         for name, processed_sequence_name in zip(sequence_names, processed_sequence_names):
             sequence_dir = self._get_sequence_dir(self.data_dir, 'sn500', processed_sequence_name)
             
-            # img_dir = os.path.join(sequence_dir, 'img1')
-            # num_frames = len(os.listdir(img_dir))
-            num_frames = len(extra_data[name])
+            img_dir = os.path.join(sequence_dir, 'img1')
+            num_frames = len(os.listdir(img_dir))
             self.sequence_infos[processed_sequence_name] = {
                 "width": 1920,
                 "height": 1080,
@@ -591,122 +376,65 @@ class SoccerNetGSR_Detection(Dataset):
         
         return image_paths
     
-    def _get_extra_data_annotations(self, extra_data):
-        
-        processed_sequence_names = [f'SNGS-{vid}' for vid in extra_data.keys()]
-        annotations = self._init_annotations(processed_sequence_names, extra_data=True)
-        
-        for vid in extra_data.keys():
-            processed_sequence_name = f'SNGS-{vid}'
-            sequence_length = self.sequence_infos[processed_sequence_name]["length"]
-            for frame_id in extra_data[vid].keys():
-                frame_idx = frame_id - 1
+    def _get_extra_data_annotations(self):
+        with zipfile.ZipFile(self.extra_data_path) as zf:
+            name_list = zf.namelist()
+            sequence_names = [name[:-4] for name in name_list if 'pkl' in name and '_image' not in name]
+            processed_sequence_names = [f'SNGS-{name}' for name in sequence_names]
+            annotations = self._init_annotations(processed_sequence_names, extra_data=True)
+            for name in sequence_names:
+                processed_sequence_name = f'SNGS-{name}'
+                with zf.open(f'{name}.pkl') as f:
+                    data = pickle.load(f) # pandas dataframe
+                with zf.open(f'{name}_image.pkl') as f:
+                    image_data = pickle.load(f) # pandas dataframe
 
-                if 'people' in extra_data[vid][frame_id].keys():
-                    for person in extra_data[vid][frame_id]['people']:
-                        annotations[processed_sequence_name][frame_idx]["id"].append(person['id'])
-                        annotations[processed_sequence_name][frame_idx]["category"].append(0)
-                        annotations[processed_sequence_name][frame_idx]["bbox"].append(person['bbox_ltwh'].tolist())
-                        annotations[processed_sequence_name][frame_idx]["visibility"].append(1.0)
-                        annotations[processed_sequence_name][frame_idx]["role"].append(role_mapping[person['role']])
-                        annotations[processed_sequence_name][frame_idx]["legibility_score"].append(person['legibility_score'])
-                        jn = person['jersey_number'] if person['legibility_score'] > 0.5 else None
-                        
-                        jn = str(int(jn)) if jn is not None else None
-                        if (jn is not None) and (int(jn) < 0 or int(jn) > 99):
-                            jn = None
-                            
-                        annotations[processed_sequence_name][frame_idx]["jersey"].append(jn_mapping[jn])
-                        if jn is not None:
-                            if len(jn) == 1:
-                                annotations[processed_sequence_name][frame_idx]["digit_tail"].append(digit_tail_mapping[jn])
-                                annotations[processed_sequence_name][frame_idx]["digit_head"].append(digit_head_mapping[None])
-                            elif len(jn) == 2:
-                                annotations[processed_sequence_name][frame_idx]["digit_head"].append(digit_head_mapping[jn[0]])
-                                annotations[processed_sequence_name][frame_idx]["digit_tail"].append(digit_tail_mapping[jn[1]])
-                            else:
-                                annotations[processed_sequence_name][frame_idx]["digit_head"].append(digit_head_mapping[None])
-                                annotations[processed_sequence_name][frame_idx]["digit_tail"].append(digit_tail_mapping[None])
+                for id, row in data.iterrows():
+                    frame_idx = int(row['image_id'][-6:]) - 1
+                    annotations[processed_sequence_name][frame_idx]["id"].append(id)
+                    annotations[processed_sequence_name][frame_idx]["category"].append(0)
+                    annotations[processed_sequence_name][frame_idx]["bbox"].append(row['bbox_ltwh'].tolist())
+                    annotations[processed_sequence_name][frame_idx]["visibility"].append(1.0)
+                    annotations[processed_sequence_name][frame_idx]["role"].append(role_mapping[row['role']])
+                    legibility_score = row['legibility_score']
+                    annotations[processed_sequence_name][frame_idx]["legibility_score"].append(legibility_score)
+                    jn = row['jersey_number'] if legibility_score > 0.5 else None
+                    if jn is not None and (int(jn) < 0 or int(jn) > 99):
+                        jn = None
+                    annotations[processed_sequence_name][frame_idx]["jersey"].append(jn_mapping[jn])
+                    if jn is not None:
+                        if len(jn) == 1:
+                            annotations[processed_sequence_name][frame_idx]["digit_tail"].append(digit_tail_mapping[jn])
+                            annotations[processed_sequence_name][frame_idx]["digit_head"].append(digit_head_mapping[None])
+                        elif len(jn) == 2:
+                            annotations[processed_sequence_name][frame_idx]["digit_head"].append(digit_head_mapping[jn[0]])
+                            annotations[processed_sequence_name][frame_idx]["digit_tail"].append(digit_tail_mapping[jn[1]])
                         else:
                             annotations[processed_sequence_name][frame_idx]["digit_head"].append(digit_head_mapping[None])
                             annotations[processed_sequence_name][frame_idx]["digit_tail"].append(digit_tail_mapping[None])
-                            
-                if extra_data[vid][frame_id]['valid_cam_params']:
-                    K = extra_data[vid][frame_id]["K"]
-                    R = extra_data[vid][frame_id]["R"]
-                    P = extra_data[vid][frame_id]["P"]
-                    # 对于extra data，只保存相机参数，不计算lines，在getitem时再计算以节省内存
-                    annotations[processed_sequence_name][frame_idx]["K"] = K
-                    annotations[processed_sequence_name][frame_idx]["R"] = R
-                    annotations[processed_sequence_name][frame_idx]["P"] = P
-                    annotations[processed_sequence_name][frame_idx]["valid_lines"] = True
-                    annotations[processed_sequence_name][frame_idx]["valid_keypoints"] = True
-                    annotations[processed_sequence_name][frame_idx]["lines"] = {}  # 先设为空，在getitem时计算
-                else:
-                    annotations[processed_sequence_name][frame_idx]["valid_lines"] = False
-                    annotations[processed_sequence_name][frame_idx]["valid_keypoints"] = False
-                    annotations[processed_sequence_name][frame_idx]["lines"] = {}
-                            
+                    else:
+                        annotations[processed_sequence_name][frame_idx]["digit_head"].append(digit_head_mapping[None])
+                        annotations[processed_sequence_name][frame_idx]["digit_tail"].append(digit_tail_mapping[None])
                         
-        
-        # with zipfile.ZipFile(self.extra_data_path) as zf:
-        #     name_list = zf.namelist()
-        #     sequence_names = [name[:-4] for name in name_list if 'pkl' in name and '_image' not in name]
-        #     processed_sequence_names = [f'SNGS-{name}' for name in sequence_names]
-        #     annotations = self._init_annotations(processed_sequence_names, extra_data=True)
-        #     for name in sequence_names:
-        #         processed_sequence_name = f'SNGS-{name}'
-        #         with zf.open(f'{name}.pkl') as f:
-        #             data = pickle.load(f) # pandas dataframe
-        #         with zf.open(f'{name}_image.pkl') as f:
-        #             image_data = pickle.load(f) # pandas dataframe
-
-        #         for id, row in data.iterrows():
-        #             frame_idx = int(row['image_id'][-6:]) - 1
-        #             annotations[processed_sequence_name][frame_idx]["id"].append(id)
-        #             annotations[processed_sequence_name][frame_idx]["category"].append(0)
-        #             annotations[processed_sequence_name][frame_idx]["bbox"].append(row['bbox_ltwh'].tolist())
-        #             annotations[processed_sequence_name][frame_idx]["visibility"].append(1.0)
-        #             annotations[processed_sequence_name][frame_idx]["role"].append(role_mapping[row['role']])
-        #             legibility_score = row['legibility_score']
-        #             annotations[processed_sequence_name][frame_idx]["legibility_score"].append(legibility_score)
-        #             jn = row['jersey_number'] if legibility_score > 0.5 else None
-        #             if jn is not None and (int(jn) < 0 or int(jn) > 99):
-        #                 jn = None
-        #             annotations[processed_sequence_name][frame_idx]["jersey"].append(jn_mapping[jn])
-        #             if jn is not None:
-        #                 if len(jn) == 1:
-        #                     annotations[processed_sequence_name][frame_idx]["digit_tail"].append(digit_tail_mapping[jn])
-        #                     annotations[processed_sequence_name][frame_idx]["digit_head"].append(digit_head_mapping[None])
-        #                 elif len(jn) == 2:
-        #                     annotations[processed_sequence_name][frame_idx]["digit_head"].append(digit_head_mapping[jn[0]])
-        #                     annotations[processed_sequence_name][frame_idx]["digit_tail"].append(digit_tail_mapping[jn[1]])
-        #                 else:
-        #                     annotations[processed_sequence_name][frame_idx]["digit_head"].append(digit_head_mapping[None])
-        #                     annotations[processed_sequence_name][frame_idx]["digit_tail"].append(digit_tail_mapping[None])
-        #             else:
-        #                 annotations[processed_sequence_name][frame_idx]["digit_head"].append(digit_head_mapping[None])
-        #                 annotations[processed_sequence_name][frame_idx]["digit_tail"].append(digit_tail_mapping[None])
-                        
-        #         for id, row in image_data.iterrows():
-        #             frame_idx = int(row['id'][-6:]) - 1
-        #             cam_params = row["parameters"]
-        #             if isinstance(cam_params, dict) and len(cam_params.keys()) > 0:
-        #                 K, Rt, P = projection_from_cam_params_traditional(cam_params)
-        #                 visible_lines = get_visible_lines_coords(K, Rt, self.sequence_infos[processed_sequence_name]["height"], self.sequence_infos[processed_sequence_name]["width"])
-        #                 valid_lines = True
-        #                 valid_keypoints = True
-        #             else:
-        #                 visible_lines = {}
-        #                 valid_lines = False
-        #                 valid_keypoints = False
-        #             annotations[processed_sequence_name][frame_idx]["lines"] = correct_lines_labels(visible_lines)
-        #             annotations[processed_sequence_name][frame_idx]["valid_lines"] = valid_lines
-        #             annotations[processed_sequence_name][frame_idx]["valid_keypoints"] = valid_keypoints
-        #             # lines = row["lines"]
-        #             # if not isinstance(lines, dict):
-        #             #     lines = {}
-        #             # annotations[processed_sequence_name][frame_idx]["lines"] = correct_lines_labels(correct_lines_labels_reverse(lines))
+                for id, row in image_data.iterrows():
+                    frame_idx = int(row['id'][-6:]) - 1
+                    cam_params = row["parameters"]
+                    if isinstance(cam_params, dict) and len(cam_params.keys()) > 0:
+                        K, Rt, P = projection_from_cam_params_traditional(cam_params)
+                        visible_lines = get_visible_lines_coords(K, Rt, self.sequence_infos[processed_sequence_name]["height"], self.sequence_infos[processed_sequence_name]["width"])
+                        valid_lines = True
+                        valid_keypoints = True
+                    else:
+                        visible_lines = {}
+                        valid_lines = False
+                        valid_keypoints = False
+                    annotations[processed_sequence_name][frame_idx]["lines"] = correct_lines_labels(visible_lines)
+                    annotations[processed_sequence_name][frame_idx]["valid_lines"] = valid_lines
+                    annotations[processed_sequence_name][frame_idx]["valid_keypoints"] = valid_keypoints
+                    # lines = row["lines"]
+                    # if not isinstance(lines, dict):
+                    #     lines = {}
+                    # annotations[processed_sequence_name][frame_idx]["lines"] = correct_lines_labels(correct_lines_labels_reverse(lines))
                     
         for sequence_name in processed_sequence_names:
             for i in range(self.sequence_infos[sequence_name]["length"]):
@@ -774,21 +502,21 @@ class SoccerNetGSR_Detection(Dataset):
                         if (frame_idx % self.num_frames == 0 and 
                             frame_idx + self.num_frames <= sequence_length):
                             self.sample_position.append((sequence_name, frame_idx))
-                    elif (self.detection_data_type == "video" and 
-                        self.backbone_type == "video" and 
-                        self.split == "train") and self.use_extra_data:
-                        # 只有当frame_idx能被num_frames整除时，且不会超出序列长度时，才能作为起点
-                        if (frame_idx % self.num_frames == 0 and 
-                            frame_idx + self.num_frames <= sequence_length):
-                            self.sample_position.append((sequence_name, frame_idx))
                     # elif (self.detection_data_type == "video" and 
-                    #       self.backbone_type == "video" and 
-                    #       self.split == "train" and 
-                    #       is_extra_data):
-                    #     # train阶段的extra_data，需要frame_idx能被num_frames整除，且不会超出序列长度
+                    #     self.backbone_type == "video" and 
+                    #     self.split == "train"):
+                    #     # 只有当frame_idx能被num_frames整除时，且不会超出序列长度时，才能作为起点
                     #     if (frame_idx % self.num_frames == 0 and 
                     #         frame_idx + self.num_frames <= sequence_length):
                     #         self.sample_position.append((sequence_name, frame_idx))
+                    elif (self.detection_data_type == "video" and 
+                          self.backbone_type == "video" and 
+                          self.split == "train" and 
+                          is_extra_data):
+                        # train阶段的extra_data，需要frame_idx能被num_frames整除，且不会超出序列长度
+                        if (frame_idx % self.num_frames == 0 and 
+                            frame_idx + self.num_frames <= sequence_length):
+                            self.sample_position.append((sequence_name, frame_idx))
                     elif self.detection_data_type == "video" and self.backbone_type == "video":
                         # 其他video模式下，确保不会超出序列长度
                         if frame_idx + self.num_frames <= sequence_length:
@@ -844,16 +572,9 @@ class SoccerNetGSR_Detection(Dataset):
             # while len(images) < self.num_frames:
             #     images.append(images[-1])  # Repeat the last frame
             
-            # Load annotations
-            # Lazy load extra_data annotations if needed - 一次性读取所有需要的 frames
-            if sequence_name in self.extra_data_sequences:
-                frame_indices = list(range(start_frame, end_frame))
-                annotations = self._load_extra_data_frames(sequence_name, frame_indices)
-            else:
-                annotations = []
-                for i in range(start_frame, end_frame):
-                    annotation = copy.deepcopy(self.annotations[sequence_name][i])
-                    annotations.append(annotation)
+            annotations = []
+            for i in range(start_frame, end_frame):
+                annotations.append(copy.deepcopy(self.annotations[sequence_name][i]))
             
             metas = {"task": 'SoccerNetGSR_Detection',
                     "split": self.split,
@@ -884,14 +605,7 @@ class SoccerNetGSR_Detection(Dataset):
             # Original single-frame mode
             image_path = self.image_paths[sequence_name][frame_idx]
             image = Image.open(image_path).convert("RGB")
-            
-            # Lazy load extra_data annotations if needed
-            if sequence_name in self.extra_data_sequences:
-                annotations = self._load_extra_data_frames(sequence_name, [frame_idx])
-                annotation = annotations[0]
-            else:
-                annotation = copy.deepcopy(self.annotations[sequence_name][frame_idx])
-            
+            annotation = copy.deepcopy(self.annotations[sequence_name][frame_idx])
             metas = {"task": 'SoccerNetGSR_Detection',
                     "split": self.split,
                     "sequence": sequence_name,
@@ -922,7 +636,6 @@ def build_gsr_detection_dataset(config: dict, split: str):
         use_extra_data=config["USE_EXTRA_DATA"],
         extra_data_path=config["EXTRA_DATA_PATH"],
         extra_data_only=config["EXTRA_DATA_ONLY"],
-        extra_data_only_use_1000=config["EXTRA_DATA_ONLY_USE_1000"],
         train_keypoints_or_lines_detection=train_keypoints_or_lines_detection,
         train_camera_regression=train_camera_regression,
     )
@@ -1090,15 +803,6 @@ class KeypointsLinesDetectionTransform:
         self.image_input_size = image_input_size
 
     def __call__(self, image, annotation, metas):
-        # 对于extra data，如果valid_lines和valid_keypoints为True但lines为空，则从K和R计算lines
-        # if ('valid_lines' in annotation and annotation['valid_lines'] and 
-        #     'valid_keypoints' in annotation and annotation['valid_keypoints'] and
-        #     len(annotation['lines']) == 0 and 'K' in annotation and 'R' in annotation):
-        #     # 从相机参数计算lines
-        #     H, W = 1080, 1920
-        #     visible_lines = get_visible_lines_coords(annotation['K'], annotation['R'], H, W)
-        #     annotation['lines'] = correct_lines_labels(visible_lines)
-        
         # 处理lines detection
         try:
             if ('valid_lines' in annotation and annotation['valid_lines']) or 'valid_lines' not in annotation:

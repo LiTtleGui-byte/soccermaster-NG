@@ -1166,7 +1166,11 @@ def clip_keypoints_to_image(visible_lines, img_width, img_height):
                 x1, y1 = coords[0]
                 x2, y2 = coords[1]
                 
-                clipped_coords = clip_line_to_image(x1, y1, x2, y2, img_width, img_height)
+                try:
+                    clipped_coords = clip_line_to_image(x1, y1, x2, y2, img_width, img_height)
+                except Exception as e:
+                    print(f"Error clipping line {line_name}: {e}")
+                    continue
                 
                 if clipped_coords is not None:
                     # 线段至少部分在图像内，保留裁剪后的坐标
