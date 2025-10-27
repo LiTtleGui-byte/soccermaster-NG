@@ -162,7 +162,7 @@ DETECT_BALL_ONLY: False # whether to only detect ball and exclude person (if Tru
 USE_EXTRA_DATA: False
 EXTRA_DATA_PATH: 
 EXTRA_DATA_ONLY: False
-EXTRA_DATA_ONLY_USE_1000: False
+USE_EXTRA_DATA_AMOUNT: -1 # -1: use all extra data, >=0: use first N extra data
 DETR_ENABLE_ROLE_CLASSIFICATION: True # whether to enable role classification head
 DETR_ENABLE_JN_CLASSIFICATION: True # whether to enable jersey number classification heads (jn_holistic, digit_head, digit_tail)
 DILATION: False

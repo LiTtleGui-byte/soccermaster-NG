@@ -46,7 +46,7 @@ class SoccerNetGSR_Detection(Dataset):
             use_extra_data: bool = False,
             extra_data_path: str = "",
             extra_data_only: bool = False,
-            extra_data_only_use_1000: bool = False,
+            use_extra_data_amount: int = -1,
             train_keypoints_or_lines_detection: bool = True,
             train_camera_regression: bool = True,
     ):
@@ -67,7 +67,7 @@ class SoccerNetGSR_Detection(Dataset):
         self.use_extra_data = use_extra_data
         self.extra_data_path = extra_data_path
         self.extra_data_only = extra_data_only
-        self.extra_data_only_use_1000 = extra_data_only_use_1000
+        self.use_extra_data_amount = use_extra_data_amount
         self.train_keypoints_or_lines_detection = train_keypoints_or_lines_detection
         self.train_camera_regression = train_camera_regression
         
@@ -366,9 +366,12 @@ class SoccerNetGSR_Detection(Dataset):
         # 获取所有的 pkl 文件
         pkl_files = [f for f in os.listdir(extra_data_dir) if f.endswith('.pkl')]
         
-        # 如果需要只使用前1000个
-        if self.extra_data_only_use_1000:
-            pkl_files = [f for f in pkl_files if int(f.split('-')[-1].replace('.pkl', '')[-4:]) <= 1000] # 这里有点小bug，可以考虑修改
+        # 如果需要限制使用的extra data数量
+        if self.use_extra_data_amount >= 0:
+            # 提取序号并按序号排序，选择序号最小的n个
+            pkl_files_with_idx = [(f, int(f.split('-')[-1].replace('.pkl', '')[-5:])) for f in pkl_files]
+            pkl_files_with_idx.sort(key=lambda x: x[1])  # 按序号从小到大排序
+            pkl_files = [f for f, idx in pkl_files_with_idx[:self.use_extra_data_amount]]
         
         print(f"Found {len(pkl_files)} extra data sequences to load lazily")
         
@@ -922,7 +925,7 @@ def build_gsr_detection_dataset(config: dict, split: str):
         use_extra_data=config["USE_EXTRA_DATA"],
         extra_data_path=config["EXTRA_DATA_PATH"],
         extra_data_only=config["EXTRA_DATA_ONLY"],
-        extra_data_only_use_1000=config["EXTRA_DATA_ONLY_USE_1000"],
+        use_extra_data_amount=config["USE_EXTRA_DATA_AMOUNT"],
         train_keypoints_or_lines_detection=train_keypoints_or_lines_detection,
         train_camera_regression=train_camera_regression,
     )
