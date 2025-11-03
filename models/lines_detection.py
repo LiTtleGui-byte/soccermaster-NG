@@ -26,7 +26,7 @@ from accelerate.utils.operations import gather_object
 
 class LinesDetection(nn.Module):
     """ This is the Deformable DETR module that performs object detection """
-    def __init__(self, backbone_num_channels, num_lines, backbone_type='image', head_type='default', selected_layers=None, local_features_type='late'):
+    def __init__(self, backbone_num_channels, num_lines, backbone_type='image', head_type='default', selected_layers=None, local_features_type='none'):
         """ Initializes the model.
         Parameters:
             backbone: torch module of the backbone to be used. See backbone.py
@@ -75,7 +75,9 @@ class LinesDetection(nn.Module):
         hidden_states = backbone_outputs['hidden_states']
         
         # Select local features based on configuration
-        if self.local_features_type == 'early':
+        if self.local_features_type == 'none':
+            local_features = backbone_outputs['local_features']
+        elif self.local_features_type == 'early':
             local_features = backbone_outputs['local_features_early']
         elif self.local_features_type == 'late':
             local_features = backbone_outputs['local_features_late']

@@ -44,7 +44,7 @@ class DeformableDetrHead(nn.Module):
     """ This is the Deformable DETR module that performs object detection """
     def __init__(self, position_encoding, transformer, num_classes, num_queries, num_feature_levels, backbone_strides, backbone_num_channels,
                  aux_loss=True, with_box_refine=False, two_stage=False, detection_data_type = "image", backbone_type='image',
-                 enable_role_classification=True, enable_jn_classification=True, local_features_type='late'):
+                 enable_role_classification=True, enable_jn_classification=True, local_features_type='none'):
         """ Initializes the model.
         Parameters:
             backbone: torch module of the backbone to be used. See backbone.py
@@ -188,7 +188,9 @@ class DeformableDetrHead(nn.Module):
         global_features = backbone_outputs['global_features']
         
         # Select local features based on configuration
-        if self.local_features_type == 'early':
+        if self.local_features_type == 'none':
+            local_features = backbone_outputs['local_features']
+        elif self.local_features_type == 'early':
             local_features = backbone_outputs['local_features_early']
         elif self.local_features_type == 'late':
             local_features = backbone_outputs['local_features_late']
@@ -1189,7 +1191,7 @@ def build_deformable_detr_head(config: dict):
     device = torch.device(args.device)
     
     # Adjust backbone_num_channels based on local_features_type
-    local_features_type = config.get("DETR_LOCAL_FEATURES_TYPE", "late")
+    local_features_type = config["DETR_LOCAL_FEATURES_TYPE"]
     base_channels = config["BACKBONE_HIDDEN_DIM"]
     
     if local_features_type == 'both':

@@ -206,9 +206,9 @@ EVAL_SCORE_THRESHOLD: 0.5
 
 # Local features selection for different heads (when using unisoccer_part_temporal):
 # Options: 'early' (temporal_start_layer features), 'late' (last layer features), 'both' (concatenate both)
-DETR_LOCAL_FEATURES_TYPE: late          # For SoccerNetGSR_Detection head
-LINES_LOCAL_FEATURES_TYPE: late         # For LinesDetection head  
-KEYPOINTS_LOCAL_FEATURES_TYPE: late     # For KeypointsDetection head
+DETR_LOCAL_FEATURES_TYPE: none          # For SoccerNetGSR_Detection head
+LINES_LOCAL_FEATURES_TYPE: none         # For LinesDetection head  
+KEYPOINTS_LOCAL_FEATURES_TYPE: none     # For KeypointsDetection head
 
 # Lines Head settings:
 LINES_HEAD_TYPE: default  # 'default' for LinesHead, 'dpt' for DPTLinesHead

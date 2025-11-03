@@ -17,7 +17,7 @@ from accelerate.utils.operations import gather_object
 class KeypointsDetection(nn.Module):
     """KeypointsDetection模块，用于关键点检测"""
     
-    def __init__(self, backbone_num_channels, num_keypoints, backbone_type='image', local_features_type='late'):
+    def __init__(self, backbone_num_channels, num_keypoints, backbone_type='image', local_features_type='none'):
         """
         初始化KeypointsDetection模块
         
@@ -51,7 +51,9 @@ class KeypointsDetection(nn.Module):
         global_features = backbone_outputs['global_features']
         
         # Select local features based on configuration
-        if self.local_features_type == 'early':
+        if self.local_features_type == 'none':
+            local_features = backbone_outputs['local_features']
+        elif self.local_features_type == 'early':
             local_features = backbone_outputs['local_features_early']
         elif self.local_features_type == 'late':
             local_features = backbone_outputs['local_features_late']
