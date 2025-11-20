@@ -38,6 +38,7 @@ class PureSiglipBackbone(nn.Module):
         if backbone_type == 'video':
             self.num_frames = num_frames
         self.backbone_type = backbone_type
+        self.hidden_dim = hidden_dim
         
         self.text_model = TextEncoder(text_encoder_ckpt_path)
         
@@ -75,7 +76,7 @@ class PureSiglipBackbone(nn.Module):
             
             # 创建和原始batch_size匹配的tensor，None位置用零向量填充
             batch_size = len(text)
-            text_dim = 768
+            text_dim = self.hidden_dim
             text_pooled_output = torch.zeros(batch_size, text_dim, device=images.device, dtype=images.dtype)
             
             # 如果valid_texts为空，则返回全0，不要返回None

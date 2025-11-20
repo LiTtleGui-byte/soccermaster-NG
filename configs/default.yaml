@@ -31,7 +31,7 @@ RESUME_TENSORBOARD_CONTINUOUS: True # whether to continue tensorboard logging wh
 # Training strategies:
 USE_GRADIENT_CHECKPOINTING: False
 BATCH_SIZE: 12
-PREFETCH_FACTOR: 6
+PREFETCH_FACTOR: 2
 LR: 1.0e-4
 # Different learning rates for different components:
 LR_BACKBONE: 1.0e-4
@@ -126,8 +126,8 @@ AUG_PERSPECTIVE_DISTORTION_SCALE: 0.3   # range of perspective distortion (0.0 t
 AUG_PERSPECTIVE_PROB: 0.5               # probability of applying random perspective transformation
 # 9. mean and std:
 # imagenet
-# AUG_MEAN = [0.485, 0.456, 0.406]
-# AUG_STD = [0.229, 0.224, 0.225]
+# AUG_MEAN: [0.485, 0.456, 0.406]
+# AUG_STD: [0.229, 0.224, 0.225]
 # siglip
 AUG_MEAN: [0.5, 0.5, 0.5]
 AUG_STD: [0.5, 0.5, 0.5]
@@ -144,6 +144,7 @@ NUM_FRAMES: 30
 TEMPORAL_START_LAYER: 8  # 从第几层开始使用Temporal Attention（仅对unisoccer_part_temporal有效）
 CKPT_PATH: ./pretrained_models/google/siglip2-base-patch16-512
 LOAD_CHECKPOINTS: False
+CKPT_TYPE: hf
 LOAD_HEADS: True
 STAGE_1_CKPT_DIR: ./pretrained_models/google/siglip2-base-patch16-512
 TEXT_ENCODER_CKPT_PATH: ./pretrained_models/google/siglip2-base-patch16-512

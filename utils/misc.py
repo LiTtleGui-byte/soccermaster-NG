@@ -5,10 +5,14 @@ import torch
 import torch.distributed
 import random
 import numpy as np
-from accelerate import PartialState, DistributedType
+from datetime import timedelta
+from accelerate.utils import InitProcessGroupKwargs
+from accelerate import PartialState, DistributedType, Accelerator
 
 
-accelerate_state = PartialState()
+kwargs = InitProcessGroupKwargs(timeout=timedelta(hours=2))
+accelerate_state = Accelerator(kwargs_handlers=[kwargs]).state
+# accelerate_state = PartialState()
 
 
 def set_seed(seed: int):

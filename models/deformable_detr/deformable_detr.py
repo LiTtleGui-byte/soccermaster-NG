@@ -220,7 +220,6 @@ class DeformableDetrHead(nn.Module):
         reshaped_local_features = reshaped_local_features.reshape(N, D, Hf, Wf)
         features = reshaped_local_features
         
-        # TODO: this will lead to a error, and can not backward gradient
         features = [nested_tensor_from_tensor_list_during_training(features)]
 
         pos = []
@@ -241,9 +240,9 @@ class DeformableDetrHead(nn.Module):
                     src = self.input_proj[l](features[-1].tensors)
                 else:
                     src = self.input_proj[l](srcs[-1])
-                m = features.mask
+                m = features[0].mask
                 mask = F.interpolate(m[None].float(), size=src.shape[-2:]).to(torch.bool)[0]
-                pos_l = self.backbone[1](NestedTensor(src, mask)).to(src.dtype)
+                pos_l = self.position_encoding(NestedTensor(src, mask)).to(src.dtype)
                 srcs.append(src)
                 masks.append(mask)
                 pos.append(pos_l)

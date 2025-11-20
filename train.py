@@ -366,12 +366,13 @@ def save_training_state(outputs_dir, epoch, model, optimizer, scheduler, train_s
     
     logger.info(f"Saved complete training state for epoch {epoch} to {epoch_dir}")
 
-def load_training_state(checkpoint_dir, model, optimizer, scheduler, train_states, accelerator, logger):
+def load_training_state(checkpoint_dir, ckpt_type, model, optimizer, scheduler, train_states, accelerator, logger):
     """
     Load complete training state from checkpoint
     
     Args:
         checkpoint_dir: Checkpoint directory path
+        ckpt_type: Checkpoint type
         model: Model to load state into
         optimizer: Optimizer to load state into  
         scheduler: Learning rate scheduler to load state into
@@ -387,7 +388,7 @@ def load_training_state(checkpoint_dir, model, optimizer, scheduler, train_state
     
     logger.info(f"Loading training state from {checkpoint_dir}")
     
-    original_model.load_checkpoint(checkpoint_dir, logger)
+    original_model.load_checkpoint(checkpoint_dir, ckpt_type, logger)
     
     # Load optimizer state
     optimizer_state_file = os.path.join(checkpoint_dir, "optimizer_state.pt")
@@ -484,9 +485,10 @@ def create_param_groups(model, config):
     
     # Text encoder parameters
     text_encoder_params = []
-    for name, param in original_model.backbone.text_model.named_parameters():
-        if param.requires_grad:
-            text_encoder_params.append(param)
+    if original_model.backbone.text_model is not None:
+        for name, param in original_model.backbone.text_model.named_parameters():
+            if param.requires_grad:
+                text_encoder_params.append(param)
     
     if text_encoder_params:
         param_groups.append({
@@ -690,7 +692,7 @@ def train_engine(config: dict):
     
     # from issue: https://github.com/pytorch/pytorch/issues/11201
     # Set the sharing strategy (to avoid error: too many open files):
-    torch.multiprocessing.set_sharing_strategy('file_system')   # if not, raise error: too many open files.
+    # torch.multiprocessing.set_sharing_strategy('file_system')   # if not, raise error: too many open files.
     # torch.autograd.set_detect_anomaly(True)
     
     # Init TensorBoard Logger:
@@ -731,7 +733,7 @@ def train_engine(config: dict):
         raise ValueError(f"Invalid model architecture: {config['MODEL_ARCH']}")
     
     if config["LOAD_CHECKPOINTS"]:
-        model.load_checkpoint(config["STAGE_1_CKPT_DIR"], logger, load_heads=config["LOAD_HEADS"])
+        model.load_checkpoint(config["STAGE_1_CKPT_DIR"], config["CKPT_TYPE"], logger, load_heads=config["LOAD_HEADS"])
     if config['USE_GRADIENT_CHECKPOINTING']:
         model.backbone.vision_model.gradient_checkpointing_enable()
     
@@ -789,6 +791,7 @@ def train_engine(config: dict):
         if checkpoint_dir is not None:
             logger.info(f"Found checkpoint at epoch {latest_epoch}, will resume training from {checkpoint_dir}")
             resume_from_checkpoint = True
+            ckpt_type = 'soccer_master'
             # We'll load the state after preparing model, optimizer, scheduler
         else:
             logger.info("RESUME_TRAINING is True but no valid checkpoint found, starting from scratch")
@@ -802,6 +805,7 @@ def train_engine(config: dict):
                 logger.info(f"Will resume training from specified checkpoint: {resume_checkpoint_dir}")
                 resume_from_checkpoint = True
                 checkpoint_dir = resume_checkpoint_dir
+                ckpt_type = 'soccer_master'
             else:
                 logger.warning(f"Specified checkpoint directory {resume_checkpoint_dir} does not contain valid training state")
         else:
@@ -810,7 +814,7 @@ def train_engine(config: dict):
     # Load checkpoint state if resuming training
     if resume_from_checkpoint:
         resume_epoch = load_training_state(
-            checkpoint_dir, model, optimizer, scheduler, train_states, accelerator, logger
+            checkpoint_dir, ckpt_type, model, optimizer, scheduler, train_states, accelerator, logger
         )
         # Update start_epoch to resume from the next epoch
         train_states["start_epoch"] = resume_epoch + 1
@@ -839,8 +843,9 @@ def train_engine(config: dict):
     vision_trainable_params = sum(p.numel() for p in original_model.backbone.vision_model.parameters() if p.requires_grad)
     
     # Calculate text_model parameters
-    text_params = sum(p.numel() for p in original_model.backbone.text_model.parameters())
-    text_trainable_params = sum(p.numel() for p in original_model.backbone.text_model.parameters() if p.requires_grad)
+    if original_model.backbone.text_model is not None:
+        text_params = sum(p.numel() for p in original_model.backbone.text_model.parameters())
+        text_trainable_params = sum(p.numel() for p in original_model.backbone.text_model.parameters() if p.requires_grad)
     
     # Calculate each head parameters
     head_params = {}
@@ -865,9 +870,10 @@ def train_engine(config: dict):
     logger.info(f"Vision Model parameters: {vision_params/1e6:.2f}M")
     logger.info(f"Vision Model trainable: {vision_trainable_params/1e6:.2f}M ({vision_trainable_params/vision_params*100:.2f}%)")
     logger.info(f"")
-    logger.info(f"Text Model parameters: {text_params/1e6:.2f}M")
-    logger.info(f"Text Model trainable: {text_trainable_params/1e6:.2f}M ({text_trainable_params/text_params*100:.2f}%)")
-    logger.info(f"")
+    if original_model.backbone.text_model is not None:
+        logger.info(f"Text Model parameters: {text_params/1e6:.2f}M")
+        logger.info(f"Text Model trainable: {text_trainable_params/1e6:.2f}M ({text_trainable_params/text_params*100:.2f}%)")
+        logger.info(f"")
     logger.info(f"Total Head parameters: {total_head_params/1e6:.2f}M")
     logger.info(f"Total Head trainable: {total_head_trainable_params/1e6:.2f}M ({total_head_trainable_params/total_head_params*100:.2f}%)")
     logger.info(f"")

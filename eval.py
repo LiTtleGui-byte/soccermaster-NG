@@ -176,7 +176,7 @@ def evaluation_engine(config: dict, checkpoint_path: str, log_dir: str = None,
     
     # Load checkpoint
     if config["MODEL_ARCH"] == "multitask":
-        model.load_checkpoint(config["STAGE_1_CKPT_DIR"], logger, load_heads=config["LOAD_HEADS"])
+        model.load_checkpoint(checkpoint_path, logger, load_heads=True)
     
     # Prepare model and dataloaders
     model = accelerator.prepare(model)

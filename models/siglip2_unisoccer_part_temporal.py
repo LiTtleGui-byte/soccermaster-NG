@@ -92,7 +92,7 @@ class Timesformer(nn.Module):
         return x
     
 class UniSoccerBackbone(nn.Module):
-    def __init__(self, ckpt_path: str, num_frames: int, stage_1_backbone_dir: str, hidden_dim: int = 768, temporal_start_layer: int = 8):
+    def __init__(self, ckpt_path: str, num_frames: int, stage_1_backbone_dir: str, hidden_dim: int = 768, temporal_start_layer: int = 8, image_mode: bool = False):
         super().__init__()
 
         model = SiglipVisionModel.from_pretrained(ckpt_path, device_map="cpu")
@@ -101,43 +101,72 @@ class UniSoccerBackbone(nn.Module):
         config = SiglipVisionConfig.from_pretrained(ckpt_path)
         self.temporal_start_layer = temporal_start_layer
         self.num_layers = config.num_hidden_layers
-        self.timesformer = Timesformer(width=hidden_dim, layers=config.num_hidden_layers, heads=config.num_attention_heads, model_name=ckpt_path, drop_path=0., checkpoint_num=0, dropout=0., temporal_start_layer=temporal_start_layer)
-        self.post_norm = siglip_vision_model.post_layernorm
-        self.head = siglip_vision_model.head
-        self.temporal_embedding = nn.Parameter(torch.zeros(1, num_frames, hidden_dim))
+        self.image_mode = image_mode
+        
+        # In image mode, only create layers up to temporal_start_layer
+        if image_mode:
+            self.timesformer = Timesformer(width=hidden_dim, layers=temporal_start_layer, heads=config.num_attention_heads, model_name=ckpt_path, drop_path=0., checkpoint_num=0, dropout=0., temporal_start_layer=temporal_start_layer)
+            # Don't create post_norm, head, and temporal_embedding in image mode
+            self.post_norm = None
+            self.head = None
+            self.temporal_embedding = None
+        else:
+            self.timesformer = Timesformer(width=hidden_dim, layers=config.num_hidden_layers, heads=config.num_attention_heads, model_name=ckpt_path, drop_path=0., checkpoint_num=0, dropout=0., temporal_start_layer=temporal_start_layer)
+            self.post_norm = siglip_vision_model.post_layernorm
+            self.head = siglip_vision_model.head
+            self.temporal_embedding = nn.Parameter(torch.zeros(1, num_frames, hidden_dim))
         
     def forward(self, images: torch.Tensor, temporal_attention_mask: Optional[torch.Tensor] = None, text: Optional[List[str]] = None):
-        B, T, _, _, _ = images.shape
-        images = rearrange(images, 'b t c h w -> (b t) c h w')
-        x = self.vision_model_embedding(images)
-        
-        # Process spatial-only layers (before temporal_start_layer)
-        for idx in range(self.temporal_start_layer):
-            x = self.timesformer.resblocks[idx](x, B, T)
-        
-        # Save output at temporal_start_layer as early local_features
-        local_features_early = x  # [B*T, N, D]
-        local_features_early = rearrange(local_features_early, '(b t) n m -> b t n m', b=B, t=T)
-        
-        # Add temporal embedding before temporal layers
-        x = rearrange(x, '(b t) n m -> b n t m', b=B, t=T)
-        x = x + self.temporal_embedding
-        x = rearrange(x, 'b n t m -> (b t) n m')
-        
-        # Process temporal layers (from temporal_start_layer to end)
-        for idx in range(self.temporal_start_layer, self.num_layers):
-            x = self.timesformer.resblocks[idx](x, B, T)
-        
-        # Save output at last layer as late local_features
-        local_features_late = x  # [B*T, N, D]
-        local_features_late = rearrange(local_features_late, '(b t) n m -> b t n m', b=B, t=T)
-        
-        # Generate global features
-        x2 = self.post_norm(x)  # [B*T, N, D]
-        x2 = self.head(x2)
-        x2 = rearrange(x2, '(b t) m -> b t m', b=B, t=T)
-        
-        return local_features_early, local_features_late, None, x2
+        if self.image_mode:
+            # Image mode: input is [B, C, H, W]
+            B = images.shape[0]
+            T = 1
+            # No need to rearrange, directly use images
+            x = self.vision_model_embedding(images)
+            
+            # Image mode: only process first temporal_start_layer layers
+            for idx in range(self.temporal_start_layer):
+                x = self.timesformer.resblocks[idx](x, B, T)
+            
+            # Save output as local_features_late [B, N, D]
+            local_features_late = x  # [B, N, D]
+            
+            # No hidden_states, or pooled_output in image mode
+            return local_features_late, local_features_late, None, None
+        else:
+            # Video mode: input is [B, T, C, H, W]
+            B, T, _, _, _ = images.shape
+            images = rearrange(images, 'b t c h w -> (b t) c h w')
+            x = self.vision_model_embedding(images)
+            
+            # Video mode: full processing with temporal attention
+            # Process spatial-only layers (before temporal_start_layer)
+            for idx in range(self.temporal_start_layer):
+                x = self.timesformer.resblocks[idx](x, B, T)
+            
+            # Save output at temporal_start_layer as early local_features
+            local_features_early = x  # [B*T, N, D]
+            local_features_early = rearrange(local_features_early, '(b t) n m -> b t n m', b=B, t=T)
+            
+            # Add temporal embedding before temporal layers
+            x = rearrange(x, '(b t) n m -> b n t m', b=B, t=T)
+            x = x + self.temporal_embedding
+            x = rearrange(x, 'b n t m -> (b t) n m')
+            
+            # Process temporal layers (from temporal_start_layer to end)
+            for idx in range(self.temporal_start_layer, self.num_layers):
+                x = self.timesformer.resblocks[idx](x, B, T)
+            
+            # Save output at last layer as late local_features
+            local_features_late = x  # [B*T, N, D]
+            local_features_late = rearrange(local_features_late, '(b t) n m -> b t n m', b=B, t=T)
+            
+            # Generate global features
+            x2 = self.post_norm(x)  # [B*T, N, D]
+            x2 = self.head(x2)
+            x2 = rearrange(x2, '(b t) m -> b t m', b=B, t=T)
+            
+            return local_features_early, local_features_late, None, x2
 
 class SiglipBackbone(nn.Module):
     def __init__(self, backbone_type: str, 
@@ -153,13 +182,17 @@ class SiglipBackbone(nn.Module):
                  temporal_start_layer: int = 8):
         super().__init__()
         assert backbone_type in ['image', 'video']
+        
+        stage_1_backbone_dir = os.path.join(stage_1_ckpt_dir, 'backbone')
+        if not os.path.exists(stage_1_backbone_dir):
+            stage_1_backbone_dir = stage_1_ckpt_dir
+            
         if backbone_type == 'image':
-            self.vision_model = SiglipVisionModel.from_pretrained(ckpt_path, device_map="cpu")
+            # Use UniSoccerBackbone in image mode (only first temporal_start_layer layers)
+            self.vision_model = UniSoccerBackbone(ckpt_path, num_frames, stage_1_backbone_dir, hidden_dim, temporal_start_layer, image_mode=True)
         elif backbone_type == 'video':
-            stage_1_backbone_dir = os.path.join(stage_1_ckpt_dir, 'backbone')
-            if not os.path.exists(stage_1_backbone_dir):
-                stage_1_backbone_dir = stage_1_ckpt_dir
-            self.vision_model = UniSoccerBackbone(ckpt_path, num_frames, stage_1_backbone_dir, hidden_dim, temporal_start_layer)
+            # Use UniSoccerBackbone in video mode (full model with temporal attention)
+            self.vision_model = UniSoccerBackbone(ckpt_path, num_frames, stage_1_backbone_dir, hidden_dim, temporal_start_layer, image_mode=False)
             
         self.backbone_type = backbone_type
         self.hidden_dim = hidden_dim
@@ -181,19 +214,18 @@ class SiglipBackbone(nn.Module):
                 param.requires_grad = True
         
     def forward(self, images: torch.Tensor, temporal_attention_mask: Optional[torch.Tensor] = None, text: Optional[List[str]] = None):
-        if self.backbone_type == 'video':
-            # unisoccer_part_temporal returns (local_features_early, local_features_late, hidden_states, pooled_output)
-            local_features_early, local_features_late, hidden_states, pooled_output = self.vision_model(images, temporal_attention_mask, text)
-            # For backward compatibility, also provide last_hidden_state (use late features as default)
+        # Both image and video modes now use UniSoccerBackbone
+        # Returns (local_features_early, local_features_late, hidden_states, pooled_output)
+        local_features_early, local_features_late, hidden_states, pooled_output = self.vision_model(images, temporal_attention_mask, text)
+        
+        if self.backbone_type == 'image':
+            # In image mode: local_features_early=None, pooled_output=None
+            # Use local_features_late as last_hidden_state
             last_hidden_state = local_features_late
         else:
-            vision_outputs = self.vision_model(images, output_hidden_states=True)
-            last_hidden_state = vision_outputs.last_hidden_state # [N, L, D] or [N, T, L, D]
-            hidden_states = vision_outputs.hidden_states  # 修正属性名
-            pooled_output = vision_outputs.pooler_output # [N, D] or [N, T, D]
-            # For image mode, early and late features are the same
-            local_features_early = last_hidden_state
-            local_features_late = last_hidden_state
+            # In video mode: all features are available
+            # For backward compatibility, use late features as default
+            last_hidden_state = local_features_late
         
         if text is not None:
             # 过滤出非None的text并记录其索引

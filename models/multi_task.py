@@ -8,6 +8,7 @@ from models.siglip2 import SiglipBackbone
 from models.siglip2_unisoccer import SiglipBackbone as UniSoccerSiglipBackbone
 from models.siglip2_unisoccer_part_temporal import SiglipBackbone as UniSoccerPartTemporalSiglipBackbone
 from models.pure_siglip import PureSiglipBackbone
+from models.pure_dino import PureDinoBackbone
 from models.deformable_detr.deformable_detr import build_deformable_detr_head
 from models.lines_detection import build_lines_detection_head
 from models.keypoints_detection import build_keypoints_detection_head
@@ -91,8 +92,10 @@ class MultiTaskingSigLIP(nn.Module):
             SiglipBackboneType = UniSoccerPartTemporalSiglipBackbone
         elif siglip_backbone_type == 'pure_siglip':
             SiglipBackboneType = PureSiglipBackbone
+        elif siglip_backbone_type == 'pure_dino':
+            SiglipBackboneType = PureDinoBackbone
         else:
-            raise ValueError(f"Unsupported SIGLIP_BACKBONE_TYPE: {siglip_backbone_type}. Supported types: 'standard', 'unisoccer', 'unisoccer_part_temporal', 'pure_siglip'")
+            raise ValueError(f"Unsupported SIGLIP_BACKBONE_TYPE: {siglip_backbone_type}. Supported types: 'standard', 'unisoccer', 'unisoccer_part_temporal', 'pure_siglip', 'pure_dino'")
         
         # Prepare backbone initialization arguments
         backbone_args = {
@@ -196,12 +199,13 @@ class MultiTaskingSigLIP(nn.Module):
                 print(f"Saved custom backbone weights to: {backbone_path}")
         
         # Save text encoder weights
-        text_model_dir = os.path.join(checkpoint_dir, 'text_model')
-        self.backbone.text_model.model.save_pretrained(text_model_dir)
-        if logger is not None:
-            logger.info(f"Saved text encoder weights to: {text_model_dir}")
-        else:
-            print(f"Saved text encoder weights to: {text_model_dir}")
+        if self.backbone.text_model is not None:
+            text_model_dir = os.path.join(checkpoint_dir, 'text_model')
+            self.backbone.text_model.model.save_pretrained(text_model_dir)
+            if logger is not None:
+                logger.info(f"Saved text encoder weights to: {text_model_dir}")
+            else:
+                print(f"Saved text encoder weights to: {text_model_dir}")
         
         # Save task heads
         for head_name, head in self.multi_task_head.items():
@@ -291,7 +295,7 @@ class MultiTaskingSigLIP(nn.Module):
         
         return checkpoint_state_dict
     
-    def load_checkpoint(self, checkpoint_dir: str, logger=None, load_heads: bool = True):
+    def load_checkpoint(self, checkpoint_dir: str, ckpt_type: str, logger=None, load_heads: bool = True):
         """
         Load model checkpoint including backbone, text encoder, and task heads
         
@@ -331,32 +335,60 @@ class MultiTaskingSigLIP(nn.Module):
         #             logger.warning(f"Warning: custom backbone checkpoint not found at {backbone_ckpt_path}")
         #         else:
         #             print(f"Warning: custom backbone checkpoint not found at {backbone_ckpt_path}")
-        backbone_ckpt_path_hf = os.path.join(checkpoint_dir, "backbone", "model.safetensors")
-        backbone_ckpt_path_unisoccer = os.path.join(checkpoint_dir, "backbone.pt")
-        if os.path.exists(backbone_ckpt_path_hf):
-            with safe_open(backbone_ckpt_path_hf, framework="pt") as f:
-                backbone_state_dict = {k: f.get_tensor(k) for k in f.keys()}
+        if ckpt_type == "hf": # TBD: need modify using transformers lib
+            backbone_ckpt_path = os.path.join(checkpoint_dir, "backbone", "model.safetensors")
+            if os.path.exists(backbone_ckpt_path):
+                with safe_open(backbone_ckpt_path, framework="pt") as f:
+                    backbone_state_dict = {k: f.get_tensor(k) for k in f.keys()}
+                    # 检查并插值position embedding
+                    backbone_state_dict = self._interpolate_pos_embed_if_needed(backbone_state_dict, logger)
+                    res = self.backbone.vision_model.load_state_dict(backbone_state_dict, strict=False)
+                    if logger is not None:
+                        logger.info(f"Loaded backbone weights from: {backbone_ckpt_path}, res: {res}")
+                    else:
+                        print(f"Loaded backbone weights from: {backbone_ckpt_path}, res: {res}")
+            else:
+                if logger is not None:
+                    logger.warning(f"Warning: backbone checkpoint not found at {backbone_ckpt_path}")
+                else:
+                    print(f"Warning: backbone checkpoint not found at {backbone_ckpt_path}")
+        elif ckpt_type == "soccer_master":
+            backbone_ckpt_path = os.path.join(checkpoint_dir, "backbone.pt")
+            if os.path.exists(backbone_ckpt_path):
+                backbone_state_dict = torch.load(backbone_ckpt_path, map_location="cpu")
                 # 检查并插值position embedding
                 backbone_state_dict = self._interpolate_pos_embed_if_needed(backbone_state_dict, logger)
-                self.backbone.vision_model.load_state_dict(backbone_state_dict, strict=False)
+                res = self.backbone.vision_model.load_state_dict(backbone_state_dict, strict=False)
                 if logger is not None:
-                    logger.info(f"Loaded backbone weights from: {backbone_ckpt_path_hf}")
+                    logger.info(f"Loaded backbone weights from: {backbone_ckpt_path}, res: {res}")
                 else:
-                    print(f"Loaded backbone weights from: {backbone_ckpt_path_hf}")
-        elif os.path.exists(backbone_ckpt_path_unisoccer):
-            backbone_state_dict = torch.load(backbone_ckpt_path_unisoccer, map_location="cpu")
-            # 检查并插值position embedding
-            backbone_state_dict = self._interpolate_pos_embed_if_needed(backbone_state_dict, logger)
-            self.backbone.vision_model.load_state_dict(backbone_state_dict, strict=False)
-            if logger is not None:
-                logger.info(f"Loaded backbone weights from: {backbone_ckpt_path_unisoccer}")
+                    print(f"Loaded backbone weights from: {backbone_ckpt_path}, res: {res}")
             else:
-                print(f"Loaded backbone weights from: {backbone_ckpt_path_unisoccer}")
+                if logger is not None:
+                    logger.warning(f"Warning: backbone checkpoint not found at {backbone_ckpt_path}")
+                else:
+                    print(f"Warning: backbone checkpoint not found at {backbone_ckpt_path}")
+        elif ckpt_type == "unisoccer":
+            backbone_ckpt_path = os.path.join(checkpoint_dir)
+            assert os.path.exists(backbone_ckpt_path), f"Backbone checkpoint not found at {backbone_ckpt_path}"
+            backbone_state_dict = torch.load(backbone_ckpt_path, map_location="cpu")
+            backbone_state_dict = {k.replace('module.siglip_model.', ''): v for k, v in backbone_state_dict['state_dict'].items()}
+            backbone_state_dict['temporal_embedding'] = backbone_state_dict['temporal_positional_embedding']
+            del backbone_state_dict['temporal_positional_embedding']
+            backbone_state_dict['post_norm.weight'] = backbone_state_dict['post_layernorm.weight']
+            backbone_state_dict['post_norm.bias'] = backbone_state_dict['post_layernorm.bias']
+            del backbone_state_dict['post_layernorm.weight']
+            del backbone_state_dict['post_layernorm.bias']
+            res = self.backbone.vision_model.load_state_dict(backbone_state_dict, strict=True)
+            if logger is not None:
+                logger.info(f"Loaded backbone weights from: {backbone_ckpt_path}, res: {res}")
+            else:
+                print(f"Loaded backbone weights from: {backbone_ckpt_path}, res: {res}")
         else:
             if logger is not None:
-                logger.warning(f"Warning: backbone checkpoint not found at {backbone_ckpt_path_hf} or {backbone_ckpt_path_unisoccer}")
+                logger.warning(f"Warning: unknown ckpt_type: {ckpt_type}, expected 'hf' or 'soccer_master'")
             else:
-                print(f"Warning: backbone checkpoint not found at {backbone_ckpt_path_hf} or {backbone_ckpt_path_unisoccer}")
+                print(f"Warning: unknown ckpt_type: {ckpt_type}, expected 'hf' or 'soccer_master'")
 
         
         # Load text encoder weights

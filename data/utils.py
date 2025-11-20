@@ -578,7 +578,8 @@ class RandomAffine:
             # Scale transformation matrix to heatmap size
             scale_h = h / orig_h
             scale_w = w / orig_w
-            heatmap_transform = transform_matrix.copy()
+            # heatmap_transform = transform_matrix.copy()
+            heatmap_transform = copy.deepcopy(transform_matrix)
             heatmap_transform[0, 0] *= scale_w  # a
             heatmap_transform[0, 1] *= scale_h  # b  
             heatmap_transform[0, 2] *= scale_w  # tx
