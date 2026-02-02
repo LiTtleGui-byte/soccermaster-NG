@@ -55,16 +55,16 @@ class VideoCaptionDataset(Dataset):
         clip_root = os.path.join(data_root, "video_clip")
         clip_json_root = os.path.join(data_root, "video_clip_json")
         for dataset in video_caption_datasets:
-            # if dataset in ['SoccerReplay-1988', 'SoccerReplay-1988-subset']:
-            #     # clip_base_dir = os.path.join(clip_root, f"{dataset}-high-resolution")
-            #     clip_base_dir = os.path.join(clip_root, "SoccerReplay-1988-high-resolution")
-            # else:
-            clip_base_dir = os.path.join(clip_root, dataset)
+            if dataset in ['SoccerReplay-1988']:
+                # clip_base_dir = os.path.join(clip_root, f"{dataset}-high-resolution")
+                clip_base_dir = os.path.join(clip_root, "SoccerReplay-1988-high-resolution")
+            else:
+                clip_base_dir = os.path.join(clip_root, dataset)
             clip_json_path = os.path.join(clip_json_root, dataset, f"classification_{split}.json")
             with open(clip_json_path, 'r') as file:
                 current_data = json.load(file)
                 for item in current_data:
-                    if dataset in ['SoccerReplay-1988', 'SoccerNet-v2', 'SoccerReplay-1988-subset']:
+                    if dataset in ['SoccerReplay-1988', 'SoccerNet-v2']:
                         item["video"] = os.path.join(clip_base_dir, item["video"])
                     elif dataset == 'MatchTime':
                         item["video"] = os.path.join(clip_base_dir, split, item["video"]) if split in ['train', 'valid'] else os.path.join(clip_base_dir, 'SN-Caption-test-align', item["video"])
