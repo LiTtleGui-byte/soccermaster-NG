@@ -13,7 +13,7 @@
 | G4 单个真实视频 | 通过 | 固定 SoccerReplay-1988 视频完成解码、测试预处理和 Caption 两任务头推理，并保存机器结果与联系图 |
 | G5 固定小规模评估 | 通过 | retry1 完成固定 2 个检测 clip + 23 个 Caption 视频的两遍评估，五类指标结构完整，重复性最大差异为 0，退出码 0 |
 | G6 tiny overfit | 通过 | 4 个固定真实视频的 CaptionClassification 分类器在 110 steps 内从 0% 达到 100% accuracy，loss 从 3.87645 降至 0.01003，梯度/参数范围断言全部通过 |
-| G7 单任务训练 | 未通过（retry1 用户中止） | retry1 已进入真实训练，完成 epoch 0 的训练与 train/valid 评估并继续到 global step 111；在 epoch 1 未完成时按用户要求停止，退出码 141，无最终结果 JSON/完整断言 |
+| G7 单任务训练 | 通过 | retry2 完整运行 2 epochs、184 optimizer steps 和每 epoch train/valid 评估；8 项机器断言全部通过，退出码 0 |
 | G8 小规模多任务训练 | 未开始 | 未执行 |
 | G9 完整训练 | 未开始 | 未执行 |
 | G10 SoccerFactory 分支 | 未开始 | 未执行 |
@@ -217,12 +217,29 @@
 - 中止使进程没有进入脚本的最终结果写入；`reports/g7/20260812_retry1_interrupted/result.json` 不存在，`/usr/bin/time -v` 未留下完整末尾。因此最终 train/valid 数值、全部成功断言、峰值 CPU RSS 和实际训练峰值 GPU 显存均未采集；只能确认移入 GPU 后的早期 allocated/reserved 分别为 3,799,319,552/3,804,233,728 bytes，不能当作整段训练峰值。
 - 停止后没有本次 G7 匹配进程；GPU 7 恢复为已用 35,821 MiB、空闲 45,269 MiB，只剩外部 PID 1506769。G7 因未完成规定的 2 epochs 和最终断言而未通过，G8 未开始。
 
+#### G7 retry2 完整运行（通过）
+
+- 用户在了解 GPU 7 与外部 PID 1506769 共存、GPU 利用率 99% 和性能风险后，明确批准只运行一次完整 2 epochs 的 G7 retry2；失败不自动重跑、不进入 G8。
+- 运行前只修改 `reproduction/gates/g7_single_task.py` 的三个本地输出路径，改为 `reports/g7/20260812_retry2_full_2epochs/` 和 `outputs/g7/20260812_retry2_full_2epochs/`；训练协议、manifest、模型、checkpoint、设备、精度、batch size、数据范围和断言均未改变。`ast.parse`、manifest 契约、276 个固定视频大小、train/valid 零重叠、新路径未占用和 `git diff --check` 均通过。
+- 运行使用 commit `9da39e171dc961ef1c054667741f3ad546f37324` 的本地工作区、本地 Python `/home/tianlin/SoccerMaster/.local_envs/SoccerMaster-repro/bin/python`、物理 GPU 7（逻辑 `cuda:0`）、float32、batch size 2、`num_workers=0`、offline、本地 ops/repo `PYTHONPATH`、本地环境 `LD_LIBRARY_PATH`、30 秒心跳和 21,600 秒 timeout。
+- 输入保持为 `reproduction/manifests/g7_single_task.json`：SoccerReplay-1988 的 184 个 train 与 92 个 valid 固定视频，23 类均衡，train/valid 视频零重叠；test split 未访问。vision backbone 和 text encoder 全部冻结，只训练完整 CaptionClassification 头。
+- 运行于 2026-08-12 07:46:45 开始，脚本耗时 4,096.137 秒，外层墙钟 1:08:17；CPU 模型构建 22.527 秒，真实 high-resolution `epoch_19` CPU 加载 179.916 秒。backbone 全键匹配，text encoder 和 CaptionClassification 头均成功加载。
+- 两个 epoch 的 184 个 optimizer steps 全部完成，共处理 368 个训练样本位置；每个 epoch 后 scheduler、184 样本 train 评估和 92 样本 valid 评估均完成。epoch 0/1 的 online mean train loss 分别为 1.7529373/1.1921330。
+- 固定 train 的初始、epoch 0、epoch 1 loss 为 1.6711464、1.0111239、0.8424046；accuracy 为 0.5000000、0.6739130、0.7228261；macro F1 为 0.4714747、0.6616970、0.7194353。
+- 固定 valid 的初始、epoch 0、epoch 1 loss 为 1.9712630、1.6194372、1.7600775；accuracy 为 0.4673913、0.5978261、0.5869565；macro F1 为 0.4426846、0.5902971、0.5728967。该固定小规模 valid 在第二个 epoch 略低于第一个 epoch，不能据此宣称总体泛化持续改善。
+- step 3 的事务式 checkpoint 为 `outputs/g7/20260812_retry2_full_2epochs/step_000003`；5 个 manifest 文件总计 302,695,666 bytes，`COMPLETE`、逐文件大小和 SHA256 二次核验均通过。它仍只表示 step 3 的恢复探针，不是 epoch 2 最终模型 checkpoint。
+- exact-resume 探针通过：恢复分支与未中断分支的下一批 IDs、输入 SHA256 和 loss 一致，head 最大参数差及 optimizer state 最大差均为 0，scheduler state 一致。
+- 8 项机器断言全部为 true：每 epoch 所有 train 样本均处理、梯度有限且为正、非 classifier 头参数发生变化、冻结 backbone/text 不变、最终 train loss 低于初始值、valid 覆盖全部 23 类、exact-resume 探针通过、test split 未使用。梯度 norm 范围为 0.1334345–34.0916977，非 classifier 头参数最大变化为 0.00600642。
+- 峰值 CPU RSS 为 8,433,136 KiB，swap 为 0；峰值 GPU allocated/reserved 分别为 8,183,918,592/9,481,224,192 bytes。运行结束后 GPU 7 恢复为已用 35,821 MiB、空闲 45,269 MiB，只剩外部 PID 1506769，没有本次 G7 残留进程。
+- 日志：`reports/g7/20260812_retry2_full_2epochs/run.log`，SHA256 `b32c3b938657d0b806806a094dcc1a0e6b5acbfebabc9fec0d3f15302bee852b`；机器结果：`reports/g7/20260812_retry2_full_2epochs/result.json`，SHA256 `038e2809ea98560800f89ef4cd053ba192c5db84e43c84f8c3ed6c2fbb060982`。脚本、timeout 和 pipeline 退出码均为 0，`status="passed"`、`error=null`，没有 fallback。
+- G7 达到当前 Harness 的最小证明范围并标记为通过；这只证明固定小规模单任务协议、恢复和评估链路可信，不代表完整数据集训练或论文总体指标。G8 未开始。
+
 ### 已知工作区状态
 
 - `data/video_caption.py` 存在复制前已有的一行注释删除，不得回滚或覆盖。
 - 2026-08-12 用户批准以“上游代码保持原位置、复现与改进分层”的方式整理本地仓库。上游 `models/`、`data/`、`configs/`、`train.py` 和 `eval.py` 未移动、未修改。
 - Gate 入口现位于 `reproduction/gates/`，固定输入现位于 `reproduction/manifests/`；复现导航为 `reproduction/README.md`，改进实验登记为 `experiments/README.md`。
-- 运行证据按 `reports/g1/` 至 `reports/g7/` 归档；G5 临时数据视图现位于 `.runtime/data_views/g5/`；G7 step-3 checkpoint 现位于 `outputs/g7/20260812_retry1_interrupted/step_000003`。这些是同一本地文件系统中的路径整理，没有重跑 Gate、没有读取模型、没有使用 GPU。
+- 运行证据按 `reports/g1/` 至 `reports/g7/` 归档；G5 临时数据视图现位于 `.runtime/data_views/g5/`；G7 retry1/retry2 的 step-3 checkpoint 分别位于 `outputs/g7/20260812_retry1_interrupted/step_000003` 和 `outputs/g7/20260812_retry2_full_2epochs/step_000003`。
 - 整理后的纯静态检查通过：6 个 Gate 脚本均通过 `ast.parse`，3 个 manifest 均通过 JSON/schema 检查，23 个 report 文件、3 条只读运行时链接和 7 个 G7 output 文件均存在；G5/G6/G7 的 7 个已知证据哈希保持不变，G7 checkpoint 的 5 个 manifest 文件共 302,695,666 bytes，大小与 SHA256 再次通过。Markdown 相对链接和 `git diff --check` 也通过。
 - `AGENTS.md`、`README.md`、`REPRODUCTION_STATUS.md`、`reproduction/`、`experiments/`、`reports/`、`outputs/`、`.runtime/`、`.local_deps/`、`.local_envs/` 和 `.conda_pkgs/` 均是本地资产；其中大型或可重建路径受 `.gitignore` 影响，具体状态以每次运行清单为准。
 - `.conda_pkgs:/` 是首次 Conda 缓存参数分隔符错误留下的约 20 KB 异常目录，内含零字节 partial 文件；尚未删除。
@@ -232,15 +249,15 @@
 
 - 本地环境本次 G2 墙钟 4:07.07，历史共享环境 G2 为 15:32.90；本次观测明显更短，但受文件缓存、GPFS 当时负载等因素影响，不能仅凭两次运行把全部差异归因于环境迁移。
 - 由于 SigLIP2 和 `epoch_19` 仍在 GPFS，后续首次或冷缓存 checkpoint 读取仍可能受共享存储速度影响。
-- 在冻结 backbone/text、只训练 25,220,119 参数 CaptionClassification 头的前提下，G7 的额外 optimizer/gradient 显存应明显小于全量 backbone 反向；retry1 因中止未完整采集峰值，仍需在后续完整受控运行中测量。
+- 在冻结 backbone/text、只训练 25,220,119 参数 CaptionClassification 头的当前协议中，retry2 的实测峰值 GPU reserved 为 9,481,224,192 bytes；这不能直接推断解冻 backbone 或多任务训练的资源需求。
 
 ## 未知
 
 - 本地环境 G2 等价性已经确认；不同缓存与 GPFS 负载条件下的稳定加速幅度仍未知。
 - G5 的目标固定小规模指标和同一进程内两遍重复性已确认；完整测试集指标和独立进程/主机间重复性仍未知。
-- G6 的限定分类器 tiny-overfit 链路已确认；backbone 解冻后的反向传播，以及 G8 以后的训练行为仍未知。
+- G7 的固定小规模单任务训练协议、恢复和评估链路已确认；backbone 解冻后的反向传播，以及 G8 以后的训练行为仍未知。
 - G5 已验证 `SNGS-116` 两个真实 clip 上的检测、球场线和关键点评估；其他序列和更大数据范围的表现仍未知。
-- G7 retry1 已执行完整 CaptionClassification 头的 backward、optimizer、scheduler、一个完整 epoch 的 train/valid、事务式 step-3 checkpoint 和恢复后继续训练；但运行在第二个 epoch 中途停止，没有最终结果 JSON，因此完整 2 epochs、最终指标、全部最终断言、严格 exact resume 和整段峰值资源仍未确认。
+- G7 retry2 已确认完整 2 epochs、最终指标、全部最终断言、step-3 exact-resume 探针和整段峰值资源；更大数据规模、不同 seed、独立进程重复性和最终模型 checkpoint 保存仍未知。
 - SoccerReplay-1988 的完整 train/valid 视频可用率尚未盘点；目前只有标注数量和三个 train 视频抽查结果得到确认。
 
 ## 风险
@@ -258,8 +275,7 @@
 
 ## 下一步
 
-- G0 至 G6 均已达到当前 Harness 定义的最小证明范围；G7 retry1 已进入真实单任务训练，但在第二个 epoch 中途由用户停止，因此 G7 未通过。
-- G7 的只读设计、固定 manifest、受限验证脚本和静态审查已经完成；首次运行尝试因受限沙箱看不到宿主机 CUDA 而失败，retry1 修正前置检查后运行到 global step 111。
-- 唯一建议的最小下一步：在用户新的明确授权下，对保持完整 2 epochs 的 G7 retry2 做一次只读运行前审查，使用新的报告和输出路径以保留 retry1 证据；审查完成后停止，不自动启动训练。
-- 未经用户新的明确批准，不再运行 G7，不进入 G8。
+- G0 至 G7 均已达到当前 Harness 定义的最小证明范围；G7 retry2 完整 2 epochs 并以退出码 0、8/8 机器断言通过。
+- 唯一建议的最小下一步：只读审查 G8 的小规模多任务目标、固定输入、任务调度、显存预算和成功断言；不修改代码、不使用 GPU、不启动 G8。
+- 未经用户新的明确批准，不重跑 G7，不进入 G8。
 - 任何 GPU 操作前必须重新执行 `nvidia-smi`、报告显存占用并等待用户明确批准。

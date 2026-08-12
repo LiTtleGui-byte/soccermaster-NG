@@ -15,7 +15,7 @@ SoccerMaster 是一个面向足球视频理解的多任务模型复现与改进�
 | G4 单个真实视频 | 通过 | 固定 SoccerReplay 视频完成解码、预处理和 Caption 推理 |
 | G5 固定小规模评估 | 通过 | 五类任务指标结构完整，两遍评估重复性通过 |
 | G6 tiny overfit | 通过 | 固定真实样本的 loss、梯度和 optimizer 最小链路通过 |
-| G7 单任务训练 | 未通过 | retry1 已进入真实训练并到达 global step 111，但在第二个 epoch 未完成时按用户要求中止 |
+| G7 单任务训练 | 通过 | retry2 完整运行 2 epochs/184 optimizer steps，固定 train/valid、scheduler、事务式 checkpoint 和 exact-resume 断言全部通过 |
 | G8–G10 | 未开始 | 小规模多任务、完整训练和 SoccerFactory 均未验证 |
 
 详细证据、限制和唯一当前状态以 [`REPRODUCTION_STATUS.md`](REPRODUCTION_STATUS.md) 为准。
