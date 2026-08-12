@@ -1,0 +1,4063 @@
+{
+  "artifacts": {
+    "detection_overlays": [
+      "/home/tianlin/SoccerMaster/reports/g5_detection_clip_start_000_retry1_overlay_20260812.jpg",
+      "/home/tianlin/SoccerMaster/reports/g5_detection_clip_start_360_retry1_overlay_20260812.jpg"
+    ],
+    "result_json": "/home/tianlin/SoccerMaster/reports/g5_fixed_small_eval_retry1_result_20260812.json"
+  },
+  "assets": {
+    "caption_sample_count": 23,
+    "caption_total_video_bytes": 127506848,
+    "checkpoint": "/remote-home/haolinyang/sports/Soccer-Backbone/outputs/pretrain_large_512_multitask_aug_consine_part_temporal_early_freeze_text_lr_5e-5_cap_cls_weight_1_extra_7000_high_resolution/epoch_19",
+    "checkpoint_type": "soccer_master",
+    "config": "/home/tianlin/SoccerMaster/configs/pretrain_large_512_multitask_aug_consine_part_temporal_early_freeze_text_lr_5e-5_cap_cls_weight_1_extra_7000_high_resolution.yaml",
+    "detection_clips": [
+      {
+        "end_frame_exclusive": 30,
+        "first_image": "000001.jpg",
+        "last_image": "000030.jpg",
+        "start_frame_zero_based": 0,
+        "total_bytes": 9845637
+      },
+      {
+        "end_frame_exclusive": 390,
+        "first_image": "000361.jpg",
+        "last_image": "000390.jpg",
+        "start_frame_zero_based": 360,
+        "total_bytes": 8725491
+      }
+    ],
+    "detection_data_view": "/home/tianlin/SoccerMaster/reports/g5_fixed_data_view",
+    "detection_dataset_indices": [
+      0,
+      12
+    ],
+    "detection_dataset_length": 25,
+    "load_heads": true,
+    "model": "/remote-home/haolinyang/sports/Soccer-Backbone/pretrained_models/google/siglip2-large-patch16-512"
+  },
+  "code": {
+    "commit": "3733d21819261e926a2e7cb3b18eeb749877c8d0",
+    "dirty_files": [
+      " M AGENTS.md",
+      " M README.md",
+      " M REPRODUCTION_STATUS.md",
+      " M data/video_caption.py",
+      " M docs/README.md",
+      "?? reports/",
+      "?? scripts/g5_fixed_small_manifest.json",
+      "?? scripts/verify_g3_random_forward.py",
+      "?? scripts/verify_g4_real_video.py",
+      "?? scripts/verify_g5_fixed_small_eval.py"
+    ]
+  },
+  "environment": {
+    "cuda_build": "12.1",
+    "ld_library_path": "/home/tianlin/SoccerMaster/.local_envs/SoccerMaster-repro/lib/python3.10/site-packages/cv2/../../lib64:/home/tianlin/SoccerMaster/.local_envs/SoccerMaster-repro/lib/python3.10/site-packages/torch/lib:/home/tianlin/SoccerMaster/.local_envs/SoccerMaster-repro/lib",
+    "python": "/home/tianlin/SoccerMaster/.local_envs/SoccerMaster-repro/bin/python",
+    "python_version": "3.10.16",
+    "pythondontwritebytecode": "1",
+    "pythonpath": "/home/tianlin/SoccerMaster/models/deformable_detr/ops/build/lib.linux-x86_64-cpython-310:/home/tianlin/SoccerMaster",
+    "torch": "2.4.1"
+  },
+  "error": null,
+  "evaluation_passes": 2,
+  "explicit_non_goals": [
+    "no full test-set evaluation",
+    "no training, loss backward, optimizer, or scheduler",
+    "no multi-GPU or distributed evaluation",
+    "no paper-level or population-level metric claim",
+    "no G6 execution"
+  ],
+  "gate": "G5",
+  "gpu": {
+    "capability": [
+      9,
+      0
+    ],
+    "logical_device": "cuda:0",
+    "name": "NVIDIA H800",
+    "visible_physical_index": 7
+  },
+  "manifest": "/home/tianlin/SoccerMaster/scripts/g5_fixed_small_manifest.json",
+  "manifest_sha256": "ebabf222677550697c92c8da20dd8fbb4e8c003e5f1c7fcd7f0ee4a50731e4bd",
+  "memory_snapshots": [
+    {
+      "allocated_bytes": 0,
+      "free_bytes": 46920564736,
+      "label": "after_cuda_init",
+      "max_allocated_bytes": 0,
+      "max_reserved_bytes": 0,
+      "reserved_bytes": 0,
+      "total_bytes": 85028372480
+    },
+    {
+      "allocated_bytes": 0,
+      "free_bytes": 46920564736,
+      "label": "before_model_to_gpu",
+      "max_allocated_bytes": 0,
+      "max_reserved_bytes": 0,
+      "reserved_bytes": 0,
+      "total_bytes": 85028372480
+    },
+    {
+      "allocated_bytes": 3874581504,
+      "free_bytes": 43028250624,
+      "label": "after_model_to_gpu",
+      "max_allocated_bytes": 3874581504,
+      "max_reserved_bytes": 3892314112,
+      "reserved_bytes": 3892314112,
+      "total_bytes": 85028372480
+    },
+    {
+      "allocated_bytes": 3874581504,
+      "free_bytes": 43028250624,
+      "label": "before_fixed_evaluation",
+      "max_allocated_bytes": 3874581504,
+      "max_reserved_bytes": 3892314112,
+      "reserved_bytes": 3892314112,
+      "total_bytes": 85028372480
+    },
+    {
+      "allocated_bytes": 3908135936,
+      "free_bytes": 42615111680,
+      "label": "after_evaluation_pass_1",
+      "max_allocated_bytes": 8124680192,
+      "max_reserved_bytes": 10590617600,
+      "reserved_bytes": 3925868544,
+      "total_bytes": 85028372480
+    },
+    {
+      "allocated_bytes": 3908135936,
+      "free_bytes": 42615111680,
+      "label": "after_evaluation_pass_2",
+      "max_allocated_bytes": 8124680192,
+      "max_reserved_bytes": 10590617600,
+      "reserved_bytes": 3925868544,
+      "total_bytes": 85028372480
+    }
+  ],
+  "passes": [
+    {
+      "caption_predictions": [
+        {
+          "classification_top5": [
+            {
+              "index": 0,
+              "label": "var",
+              "probability": 0.7365638613700867
+            },
+            {
+              "index": 19,
+              "label": "foul lead to penalty",
+              "probability": 0.16698956489562988
+            },
+            {
+              "index": 16,
+              "label": "goal",
+              "probability": 0.040681932121515274
+            },
+            {
+              "index": 7,
+              "label": "show added time",
+              "probability": 0.01357609685510397
+            },
+            {
+              "index": 18,
+              "label": "yellow card",
+              "probability": 0.011513113044202328
+            }
+          ],
+          "ground_truth": "var",
+          "label_index": 346,
+          "manifest_index": 0,
+          "relative_video": "italy_serie-a_2018-2019/2018-12-08_cagliari-calcio-as-roma/2_23_37.mp4",
+          "retrieval_top5_text_indices": [
+            0,
+            19,
+            3,
+            22,
+            17
+          ]
+        },
+        {
+          "classification_top5": [
+            {
+              "index": 1,
+              "label": "end of half game",
+              "probability": 0.9477134346961975
+            },
+            {
+              "index": 20,
+              "label": "corner",
+              "probability": 0.016758864745497704
+            },
+            {
+              "index": 8,
+              "label": "shot off target",
+              "probability": 0.010657617822289467
+            },
+            {
+              "index": 18,
+              "label": "yellow card",
+              "probability": 0.007409966085106134
+            },
+            {
+              "index": 12,
+              "label": "red card",
+              "probability": 0.003028535284101963
+            }
+          ],
+          "ground_truth": "end of half game",
+          "label_index": 0,
+          "manifest_index": 1,
+          "relative_video": "italy_serie-a_2018-2019/2019-03-31_fc-internazionale-ss-lazio-serie-a-2018-2019/2_49_08.mp4",
+          "retrieval_top5_text_indices": [
+            1,
+            9,
+            0,
+            7,
+            18
+          ]
+        },
+        {
+          "classification_top5": [
+            {
+              "index": 20,
+              "label": "corner",
+              "probability": 0.4864443242549896
+            },
+            {
+              "index": 13,
+              "label": "lead to corner",
+              "probability": 0.18941253423690796
+            },
+            {
+              "index": 7,
+              "label": "show added time",
+              "probability": 0.12081634253263474
+            },
+            {
+              "index": 2,
+              "label": "clearance",
+              "probability": 0.05797827988862991
+            },
+            {
+              "index": 10,
+              "label": "substitution",
+              "probability": 0.046596065163612366
+            }
+          ],
+          "ground_truth": "clearance",
+          "label_index": 2,
+          "manifest_index": 2,
+          "relative_video": "italy_serie-a_2018-2019/2019-03-31_fc-internazionale-ss-lazio-serie-a-2018-2019/2_48_41.mp4",
+          "retrieval_top5_text_indices": [
+            20,
+            7,
+            0,
+            4,
+            14
+          ]
+        },
+        {
+          "classification_top5": [
+            {
+              "index": 1,
+              "label": "end of half game",
+              "probability": 0.5814117193222046
+            },
+            {
+              "index": 18,
+              "label": "yellow card",
+              "probability": 0.11572138220071793
+            },
+            {
+              "index": 12,
+              "label": "red card",
+              "probability": 0.08146855980157852
+            },
+            {
+              "index": 20,
+              "label": "corner",
+              "probability": 0.04809937998652458
+            },
+            {
+              "index": 16,
+              "label": "goal",
+              "probability": 0.037530411034822464
+            }
+          ],
+          "ground_truth": "second yellow card",
+          "label_index": 157,
+          "manifest_index": 3,
+          "relative_video": "italy_serie-a_2018-2019/2018-10-20_as-roma-s-p-a-l-2013/2_30_17.mp4",
+          "retrieval_top5_text_indices": [
+            1,
+            0,
+            9,
+            18,
+            3
+          ]
+        },
+        {
+          "classification_top5": [
+            {
+              "index": 4,
+              "label": "injury",
+              "probability": 0.7207951545715332
+            },
+            {
+              "index": 10,
+              "label": "substitution",
+              "probability": 0.17190061509609222
+            },
+            {
+              "index": 18,
+              "label": "yellow card",
+              "probability": 0.026741189882159233
+            },
+            {
+              "index": 22,
+              "label": "foul with no card",
+              "probability": 0.01835716888308525
+            },
+            {
+              "index": 2,
+              "label": "clearance",
+              "probability": 0.015186319127678871
+            }
+          ],
+          "ground_truth": "injury",
+          "label_index": 60,
+          "manifest_index": 4,
+          "relative_video": "italy_serie-a_2018-2019/2019-03-31_fc-internazionale-ss-lazio-serie-a-2018-2019/1_26_22.mp4",
+          "retrieval_top5_text_indices": [
+            4,
+            10,
+            3,
+            22,
+            12
+          ]
+        },
+        {
+          "classification_top5": [
+            {
+              "index": 2,
+              "label": "clearance",
+              "probability": 0.16137295961380005
+            },
+            {
+              "index": 20,
+              "label": "corner",
+              "probability": 0.1457587033510208
+            },
+            {
+              "index": 5,
+              "label": "ball possession",
+              "probability": 0.13141554594039917
+            },
+            {
+              "index": 22,
+              "label": "foul with no card",
+              "probability": 0.09453126043081284
+            },
+            {
+              "index": 8,
+              "label": "shot off target",
+              "probability": 0.08634483814239502
+            }
+          ],
+          "ground_truth": "ball possession",
+          "label_index": 118,
+          "manifest_index": 5,
+          "relative_video": "italy_serie-a_2018-2019/2019-01-20_ssc-napoli-ss-lazio-serie-a-2018-2019/1_43_44.mp4",
+          "retrieval_top5_text_indices": [
+            5,
+            2,
+            15,
+            20,
+            8
+          ]
+        },
+        {
+          "classification_top5": [
+            {
+              "index": 2,
+              "label": "clearance",
+              "probability": 0.7375646233558655
+            },
+            {
+              "index": 20,
+              "label": "corner",
+              "probability": 0.07360745966434479
+            },
+            {
+              "index": 13,
+              "label": "lead to corner",
+              "probability": 0.054558176547288895
+            },
+            {
+              "index": 5,
+              "label": "ball possession",
+              "probability": 0.03174236789345741
+            },
+            {
+              "index": 8,
+              "label": "shot off target",
+              "probability": 0.024099256843328476
+            }
+          ],
+          "ground_truth": "throw in",
+          "label_index": 491,
+          "manifest_index": 6,
+          "relative_video": "england_epl_2021-2022/2021-08-22_southampton-fc-manchester-united-premier-league-2021-2022/1_20_30.mp4",
+          "retrieval_top5_text_indices": [
+            2,
+            6,
+            17,
+            5,
+            13
+          ]
+        },
+        {
+          "classification_top5": [
+            {
+              "index": 11,
+              "label": "saved by goal-keeper",
+              "probability": 0.37011605501174927
+            },
+            {
+              "index": 2,
+              "label": "clearance",
+              "probability": 0.30884242057800293
+            },
+            {
+              "index": 8,
+              "label": "shot off target",
+              "probability": 0.08020687103271484
+            },
+            {
+              "index": 16,
+              "label": "goal",
+              "probability": 0.06900419294834137
+            },
+            {
+              "index": 15,
+              "label": "off side",
+              "probability": 0.049940917640924454
+            }
+          ],
+          "ground_truth": "show added time",
+          "label_index": 3,
+          "manifest_index": 7,
+          "relative_video": "italy_serie-a_2018-2019/2019-03-31_fc-internazionale-ss-lazio-serie-a-2018-2019/2_45_00.mp4",
+          "retrieval_top5_text_indices": [
+            16,
+            2,
+            8,
+            5,
+            14
+          ]
+        },
+        {
+          "classification_top5": [
+            {
+              "index": 8,
+              "label": "shot off target",
+              "probability": 0.21590833365917206
+            },
+            {
+              "index": 2,
+              "label": "clearance",
+              "probability": 0.20124661922454834
+            },
+            {
+              "index": 11,
+              "label": "saved by goal-keeper",
+              "probability": 0.11699145287275314
+            },
+            {
+              "index": 5,
+              "label": "ball possession",
+              "probability": 0.09666536748409271
+            },
+            {
+              "index": 22,
+              "label": "foul with no card",
+              "probability": 0.07905355840921402
+            }
+          ],
+          "ground_truth": "shot off target",
+          "label_index": 28,
+          "manifest_index": 8,
+          "relative_video": "italy_serie-a_2018-2019/2019-03-31_fc-internazionale-ss-lazio-serie-a-2018-2019/2_16_45.mp4",
+          "retrieval_top5_text_indices": [
+            5,
+            13,
+            8,
+            2,
+            14
+          ]
+        },
+        {
+          "classification_top5": [
+            {
+              "index": 20,
+              "label": "corner",
+              "probability": 0.20226044952869415
+            },
+            {
+              "index": 13,
+              "label": "lead to corner",
+              "probability": 0.18504665791988373
+            },
+            {
+              "index": 10,
+              "label": "substitution",
+              "probability": 0.11045124381780624
+            },
+            {
+              "index": 9,
+              "label": "start of half game",
+              "probability": 0.10003085434436798
+            },
+            {
+              "index": 2,
+              "label": "clearance",
+              "probability": 0.09341451525688171
+            }
+          ],
+          "ground_truth": "start of half game",
+          "label_index": 44,
+          "manifest_index": 9,
+          "relative_video": "italy_serie-a_2018-2019/2019-03-31_fc-internazionale-ss-lazio-serie-a-2018-2019/2_00_01.mp4",
+          "retrieval_top5_text_indices": [
+            5,
+            19,
+            10,
+            11,
+            3
+          ]
+        },
+        {
+          "classification_top5": [
+            {
+              "index": 10,
+              "label": "substitution",
+              "probability": 0.9259715676307678
+            },
+            {
+              "index": 15,
+              "label": "off side",
+              "probability": 0.02328871376812458
+            },
+            {
+              "index": 20,
+              "label": "corner",
+              "probability": 0.014339914545416832
+            },
+            {
+              "index": 2,
+              "label": "clearance",
+              "probability": 0.009183713234961033
+            },
+            {
+              "index": 18,
+              "label": "yellow card",
+              "probability": 0.005411430262029171
+            }
+          ],
+          "ground_truth": "substitution",
+          "label_index": 5,
+          "manifest_index": 10,
+          "relative_video": "italy_serie-a_2018-2019/2019-03-31_fc-internazionale-ss-lazio-serie-a-2018-2019/2_40_27.mp4",
+          "retrieval_top5_text_indices": [
+            10,
+            19,
+            3,
+            22,
+            4
+          ]
+        },
+        {
+          "classification_top5": [
+            {
+              "index": 8,
+              "label": "shot off target",
+              "probability": 0.49395158886909485
+            },
+            {
+              "index": 22,
+              "label": "foul with no card",
+              "probability": 0.11371448636054993
+            },
+            {
+              "index": 2,
+              "label": "clearance",
+              "probability": 0.09500263631343842
+            },
+            {
+              "index": 20,
+              "label": "corner",
+              "probability": 0.05150474235415459
+            },
+            {
+              "index": 4,
+              "label": "injury",
+              "probability": 0.04603399708867073
+            }
+          ],
+          "ground_truth": "saved by goal-keeper",
+          "label_index": 10,
+          "manifest_index": 11,
+          "relative_video": "italy_serie-a_2018-2019/2019-03-31_fc-internazionale-ss-lazio-serie-a-2018-2019/2_37_45.mp4",
+          "retrieval_top5_text_indices": [
+            8,
+            13,
+            5,
+            7,
+            15
+          ]
+        },
+        {
+          "classification_top5": [
+            {
+              "index": 18,
+              "label": "yellow card",
+              "probability": 0.6770431995391846
+            },
+            {
+              "index": 22,
+              "label": "foul with no card",
+              "probability": 0.16958682239055634
+            },
+            {
+              "index": 8,
+              "label": "shot off target",
+              "probability": 0.01786932535469532
+            },
+            {
+              "index": 2,
+              "label": "clearance",
+              "probability": 0.016176162287592888
+            },
+            {
+              "index": 11,
+              "label": "saved by goal-keeper",
+              "probability": 0.015709443017840385
+            }
+          ],
+          "ground_truth": "red card",
+          "label_index": 103,
+          "manifest_index": 12,
+          "relative_video": "italy_serie-a_2018-2019/2019-01-20_ssc-napoli-ss-lazio-serie-a-2018-2019/2_24_06.mp4",
+          "retrieval_top5_text_indices": [
+            3,
+            18,
+            12,
+            22,
+            19
+          ]
+        },
+        {
+          "classification_top5": [
+            {
+              "index": 20,
+              "label": "corner",
+              "probability": 0.8442685008049011
+            },
+            {
+              "index": 13,
+              "label": "lead to corner",
+              "probability": 0.1066802591085434
+            },
+            {
+              "index": 2,
+              "label": "clearance",
+              "probability": 0.0174139142036438
+            },
+            {
+              "index": 10,
+              "label": "substitution",
+              "probability": 0.0062611717730760574
+            },
+            {
+              "index": 11,
+              "label": "saved by goal-keeper",
+              "probability": 0.005760041065514088
+            }
+          ],
+          "ground_truth": "lead to corner",
+          "label_index": 98,
+          "manifest_index": 13,
+          "relative_video": "italy_serie-a_2018-2019/2019-01-20_ssc-napoli-ss-lazio-serie-a-2018-2019/2_29_01.mp4",
+          "retrieval_top5_text_indices": [
+            20,
+            21,
+            11,
+            17,
+            2
+          ]
+        },
+        {
+          "classification_top5": [
+            {
+              "index": 2,
+              "label": "clearance",
+              "probability": 0.41335490345954895
+            },
+            {
+              "index": 20,
+              "label": "corner",
+              "probability": 0.34608107805252075
+            },
+            {
+              "index": 13,
+              "label": "lead to corner",
+              "probability": 0.07434353232383728
+            },
+            {
+              "index": 8,
+              "label": "shot off target",
+              "probability": 0.02893128991127014
+            },
+            {
+              "index": 4,
+              "label": "injury",
+              "probability": 0.02840367518365383
+            }
+          ],
+          "ground_truth": "ball out of play",
+          "label_index": 26,
+          "manifest_index": 14,
+          "relative_video": "italy_serie-a_2018-2019/2019-03-31_fc-internazionale-ss-lazio-serie-a-2018-2019/2_18_17.mp4",
+          "retrieval_top5_text_indices": [
+            20,
+            2,
+            5,
+            21,
+            6
+          ]
+        },
+        {
+          "classification_top5": [
+            {
+              "index": 2,
+              "label": "clearance",
+              "probability": 0.5257847309112549
+            },
+            {
+              "index": 15,
+              "label": "off side",
+              "probability": 0.17799048125743866
+            },
+            {
+              "index": 14,
+              "label": "ball out of play",
+              "probability": 0.07891383022069931
+            },
+            {
+              "index": 5,
+              "label": "ball possession",
+              "probability": 0.05157995596528053
+            },
+            {
+              "index": 22,
+              "label": "foul with no card",
+              "probability": 0.05060065537691116
+            }
+          ],
+          "ground_truth": "off side",
+          "label_index": 119,
+          "manifest_index": 15,
+          "relative_video": "italy_serie-a_2018-2019/2019-01-20_ssc-napoli-ss-lazio-serie-a-2018-2019/1_41_30.mp4",
+          "retrieval_top5_text_indices": [
+            2,
+            15,
+            5,
+            6,
+            8
+          ]
+        },
+        {
+          "classification_top5": [
+            {
+              "index": 16,
+              "label": "goal",
+              "probability": 0.9558844566345215
+            },
+            {
+              "index": 11,
+              "label": "saved by goal-keeper",
+              "probability": 0.01713426411151886
+            },
+            {
+              "index": 2,
+              "label": "clearance",
+              "probability": 0.010286035016179085
+            },
+            {
+              "index": 8,
+              "label": "shot off target",
+              "probability": 0.007901791483163834
+            },
+            {
+              "index": 20,
+              "label": "corner",
+              "probability": 0.0021942586172372103
+            }
+          ],
+          "ground_truth": "goal",
+          "label_index": 70,
+          "manifest_index": 16,
+          "relative_video": "italy_serie-a_2018-2019/2019-03-31_fc-internazionale-ss-lazio-serie-a-2018-2019/1_11_58.mp4",
+          "retrieval_top5_text_indices": [
+            16,
+            11,
+            8,
+            14,
+            19
+          ]
+        },
+        {
+          "classification_top5": [
+            {
+              "index": 17,
+              "label": "penalty",
+              "probability": 0.5274761319160461
+            },
+            {
+              "index": 21,
+              "label": "free kick",
+              "probability": 0.26825806498527527
+            },
+            {
+              "index": 16,
+              "label": "goal",
+              "probability": 0.09212750941514969
+            },
+            {
+              "index": 18,
+              "label": "yellow card",
+              "probability": 0.03844282776117325
+            },
+            {
+              "index": 19,
+              "label": "foul lead to penalty",
+              "probability": 0.03726360201835632
+            }
+          ],
+          "ground_truth": "penalty",
+          "label_index": 178,
+          "manifest_index": 17,
+          "relative_video": "italy_serie-a_2018-2019/2018-10-20_as-roma-s-p-a-l-2013/1_37_09.mp4",
+          "retrieval_top5_text_indices": [
+            17,
+            0,
+            19,
+            22,
+            18
+          ]
+        },
+        {
+          "classification_top5": [
+            {
+              "index": 18,
+              "label": "yellow card",
+              "probability": 0.7943330407142639
+            },
+            {
+              "index": 2,
+              "label": "clearance",
+              "probability": 0.049248628318309784
+            },
+            {
+              "index": 11,
+              "label": "saved by goal-keeper",
+              "probability": 0.045251574367284775
+            },
+            {
+              "index": 10,
+              "label": "substitution",
+              "probability": 0.030273066833615303
+            },
+            {
+              "index": 4,
+              "label": "injury",
+              "probability": 0.019978445023298264
+            }
+          ],
+          "ground_truth": "yellow card",
+          "label_index": 82,
+          "manifest_index": 18,
+          "relative_video": "italy_serie-a_2018-2019/2019-01-20_ssc-napoli-ss-lazio-serie-a-2018-2019/2_45_57.mp4",
+          "retrieval_top5_text_indices": [
+            18,
+            3,
+            12,
+            0,
+            4
+          ]
+        },
+        {
+          "classification_top5": [
+            {
+              "index": 18,
+              "label": "yellow card",
+              "probability": 0.7856956124305725
+            },
+            {
+              "index": 22,
+              "label": "foul with no card",
+              "probability": 0.0798683911561966
+            },
+            {
+              "index": 3,
+              "label": "second yellow card",
+              "probability": 0.027994588017463684
+            },
+            {
+              "index": 2,
+              "label": "clearance",
+              "probability": 0.016886113211512566
+            },
+            {
+              "index": 4,
+              "label": "injury",
+              "probability": 0.01021293830126524
+            }
+          ],
+          "ground_truth": "foul lead to penalty",
+          "label_index": 180,
+          "manifest_index": 19,
+          "relative_video": "italy_serie-a_2018-2019/2018-10-20_as-roma-s-p-a-l-2013/1_36_26.mp4",
+          "retrieval_top5_text_indices": [
+            18,
+            3,
+            12,
+            22,
+            19
+          ]
+        },
+        {
+          "classification_top5": [
+            {
+              "index": 1,
+              "label": "end of half game",
+              "probability": 0.7022551894187927
+            },
+            {
+              "index": 20,
+              "label": "corner",
+              "probability": 0.2003537267446518
+            },
+            {
+              "index": 8,
+              "label": "shot off target",
+              "probability": 0.025455059483647346
+            },
+            {
+              "index": 18,
+              "label": "yellow card",
+              "probability": 0.019488206133246422
+            },
+            {
+              "index": 13,
+              "label": "lead to corner",
+              "probability": 0.013824419118463993
+            }
+          ],
+          "ground_truth": "corner",
+          "label_index": 1,
+          "manifest_index": 20,
+          "relative_video": "italy_serie-a_2018-2019/2019-03-31_fc-internazionale-ss-lazio-serie-a-2018-2019/2_48_53.mp4",
+          "retrieval_top5_text_indices": [
+            1,
+            9,
+            0,
+            7,
+            18
+          ]
+        },
+        {
+          "classification_top5": [
+            {
+              "index": 20,
+              "label": "corner",
+              "probability": 0.5142903327941895
+            },
+            {
+              "index": 2,
+              "label": "clearance",
+              "probability": 0.12316928058862686
+            },
+            {
+              "index": 13,
+              "label": "lead to corner",
+              "probability": 0.1043470948934555
+            },
+            {
+              "index": 22,
+              "label": "foul with no card",
+              "probability": 0.08103101700544357
+            },
+            {
+              "index": 4,
+              "label": "injury",
+              "probability": 0.06514845043420792
+            }
+          ],
+          "ground_truth": "free kick",
+          "label_index": 20,
+          "manifest_index": 21,
+          "relative_video": "italy_serie-a_2018-2019/2019-03-31_fc-internazionale-ss-lazio-serie-a-2018-2019/2_24_55.mp4",
+          "retrieval_top5_text_indices": [
+            20,
+            4,
+            18,
+            2,
+            12
+          ]
+        },
+        {
+          "classification_top5": [
+            {
+              "index": 18,
+              "label": "yellow card",
+              "probability": 0.45427611470222473
+            },
+            {
+              "index": 22,
+              "label": "foul with no card",
+              "probability": 0.3943822383880615
+            },
+            {
+              "index": 4,
+              "label": "injury",
+              "probability": 0.04809093847870827
+            },
+            {
+              "index": 2,
+              "label": "clearance",
+              "probability": 0.01843918114900589
+            },
+            {
+              "index": 12,
+              "label": "red card",
+              "probability": 0.013797933235764503
+            }
+          ],
+          "ground_truth": "foul with no card",
+          "label_index": 4,
+          "manifest_index": 22,
+          "relative_video": "italy_serie-a_2018-2019/2019-03-31_fc-internazionale-ss-lazio-serie-a-2018-2019/2_44_10.mp4",
+          "retrieval_top5_text_indices": [
+            18,
+            12,
+            3,
+            22,
+            4
+          ]
+        }
+      ],
+      "caption_similarity_matrix": [
+        [
+          0.3434295952320099,
+          0.20220431685447693,
+          0.15924546122550964,
+          0.2982313632965088,
+          0.22069981694221497,
+          0.19100403785705566,
+          0.18332284688949585,
+          0.2635906934738159,
+          0.19014865159988403,
+          0.1738596260547638,
+          0.18259499967098236,
+          0.2465546578168869,
+          0.22968167066574097,
+          0.22011524438858032,
+          0.24449950456619263,
+          0.18738096952438354,
+          0.21003060042858124,
+          0.2808001637458801,
+          0.22914062440395355,
+          0.30897462368011475,
+          0.18859156966209412,
+          0.13073644042015076,
+          0.2885948717594147
+        ],
+        [
+          0.28360724449157715,
+          0.4910341203212738,
+          0.16536599397659302,
+          0.21984955668449402,
+          0.2131246030330658,
+          0.1938154399394989,
+          0.15987464785575867,
+          0.26705682277679443,
+          0.18178236484527588,
+          0.33108457922935486,
+          0.17091703414916992,
+          0.15406662225723267,
+          0.22706001996994019,
+          0.1825224757194519,
+          0.18703961372375488,
+          0.19288817048072815,
+          0.17604659497737885,
+          0.2271653413772583,
+          0.23256024718284607,
+          0.2111319601535797,
+          0.20706668496131897,
+          0.19403034448623657,
+          0.2027711272239685
+        ],
+        [
+          0.2944905459880829,
+          0.2565741539001465,
+          0.23629522323608398,
+          0.24300217628479004,
+          0.27028143405914307,
+          0.26703476905822754,
+          0.2483845055103302,
+          0.305803120136261,
+          0.24324466288089752,
+          0.21673092246055603,
+          0.269218385219574,
+          0.2689298391342163,
+          0.22737279534339905,
+          0.24748040735721588,
+          0.2696684002876282,
+          0.2435687929391861,
+          0.22866752743721008,
+          0.268129825592041,
+          0.2293126881122589,
+          0.21820801496505737,
+          0.31653013825416565,
+          0.2507840692996979,
+          0.21880367398262024
+        ],
+        [
+          0.33568769693374634,
+          0.466583788394928,
+          0.16544407606124878,
+          0.27192366123199463,
+          0.23932215571403503,
+          0.18512824177742004,
+          0.16702121496200562,
+          0.26173585653305054,
+          0.17265945672988892,
+          0.298647940158844,
+          0.19552767276763916,
+          0.17677511274814606,
+          0.2559283971786499,
+          0.19283433258533478,
+          0.20408794283866882,
+          0.18810749053955078,
+          0.19815076887607574,
+          0.2685199975967407,
+          0.29054486751556396,
+          0.24527035653591156,
+          0.2047572284936905,
+          0.20735865831375122,
+          0.23542049527168274
+        ],
+        [
+          0.24119818210601807,
+          0.1684260368347168,
+          0.16831248998641968,
+          0.300021231174469,
+          0.42414918541908264,
+          0.2033081352710724,
+          0.2298821657896042,
+          0.20857197046279907,
+          0.16093064844608307,
+          0.1458728164434433,
+          0.336309015750885,
+          0.1945669800043106,
+          0.2589094042778015,
+          0.19084632396697998,
+          0.21722348034381866,
+          0.19801124930381775,
+          0.14421527087688446,
+          0.24650026857852936,
+          0.23320147395133972,
+          0.25356197357177734,
+          0.2212807536125183,
+          0.19905328750610352,
+          0.27695944905281067
+        ],
+        [
+          0.2730048596858978,
+          0.2328118532896042,
+          0.3101015090942383,
+          0.24799086153507233,
+          0.22978846728801727,
+          0.3368445634841919,
+          0.2778061330318451,
+          0.27576205134391785,
+          0.28861433267593384,
+          0.23674476146697998,
+          0.26886165142059326,
+          0.27956801652908325,
+          0.25570183992385864,
+          0.27042216062545776,
+          0.2817375063896179,
+          0.2986343502998352,
+          0.2697877585887909,
+          0.2542823851108551,
+          0.251581609249115,
+          0.25428807735443115,
+          0.29593122005462646,
+          0.27044665813446045,
+          0.27462077140808105
+        ],
+        [
+          0.2507930397987366,
+          0.2052546590566635,
+          0.31956198811531067,
+          0.16264347732067108,
+          0.2399301826953888,
+          0.2944799065589905,
+          0.31495559215545654,
+          0.23233312368392944,
+          0.2531694769859314,
+          0.2211134135723114,
+          0.19089841842651367,
+          0.2523660659790039,
+          0.22533464431762695,
+          0.28225600719451904,
+          0.2772487998008728,
+          0.2810211777687073,
+          0.2380797564983368,
+          0.2953593134880066,
+          0.19130770862102509,
+          0.22184020280838013,
+          0.2782662510871887,
+          0.24434520304203033,
+          0.19825208187103271
+        ],
+        [
+          0.2401629388332367,
+          0.2169923335313797,
+          0.295637309551239,
+          0.22905179858207703,
+          0.21601837873458862,
+          0.2874869704246521,
+          0.25912755727767944,
+          0.2656494379043579,
+          0.288271963596344,
+          0.24085275828838348,
+          0.21910986304283142,
+          0.2686167359352112,
+          0.21310824155807495,
+          0.2675302028656006,
+          0.27833378314971924,
+          0.2738330364227295,
+          0.30831918120384216,
+          0.2375411093235016,
+          0.21181926131248474,
+          0.25628936290740967,
+          0.22664964199066162,
+          0.2156755030155182,
+          0.25767603516578674
+        ],
+        [
+          0.24260380864143372,
+          0.2078302800655365,
+          0.3053463101387024,
+          0.23532375693321228,
+          0.19705185294151306,
+          0.33150696754455566,
+          0.2887956202030182,
+          0.25889667868614197,
+          0.32080721855163574,
+          0.2344961166381836,
+          0.20626704394817352,
+          0.3022017180919647,
+          0.24731549620628357,
+          0.3255438804626465,
+          0.3039974272251129,
+          0.29883575439453125,
+          0.26612627506256104,
+          0.26322150230407715,
+          0.2241300493478775,
+          0.27362972497940063,
+          0.2888191342353821,
+          0.2404731810092926,
+          0.26353973150253296
+        ],
+        [
+          0.25263217091560364,
+          0.24368935823440552,
+          0.24668487906455994,
+          0.3008926808834076,
+          0.21429967880249023,
+          0.3150610625743866,
+          0.28979939222335815,
+          0.21055549383163452,
+          0.2659468948841095,
+          0.2995927631855011,
+          0.3031066358089447,
+          0.3019687831401825,
+          0.2512770891189575,
+          0.26461368799209595,
+          0.29020288586616516,
+          0.2953898310661316,
+          0.24881631135940552,
+          0.26430684328079224,
+          0.22961309552192688,
+          0.30761149525642395,
+          0.2931996285915375,
+          0.23979845643043518,
+          0.27843940258026123
+        ],
+        [
+          0.21773800253868103,
+          0.12216805666685104,
+          0.10650578886270523,
+          0.31246623396873474,
+          0.2822010815143585,
+          0.18150392174720764,
+          0.22477051615715027,
+          0.2131359875202179,
+          0.1571180522441864,
+          0.1476391702890396,
+          0.4848608672618866,
+          0.2360546886920929,
+          0.20883718132972717,
+          0.19601605832576752,
+          0.22502192854881287,
+          0.17878833413124084,
+          0.19240230321884155,
+          0.22845986485481262,
+          0.2075565755367279,
+          0.31736621260643005,
+          0.20115825533866882,
+          0.1799272894859314,
+          0.29036760330200195
+        ],
+        [
+          0.2560570538043976,
+          0.2557827830314636,
+          0.29638272523880005,
+          0.2543502449989319,
+          0.3027472198009491,
+          0.305397093296051,
+          0.2655342221260071,
+          0.3048340678215027,
+          0.3493572473526001,
+          0.23482093214988708,
+          0.20512861013412476,
+          0.2709317207336426,
+          0.2452092468738556,
+          0.3207223117351532,
+          0.2896767854690552,
+          0.30275046825408936,
+          0.2534046471118927,
+          0.24648821353912354,
+          0.2294251024723053,
+          0.26456138491630554,
+          0.2737410366535187,
+          0.24174226820468903,
+          0.27660953998565674
+        ],
+        [
+          0.27654170989990234,
+          0.2202185094356537,
+          0.18417364358901978,
+          0.34236592054367065,
+          0.2313898205757141,
+          0.20181801915168762,
+          0.23355060815811157,
+          0.23912200331687927,
+          0.19847321510314941,
+          0.1952730119228363,
+          0.18526488542556763,
+          0.22836002707481384,
+          0.32329821586608887,
+          0.23706486821174622,
+          0.2504430413246155,
+          0.19590196013450623,
+          0.17310765385627747,
+          0.23170039057731628,
+          0.3367465138435364,
+          0.2927980422973633,
+          0.22638094425201416,
+          0.20949414372444153,
+          0.304427832365036
+        ],
+        [
+          0.23626407980918884,
+          0.15135399997234344,
+          0.24534134566783905,
+          0.1778106987476349,
+          0.2095872461795807,
+          0.22888046503067017,
+          0.2311285436153412,
+          0.1747126430273056,
+          0.17449632287025452,
+          0.18410059809684753,
+          0.2275373786687851,
+          0.2685302793979645,
+          0.2256941795349121,
+          0.20454052090644836,
+          0.24228700995445251,
+          0.22689174115657806,
+          0.24096323549747467,
+          0.2655090391635895,
+          0.1611175239086151,
+          0.19143801927566528,
+          0.2807207703590393,
+          0.2748105227947235,
+          0.18637946248054504
+        ],
+        [
+          0.2653440833091736,
+          0.1907365620136261,
+          0.3173369765281677,
+          0.18584272265434265,
+          0.27443259954452515,
+          0.3139804005622864,
+          0.291923463344574,
+          0.2707507610321045,
+          0.24430687725543976,
+          0.1968824565410614,
+          0.18364033102989197,
+          0.2601693570613861,
+          0.2460424304008484,
+          0.26154401898384094,
+          0.2795805037021637,
+          0.28561800718307495,
+          0.24817825853824615,
+          0.28481221199035645,
+          0.1990429013967514,
+          0.2257002741098404,
+          0.32578158378601074,
+          0.29488512873649597,
+          0.21727587282657623
+        ],
+        [
+          0.2547265291213989,
+          0.20719286799430847,
+          0.3523519039154053,
+          0.2004203498363495,
+          0.25408390164375305,
+          0.31204622983932495,
+          0.29457738995552063,
+          0.2498949021100998,
+          0.2895655035972595,
+          0.26159873604774475,
+          0.1956687867641449,
+          0.244103342294693,
+          0.24189865589141846,
+          0.2760393023490906,
+          0.2750825583934784,
+          0.33926451206207275,
+          0.22965456545352936,
+          0.28693050146102905,
+          0.21060910820960999,
+          0.2250281274318695,
+          0.26046720147132874,
+          0.24911384284496307,
+          0.2534446716308594
+        ],
+        [
+          0.16518522799015045,
+          0.0849875807762146,
+          0.1639750897884369,
+          0.2173020839691162,
+          0.1557866930961609,
+          0.23261302709579468,
+          0.23048922419548035,
+          0.19895309209823608,
+          0.2891956567764282,
+          0.15288542211055756,
+          0.18312111496925354,
+          0.29142990708351135,
+          0.1874874234199524,
+          0.2655988335609436,
+          0.27945032715797424,
+          0.2342086136341095,
+          0.3881441354751587,
+          0.1959792673587799,
+          0.17813409864902496,
+          0.2789706587791443,
+          0.1741665005683899,
+          0.15530076622962952,
+          0.19301849603652954
+        ],
+        [
+          0.2795453667640686,
+          0.20127856731414795,
+          0.20106521248817444,
+          0.22865737974643707,
+          0.23297062516212463,
+          0.18303713202476501,
+          0.19445665180683136,
+          0.20530489087104797,
+          0.08570780605077744,
+          0.24938780069351196,
+          0.24154460430145264,
+          0.2236132025718689,
+          0.23118925094604492,
+          0.24189656972885132,
+          0.1956484019756317,
+          0.15993306040763855,
+          0.12993115186691284,
+          0.4181332588195801,
+          0.25290727615356445,
+          0.27078789472579956,
+          0.14266183972358704,
+          0.20224756002426147,
+          0.25976401567459106
+        ],
+        [
+          0.27404287457466125,
+          0.21082553267478943,
+          0.17662344872951508,
+          0.34519898891448975,
+          0.26659345626831055,
+          0.2020934820175171,
+          0.22406090795993805,
+          0.24431835114955902,
+          0.17494945228099823,
+          0.20470315217971802,
+          0.24426397681236267,
+          0.22252264618873596,
+          0.2945464253425598,
+          0.24546287953853607,
+          0.22559601068496704,
+          0.18630793690681458,
+          0.15560264885425568,
+          0.24864816665649414,
+          0.3564808964729309,
+          0.2423081398010254,
+          0.2095309942960739,
+          0.1719011664390564,
+          0.25600138306617737
+        ],
+        [
+          0.27105051279067993,
+          0.19471725821495056,
+          0.17876680195331573,
+          0.35899657011032104,
+          0.24913108348846436,
+          0.1916310042142868,
+          0.23696036636829376,
+          0.22878149151802063,
+          0.167076975107193,
+          0.19081154465675354,
+          0.256583571434021,
+          0.20977318286895752,
+          0.33737847208976746,
+          0.2063640058040619,
+          0.2293008416891098,
+          0.19420087337493896,
+          0.15832430124282837,
+          0.2393723428249359,
+          0.367623507976532,
+          0.2799704670906067,
+          0.20734742283821106,
+          0.20078715682029724,
+          0.2885424494743347
+        ],
+        [
+          0.3003786504268646,
+          0.48442161083221436,
+          0.17438264191150665,
+          0.21732230484485626,
+          0.20902833342552185,
+          0.19570064544677734,
+          0.15676824748516083,
+          0.2721053957939148,
+          0.17441454529762268,
+          0.320442259311676,
+          0.16409721970558167,
+          0.16226732730865479,
+          0.22831737995147705,
+          0.19174252450466156,
+          0.18888486921787262,
+          0.1848028302192688,
+          0.18076954782009125,
+          0.2348082959651947,
+          0.2434975653886795,
+          0.20183610916137695,
+          0.23421083390712738,
+          0.21085074543952942,
+          0.1979697048664093
+        ],
+        [
+          0.26203781366348267,
+          0.22369788587093353,
+          0.267381489276886,
+          0.23416203260421753,
+          0.2820095717906952,
+          0.2600584030151367,
+          0.2603992223739624,
+          0.2631470859050751,
+          0.21975374221801758,
+          0.21184498071670532,
+          0.20379355549812317,
+          0.2483745813369751,
+          0.2669947147369385,
+          0.25834110379219055,
+          0.2579139471054077,
+          0.2281230390071869,
+          0.2455340325832367,
+          0.21522560715675354,
+          0.2678321599960327,
+          0.2343023419380188,
+          0.34796106815338135,
+          0.25972408056259155,
+          0.25082483887672424
+        ],
+        [
+          0.2553330659866333,
+          0.23694783449172974,
+          0.21910309791564941,
+          0.3010491132736206,
+          0.2904784083366394,
+          0.21061170101165771,
+          0.23838898539543152,
+          0.2430853545665741,
+          0.1642858237028122,
+          0.22702810168266296,
+          0.20640191435813904,
+          0.17837010324001312,
+          0.3493332266807556,
+          0.17381255328655243,
+          0.2131657749414444,
+          0.22424641251564026,
+          0.15706589818000793,
+          0.21558064222335815,
+          0.363738477230072,
+          0.2496642768383026,
+          0.2423076182603836,
+          0.24068322777748108,
+          0.29055240750312805
+        ]
+      ],
+      "detection_clips": [
+        {
+          "end_frame_exclusive": 30,
+          "input_shape": [
+            30,
+            3,
+            512,
+            512
+          ],
+          "output_fingerprint": {
+            "pred_boxes": {
+              "dtype": "torch.float32",
+              "maximum": 0.999591052532196,
+              "mean": 0.28312405943870544,
+              "minimum": 0.00019174772023689002,
+              "shape": [
+                1,
+                30,
+                300,
+                4
+              ],
+              "sum": 10192.4658203125
+            },
+            "pred_digit_head": {
+              "dtype": "torch.float32",
+              "maximum": 2.7081193923950195,
+              "mean": -6.418227672576904,
+              "minimum": -10.129733085632324,
+              "shape": [
+                1,
+                30,
+                300,
+                10
+              ],
+              "sum": -577640.5
+            },
+            "pred_digit_tail": {
+              "dtype": "torch.float32",
+              "maximum": 2.7076001167297363,
+              "mean": -6.227527618408203,
+              "minimum": -9.920049667358398,
+              "shape": [
+                1,
+                30,
+                300,
+                11
+              ],
+              "sum": -616525.25
+            },
+            "pred_jn_holistic": {
+              "dtype": "torch.float32",
+              "maximum": 2.67283296585083,
+              "mean": -7.403902053833008,
+              "minimum": -11.690467834472656,
+              "shape": [
+                1,
+                30,
+                300,
+                101
+              ],
+              "sum": -6730147.0
+            },
+            "pred_keypoints_heatmap": {
+              "dtype": "torch.float32",
+              "maximum": 0.9999995231628418,
+              "mean": 0.017241377383470535,
+              "minimum": 0.0,
+              "shape": [
+                1,
+                30,
+                58,
+                256,
+                256
+              ],
+              "sum": 1966079.875
+            },
+            "pred_lines_heatmap": {
+              "dtype": "torch.float32",
+              "maximum": 0.9996747970581055,
+              "mean": 0.004539718851447105,
+              "minimum": 9.225956894158663e-19,
+              "shape": [
+                1,
+                30,
+                24,
+                256,
+                256
+              ],
+              "sum": 214210.8125
+            },
+            "pred_logits": {
+              "dtype": "torch.float32",
+              "maximum": 3.962707042694092,
+              "mean": -4.4511494636535645,
+              "minimum": -7.5673065185546875,
+              "shape": [
+                1,
+                30,
+                300,
+                1
+              ],
+              "sum": -40060.34375
+            },
+            "pred_roles": {
+              "dtype": "torch.float32",
+              "maximum": 3.239691734313965,
+              "mean": -6.755356311798096,
+              "minimum": -10.732952117919922,
+              "shape": [
+                1,
+                30,
+                300,
+                6
+              ],
+              "sum": -364789.25
+            }
+          },
+          "sequence": "SNGS-116",
+          "start_frame_zero_based": 0,
+          "valid_keypoints_frames": 30,
+          "valid_lines_frames": 30
+        },
+        {
+          "end_frame_exclusive": 390,
+          "input_shape": [
+            30,
+            3,
+            512,
+            512
+          ],
+          "output_fingerprint": {
+            "pred_boxes": {
+              "dtype": "torch.float32",
+              "maximum": 0.9995666146278381,
+              "mean": 0.28175032138824463,
+              "minimum": 0.00023119497927837074,
+              "shape": [
+                1,
+                30,
+                300,
+                4
+              ],
+              "sum": 10143.01171875
+            },
+            "pred_digit_head": {
+              "dtype": "torch.float32",
+              "maximum": 3.363907814025879,
+              "mean": -6.554625988006592,
+              "minimum": -10.181913375854492,
+              "shape": [
+                1,
+                30,
+                300,
+                10
+              ],
+              "sum": -589916.3125
+            },
+            "pred_digit_tail": {
+              "dtype": "torch.float32",
+              "maximum": 3.194098472595215,
+              "mean": -6.378260612487793,
+              "minimum": -9.874394416809082,
+              "shape": [
+                1,
+                30,
+                300,
+                11
+              ],
+              "sum": -631447.8125
+            },
+            "pred_jn_holistic": {
+              "dtype": "torch.float32",
+              "maximum": 3.231750011444092,
+              "mean": -7.539758205413818,
+              "minimum": -11.525690078735352,
+              "shape": [
+                1,
+                30,
+                300,
+                101
+              ],
+              "sum": -6853640.0
+            },
+            "pred_keypoints_heatmap": {
+              "dtype": "torch.float32",
+              "maximum": 1.0,
+              "mean": 0.017241377383470535,
+              "minimum": 0.0,
+              "shape": [
+                1,
+                30,
+                58,
+                256,
+                256
+              ],
+              "sum": 1966079.875
+            },
+            "pred_lines_heatmap": {
+              "dtype": "torch.float32",
+              "maximum": 0.9996618032455444,
+              "mean": 0.0035138376988470554,
+              "minimum": 1.0137259707056802e-17,
+              "shape": [
+                1,
+                30,
+                24,
+                256,
+                256
+              ],
+              "sum": 165803.65625
+            },
+            "pred_logits": {
+              "dtype": "torch.float32",
+              "maximum": 4.723451137542725,
+              "mean": -4.297167778015137,
+              "minimum": -7.262996673583984,
+              "shape": [
+                1,
+                30,
+                300,
+                1
+              ],
+              "sum": -38674.5078125
+            },
+            "pred_roles": {
+              "dtype": "torch.float32",
+              "maximum": 4.085788249969482,
+              "mean": -6.743295192718506,
+              "minimum": -10.79083251953125,
+              "shape": [
+                1,
+                30,
+                300,
+                6
+              ],
+              "sum": -364137.9375
+            }
+          },
+          "sequence": "SNGS-116",
+          "start_frame_zero_based": 360,
+          "valid_keypoints_frames": 30,
+          "valid_lines_frames": 30
+        }
+      ],
+      "metrics": {
+        "CaptionClassification": {
+          "avg_confidence": 0.598901629447937,
+          "classification_accuracy": 0.3478260934352875,
+          "macro_accuracy": 0.34782608695652173,
+          "macro_f1": 0.2855072463768116,
+          "macro_precision": 0.2644927536231884,
+          "macro_recall": 0.34782608695652173,
+          "num_classes_with_samples": 23,
+          "total_samples": 23
+        },
+        "KeypointsDetection": {
+          "keypoints_accuracy": 0.9613095238095242,
+          "keypoints_f1": 0.9178377477360977,
+          "keypoints_precision": 0.9861471861391867,
+          "keypoints_recall": 0.8587393162332636,
+          "keypoints_valid_samples": 60.0
+        },
+        "LinesDetection": {
+          "lines_accuracy": 0.9666666388511658,
+          "lines_f1": 0.9525341391563416,
+          "lines_high_accuracy_ratio": 1.0,
+          "lines_high_f1_ratio": 1.0,
+          "lines_precision": 0.9764814972877502,
+          "lines_recall": 0.9339814782142639,
+          "lines_valid_samples": 60.0
+        },
+        "SoccerNetGSR_Detection": {
+          "AP@0.50": 0.8626513481140137,
+          "AP@0.55": 0.8434269428253174,
+          "AP@0.60": 0.8119814395904541,
+          "AP@0.65": 0.7598329782485962,
+          "AP@0.70": 0.632585346698761,
+          "AP@0.75": 0.4987766742706299,
+          "AP@0.80": 0.33923736214637756,
+          "AP@0.85": 0.16225355863571167,
+          "AP@0.90": 0.03296326473355293,
+          "AP@0.95": 0.0010643636342138052,
+          "digit_head_accuracy": 0.8061224489795918,
+          "digit_head_matched_count": 882.0,
+          "digit_tail_accuracy": 0.8231292517006803,
+          "digit_tail_matched_count": 882.0,
+          "f1": 0.915412547373207,
+          "jersey_accuracy": 0.746031746031746,
+          "jersey_matched_count": 882.0,
+          "mAP": 0.49447732788976284,
+          "mAP@0.5": 0.8626513481140137,
+          "mAP@0.75": 0.4987766742706299,
+          "person_AP@0.50": 0.8626513481140137,
+          "person_AP@0.55": 0.8434269428253174,
+          "person_AP@0.60": 0.8119814395904541,
+          "person_AP@0.65": 0.7598329782485962,
+          "person_AP@0.70": 0.632585346698761,
+          "person_AP@0.75": 0.4987766742706299,
+          "person_AP@0.80": 0.33923736214637756,
+          "person_AP@0.85": 0.16225355863571167,
+          "person_AP@0.90": 0.03296326473355293,
+          "person_AP@0.95": 0.0010643636342138052,
+          "person_f1": 0.915412547373207,
+          "person_gt_count": 1019.0,
+          "person_mAP": 0.49447732788976284,
+          "person_mAP@0.5": 0.8626513481140137,
+          "person_mAP@0.75": 0.4987766742706299,
+          "person_precision": 0.9713656306266785,
+          "person_recall": 0.8655544519424438,
+          "precision": 0.9713656306266785,
+          "recall": 0.8655544519424438,
+          "role_accuracy": 0.9365079365079365,
+          "role_matched_count": 882.0
+        },
+        "VideoCaption": {
+          "retrieval_top_1_accuracy": 0.3478260934352875,
+          "retrieval_top_3_accuracy": 0.52173912525177,
+          "retrieval_top_5_accuracy": 0.6521739363670349,
+          "total_samples": 23
+        }
+      },
+      "pass_index": 1
+    },
+    {
+      "caption_predictions": [
+        {
+          "classification_top5": [
+            {
+              "index": 0,
+              "label": "var",
+              "probability": 0.7365638613700867
+            },
+            {
+              "index": 19,
+              "label": "foul lead to penalty",
+              "probability": 0.16698956489562988
+            },
+            {
+              "index": 16,
+              "label": "goal",
+              "probability": 0.040681932121515274
+            },
+            {
+              "index": 7,
+              "label": "show added time",
+              "probability": 0.01357609685510397
+            },
+            {
+              "index": 18,
+              "label": "yellow card",
+              "probability": 0.011513113044202328
+            }
+          ],
+          "ground_truth": "var",
+          "label_index": 346,
+          "manifest_index": 0,
+          "relative_video": "italy_serie-a_2018-2019/2018-12-08_cagliari-calcio-as-roma/2_23_37.mp4",
+          "retrieval_top5_text_indices": [
+            0,
+            19,
+            3,
+            22,
+            17
+          ]
+        },
+        {
+          "classification_top5": [
+            {
+              "index": 1,
+              "label": "end of half game",
+              "probability": 0.9477134346961975
+            },
+            {
+              "index": 20,
+              "label": "corner",
+              "probability": 0.016758864745497704
+            },
+            {
+              "index": 8,
+              "label": "shot off target",
+              "probability": 0.010657617822289467
+            },
+            {
+              "index": 18,
+              "label": "yellow card",
+              "probability": 0.007409966085106134
+            },
+            {
+              "index": 12,
+              "label": "red card",
+              "probability": 0.003028535284101963
+            }
+          ],
+          "ground_truth": "end of half game",
+          "label_index": 0,
+          "manifest_index": 1,
+          "relative_video": "italy_serie-a_2018-2019/2019-03-31_fc-internazionale-ss-lazio-serie-a-2018-2019/2_49_08.mp4",
+          "retrieval_top5_text_indices": [
+            1,
+            9,
+            0,
+            7,
+            18
+          ]
+        },
+        {
+          "classification_top5": [
+            {
+              "index": 20,
+              "label": "corner",
+              "probability": 0.4864443242549896
+            },
+            {
+              "index": 13,
+              "label": "lead to corner",
+              "probability": 0.18941253423690796
+            },
+            {
+              "index": 7,
+              "label": "show added time",
+              "probability": 0.12081634253263474
+            },
+            {
+              "index": 2,
+              "label": "clearance",
+              "probability": 0.05797827988862991
+            },
+            {
+              "index": 10,
+              "label": "substitution",
+              "probability": 0.046596065163612366
+            }
+          ],
+          "ground_truth": "clearance",
+          "label_index": 2,
+          "manifest_index": 2,
+          "relative_video": "italy_serie-a_2018-2019/2019-03-31_fc-internazionale-ss-lazio-serie-a-2018-2019/2_48_41.mp4",
+          "retrieval_top5_text_indices": [
+            20,
+            7,
+            0,
+            4,
+            14
+          ]
+        },
+        {
+          "classification_top5": [
+            {
+              "index": 1,
+              "label": "end of half game",
+              "probability": 0.5814117193222046
+            },
+            {
+              "index": 18,
+              "label": "yellow card",
+              "probability": 0.11572138220071793
+            },
+            {
+              "index": 12,
+              "label": "red card",
+              "probability": 0.08146855980157852
+            },
+            {
+              "index": 20,
+              "label": "corner",
+              "probability": 0.04809937998652458
+            },
+            {
+              "index": 16,
+              "label": "goal",
+              "probability": 0.037530411034822464
+            }
+          ],
+          "ground_truth": "second yellow card",
+          "label_index": 157,
+          "manifest_index": 3,
+          "relative_video": "italy_serie-a_2018-2019/2018-10-20_as-roma-s-p-a-l-2013/2_30_17.mp4",
+          "retrieval_top5_text_indices": [
+            1,
+            0,
+            9,
+            18,
+            3
+          ]
+        },
+        {
+          "classification_top5": [
+            {
+              "index": 4,
+              "label": "injury",
+              "probability": 0.7207951545715332
+            },
+            {
+              "index": 10,
+              "label": "substitution",
+              "probability": 0.17190061509609222
+            },
+            {
+              "index": 18,
+              "label": "yellow card",
+              "probability": 0.026741189882159233
+            },
+            {
+              "index": 22,
+              "label": "foul with no card",
+              "probability": 0.01835716888308525
+            },
+            {
+              "index": 2,
+              "label": "clearance",
+              "probability": 0.015186319127678871
+            }
+          ],
+          "ground_truth": "injury",
+          "label_index": 60,
+          "manifest_index": 4,
+          "relative_video": "italy_serie-a_2018-2019/2019-03-31_fc-internazionale-ss-lazio-serie-a-2018-2019/1_26_22.mp4",
+          "retrieval_top5_text_indices": [
+            4,
+            10,
+            3,
+            22,
+            12
+          ]
+        },
+        {
+          "classification_top5": [
+            {
+              "index": 2,
+              "label": "clearance",
+              "probability": 0.16137295961380005
+            },
+            {
+              "index": 20,
+              "label": "corner",
+              "probability": 0.1457587033510208
+            },
+            {
+              "index": 5,
+              "label": "ball possession",
+              "probability": 0.13141554594039917
+            },
+            {
+              "index": 22,
+              "label": "foul with no card",
+              "probability": 0.09453126043081284
+            },
+            {
+              "index": 8,
+              "label": "shot off target",
+              "probability": 0.08634483814239502
+            }
+          ],
+          "ground_truth": "ball possession",
+          "label_index": 118,
+          "manifest_index": 5,
+          "relative_video": "italy_serie-a_2018-2019/2019-01-20_ssc-napoli-ss-lazio-serie-a-2018-2019/1_43_44.mp4",
+          "retrieval_top5_text_indices": [
+            5,
+            2,
+            15,
+            20,
+            8
+          ]
+        },
+        {
+          "classification_top5": [
+            {
+              "index": 2,
+              "label": "clearance",
+              "probability": 0.7375646233558655
+            },
+            {
+              "index": 20,
+              "label": "corner",
+              "probability": 0.07360745966434479
+            },
+            {
+              "index": 13,
+              "label": "lead to corner",
+              "probability": 0.054558176547288895
+            },
+            {
+              "index": 5,
+              "label": "ball possession",
+              "probability": 0.03174236789345741
+            },
+            {
+              "index": 8,
+              "label": "shot off target",
+              "probability": 0.024099256843328476
+            }
+          ],
+          "ground_truth": "throw in",
+          "label_index": 491,
+          "manifest_index": 6,
+          "relative_video": "england_epl_2021-2022/2021-08-22_southampton-fc-manchester-united-premier-league-2021-2022/1_20_30.mp4",
+          "retrieval_top5_text_indices": [
+            2,
+            6,
+            17,
+            5,
+            13
+          ]
+        },
+        {
+          "classification_top5": [
+            {
+              "index": 11,
+              "label": "saved by goal-keeper",
+              "probability": 0.37011605501174927
+            },
+            {
+              "index": 2,
+              "label": "clearance",
+              "probability": 0.30884242057800293
+            },
+            {
+              "index": 8,
+              "label": "shot off target",
+              "probability": 0.08020687103271484
+            },
+            {
+              "index": 16,
+              "label": "goal",
+              "probability": 0.06900419294834137
+            },
+            {
+              "index": 15,
+              "label": "off side",
+              "probability": 0.049940917640924454
+            }
+          ],
+          "ground_truth": "show added time",
+          "label_index": 3,
+          "manifest_index": 7,
+          "relative_video": "italy_serie-a_2018-2019/2019-03-31_fc-internazionale-ss-lazio-serie-a-2018-2019/2_45_00.mp4",
+          "retrieval_top5_text_indices": [
+            16,
+            2,
+            8,
+            5,
+            14
+          ]
+        },
+        {
+          "classification_top5": [
+            {
+              "index": 8,
+              "label": "shot off target",
+              "probability": 0.21590833365917206
+            },
+            {
+              "index": 2,
+              "label": "clearance",
+              "probability": 0.20124661922454834
+            },
+            {
+              "index": 11,
+              "label": "saved by goal-keeper",
+              "probability": 0.11699145287275314
+            },
+            {
+              "index": 5,
+              "label": "ball possession",
+              "probability": 0.09666536748409271
+            },
+            {
+              "index": 22,
+              "label": "foul with no card",
+              "probability": 0.07905355840921402
+            }
+          ],
+          "ground_truth": "shot off target",
+          "label_index": 28,
+          "manifest_index": 8,
+          "relative_video": "italy_serie-a_2018-2019/2019-03-31_fc-internazionale-ss-lazio-serie-a-2018-2019/2_16_45.mp4",
+          "retrieval_top5_text_indices": [
+            5,
+            13,
+            8,
+            2,
+            14
+          ]
+        },
+        {
+          "classification_top5": [
+            {
+              "index": 20,
+              "label": "corner",
+              "probability": 0.20226044952869415
+            },
+            {
+              "index": 13,
+              "label": "lead to corner",
+              "probability": 0.18504665791988373
+            },
+            {
+              "index": 10,
+              "label": "substitution",
+              "probability": 0.11045124381780624
+            },
+            {
+              "index": 9,
+              "label": "start of half game",
+              "probability": 0.10003085434436798
+            },
+            {
+              "index": 2,
+              "label": "clearance",
+              "probability": 0.09341451525688171
+            }
+          ],
+          "ground_truth": "start of half game",
+          "label_index": 44,
+          "manifest_index": 9,
+          "relative_video": "italy_serie-a_2018-2019/2019-03-31_fc-internazionale-ss-lazio-serie-a-2018-2019/2_00_01.mp4",
+          "retrieval_top5_text_indices": [
+            5,
+            19,
+            10,
+            11,
+            3
+          ]
+        },
+        {
+          "classification_top5": [
+            {
+              "index": 10,
+              "label": "substitution",
+              "probability": 0.9259715676307678
+            },
+            {
+              "index": 15,
+              "label": "off side",
+              "probability": 0.02328871376812458
+            },
+            {
+              "index": 20,
+              "label": "corner",
+              "probability": 0.014339914545416832
+            },
+            {
+              "index": 2,
+              "label": "clearance",
+              "probability": 0.009183713234961033
+            },
+            {
+              "index": 18,
+              "label": "yellow card",
+              "probability": 0.005411430262029171
+            }
+          ],
+          "ground_truth": "substitution",
+          "label_index": 5,
+          "manifest_index": 10,
+          "relative_video": "italy_serie-a_2018-2019/2019-03-31_fc-internazionale-ss-lazio-serie-a-2018-2019/2_40_27.mp4",
+          "retrieval_top5_text_indices": [
+            10,
+            19,
+            3,
+            22,
+            4
+          ]
+        },
+        {
+          "classification_top5": [
+            {
+              "index": 8,
+              "label": "shot off target",
+              "probability": 0.49395158886909485
+            },
+            {
+              "index": 22,
+              "label": "foul with no card",
+              "probability": 0.11371448636054993
+            },
+            {
+              "index": 2,
+              "label": "clearance",
+              "probability": 0.09500263631343842
+            },
+            {
+              "index": 20,
+              "label": "corner",
+              "probability": 0.05150474235415459
+            },
+            {
+              "index": 4,
+              "label": "injury",
+              "probability": 0.04603399708867073
+            }
+          ],
+          "ground_truth": "saved by goal-keeper",
+          "label_index": 10,
+          "manifest_index": 11,
+          "relative_video": "italy_serie-a_2018-2019/2019-03-31_fc-internazionale-ss-lazio-serie-a-2018-2019/2_37_45.mp4",
+          "retrieval_top5_text_indices": [
+            8,
+            13,
+            5,
+            7,
+            15
+          ]
+        },
+        {
+          "classification_top5": [
+            {
+              "index": 18,
+              "label": "yellow card",
+              "probability": 0.6770431995391846
+            },
+            {
+              "index": 22,
+              "label": "foul with no card",
+              "probability": 0.16958682239055634
+            },
+            {
+              "index": 8,
+              "label": "shot off target",
+              "probability": 0.01786932535469532
+            },
+            {
+              "index": 2,
+              "label": "clearance",
+              "probability": 0.016176162287592888
+            },
+            {
+              "index": 11,
+              "label": "saved by goal-keeper",
+              "probability": 0.015709443017840385
+            }
+          ],
+          "ground_truth": "red card",
+          "label_index": 103,
+          "manifest_index": 12,
+          "relative_video": "italy_serie-a_2018-2019/2019-01-20_ssc-napoli-ss-lazio-serie-a-2018-2019/2_24_06.mp4",
+          "retrieval_top5_text_indices": [
+            3,
+            18,
+            12,
+            22,
+            19
+          ]
+        },
+        {
+          "classification_top5": [
+            {
+              "index": 20,
+              "label": "corner",
+              "probability": 0.8442685008049011
+            },
+            {
+              "index": 13,
+              "label": "lead to corner",
+              "probability": 0.1066802591085434
+            },
+            {
+              "index": 2,
+              "label": "clearance",
+              "probability": 0.0174139142036438
+            },
+            {
+              "index": 10,
+              "label": "substitution",
+              "probability": 0.0062611717730760574
+            },
+            {
+              "index": 11,
+              "label": "saved by goal-keeper",
+              "probability": 0.005760041065514088
+            }
+          ],
+          "ground_truth": "lead to corner",
+          "label_index": 98,
+          "manifest_index": 13,
+          "relative_video": "italy_serie-a_2018-2019/2019-01-20_ssc-napoli-ss-lazio-serie-a-2018-2019/2_29_01.mp4",
+          "retrieval_top5_text_indices": [
+            20,
+            21,
+            11,
+            17,
+            2
+          ]
+        },
+        {
+          "classification_top5": [
+            {
+              "index": 2,
+              "label": "clearance",
+              "probability": 0.41335490345954895
+            },
+            {
+              "index": 20,
+              "label": "corner",
+              "probability": 0.34608107805252075
+            },
+            {
+              "index": 13,
+              "label": "lead to corner",
+              "probability": 0.07434353232383728
+            },
+            {
+              "index": 8,
+              "label": "shot off target",
+              "probability": 0.02893128991127014
+            },
+            {
+              "index": 4,
+              "label": "injury",
+              "probability": 0.02840367518365383
+            }
+          ],
+          "ground_truth": "ball out of play",
+          "label_index": 26,
+          "manifest_index": 14,
+          "relative_video": "italy_serie-a_2018-2019/2019-03-31_fc-internazionale-ss-lazio-serie-a-2018-2019/2_18_17.mp4",
+          "retrieval_top5_text_indices": [
+            20,
+            2,
+            5,
+            21,
+            6
+          ]
+        },
+        {
+          "classification_top5": [
+            {
+              "index": 2,
+              "label": "clearance",
+              "probability": 0.5257847309112549
+            },
+            {
+              "index": 15,
+              "label": "off side",
+              "probability": 0.17799048125743866
+            },
+            {
+              "index": 14,
+              "label": "ball out of play",
+              "probability": 0.07891383022069931
+            },
+            {
+              "index": 5,
+              "label": "ball possession",
+              "probability": 0.05157995596528053
+            },
+            {
+              "index": 22,
+              "label": "foul with no card",
+              "probability": 0.05060065537691116
+            }
+          ],
+          "ground_truth": "off side",
+          "label_index": 119,
+          "manifest_index": 15,
+          "relative_video": "italy_serie-a_2018-2019/2019-01-20_ssc-napoli-ss-lazio-serie-a-2018-2019/1_41_30.mp4",
+          "retrieval_top5_text_indices": [
+            2,
+            15,
+            5,
+            6,
+            8
+          ]
+        },
+        {
+          "classification_top5": [
+            {
+              "index": 16,
+              "label": "goal",
+              "probability": 0.9558844566345215
+            },
+            {
+              "index": 11,
+              "label": "saved by goal-keeper",
+              "probability": 0.01713426411151886
+            },
+            {
+              "index": 2,
+              "label": "clearance",
+              "probability": 0.010286035016179085
+            },
+            {
+              "index": 8,
+              "label": "shot off target",
+              "probability": 0.007901791483163834
+            },
+            {
+              "index": 20,
+              "label": "corner",
+              "probability": 0.0021942586172372103
+            }
+          ],
+          "ground_truth": "goal",
+          "label_index": 70,
+          "manifest_index": 16,
+          "relative_video": "italy_serie-a_2018-2019/2019-03-31_fc-internazionale-ss-lazio-serie-a-2018-2019/1_11_58.mp4",
+          "retrieval_top5_text_indices": [
+            16,
+            11,
+            8,
+            14,
+            19
+          ]
+        },
+        {
+          "classification_top5": [
+            {
+              "index": 17,
+              "label": "penalty",
+              "probability": 0.5274761319160461
+            },
+            {
+              "index": 21,
+              "label": "free kick",
+              "probability": 0.26825806498527527
+            },
+            {
+              "index": 16,
+              "label": "goal",
+              "probability": 0.09212750941514969
+            },
+            {
+              "index": 18,
+              "label": "yellow card",
+              "probability": 0.03844282776117325
+            },
+            {
+              "index": 19,
+              "label": "foul lead to penalty",
+              "probability": 0.03726360201835632
+            }
+          ],
+          "ground_truth": "penalty",
+          "label_index": 178,
+          "manifest_index": 17,
+          "relative_video": "italy_serie-a_2018-2019/2018-10-20_as-roma-s-p-a-l-2013/1_37_09.mp4",
+          "retrieval_top5_text_indices": [
+            17,
+            0,
+            19,
+            22,
+            18
+          ]
+        },
+        {
+          "classification_top5": [
+            {
+              "index": 18,
+              "label": "yellow card",
+              "probability": 0.7943330407142639
+            },
+            {
+              "index": 2,
+              "label": "clearance",
+              "probability": 0.049248628318309784
+            },
+            {
+              "index": 11,
+              "label": "saved by goal-keeper",
+              "probability": 0.045251574367284775
+            },
+            {
+              "index": 10,
+              "label": "substitution",
+              "probability": 0.030273066833615303
+            },
+            {
+              "index": 4,
+              "label": "injury",
+              "probability": 0.019978445023298264
+            }
+          ],
+          "ground_truth": "yellow card",
+          "label_index": 82,
+          "manifest_index": 18,
+          "relative_video": "italy_serie-a_2018-2019/2019-01-20_ssc-napoli-ss-lazio-serie-a-2018-2019/2_45_57.mp4",
+          "retrieval_top5_text_indices": [
+            18,
+            3,
+            12,
+            0,
+            4
+          ]
+        },
+        {
+          "classification_top5": [
+            {
+              "index": 18,
+              "label": "yellow card",
+              "probability": 0.7856956124305725
+            },
+            {
+              "index": 22,
+              "label": "foul with no card",
+              "probability": 0.0798683911561966
+            },
+            {
+              "index": 3,
+              "label": "second yellow card",
+              "probability": 0.027994588017463684
+            },
+            {
+              "index": 2,
+              "label": "clearance",
+              "probability": 0.016886113211512566
+            },
+            {
+              "index": 4,
+              "label": "injury",
+              "probability": 0.01021293830126524
+            }
+          ],
+          "ground_truth": "foul lead to penalty",
+          "label_index": 180,
+          "manifest_index": 19,
+          "relative_video": "italy_serie-a_2018-2019/2018-10-20_as-roma-s-p-a-l-2013/1_36_26.mp4",
+          "retrieval_top5_text_indices": [
+            18,
+            3,
+            12,
+            22,
+            19
+          ]
+        },
+        {
+          "classification_top5": [
+            {
+              "index": 1,
+              "label": "end of half game",
+              "probability": 0.7022551894187927
+            },
+            {
+              "index": 20,
+              "label": "corner",
+              "probability": 0.2003537267446518
+            },
+            {
+              "index": 8,
+              "label": "shot off target",
+              "probability": 0.025455059483647346
+            },
+            {
+              "index": 18,
+              "label": "yellow card",
+              "probability": 0.019488206133246422
+            },
+            {
+              "index": 13,
+              "label": "lead to corner",
+              "probability": 0.013824419118463993
+            }
+          ],
+          "ground_truth": "corner",
+          "label_index": 1,
+          "manifest_index": 20,
+          "relative_video": "italy_serie-a_2018-2019/2019-03-31_fc-internazionale-ss-lazio-serie-a-2018-2019/2_48_53.mp4",
+          "retrieval_top5_text_indices": [
+            1,
+            9,
+            0,
+            7,
+            18
+          ]
+        },
+        {
+          "classification_top5": [
+            {
+              "index": 20,
+              "label": "corner",
+              "probability": 0.5142903327941895
+            },
+            {
+              "index": 2,
+              "label": "clearance",
+              "probability": 0.12316928058862686
+            },
+            {
+              "index": 13,
+              "label": "lead to corner",
+              "probability": 0.1043470948934555
+            },
+            {
+              "index": 22,
+              "label": "foul with no card",
+              "probability": 0.08103101700544357
+            },
+            {
+              "index": 4,
+              "label": "injury",
+              "probability": 0.06514845043420792
+            }
+          ],
+          "ground_truth": "free kick",
+          "label_index": 20,
+          "manifest_index": 21,
+          "relative_video": "italy_serie-a_2018-2019/2019-03-31_fc-internazionale-ss-lazio-serie-a-2018-2019/2_24_55.mp4",
+          "retrieval_top5_text_indices": [
+            20,
+            4,
+            18,
+            2,
+            12
+          ]
+        },
+        {
+          "classification_top5": [
+            {
+              "index": 18,
+              "label": "yellow card",
+              "probability": 0.45427611470222473
+            },
+            {
+              "index": 22,
+              "label": "foul with no card",
+              "probability": 0.3943822383880615
+            },
+            {
+              "index": 4,
+              "label": "injury",
+              "probability": 0.04809093847870827
+            },
+            {
+              "index": 2,
+              "label": "clearance",
+              "probability": 0.01843918114900589
+            },
+            {
+              "index": 12,
+              "label": "red card",
+              "probability": 0.013797933235764503
+            }
+          ],
+          "ground_truth": "foul with no card",
+          "label_index": 4,
+          "manifest_index": 22,
+          "relative_video": "italy_serie-a_2018-2019/2019-03-31_fc-internazionale-ss-lazio-serie-a-2018-2019/2_44_10.mp4",
+          "retrieval_top5_text_indices": [
+            18,
+            12,
+            3,
+            22,
+            4
+          ]
+        }
+      ],
+      "caption_similarity_matrix": [
+        [
+          0.3434295952320099,
+          0.20220431685447693,
+          0.15924546122550964,
+          0.2982313632965088,
+          0.22069981694221497,
+          0.19100403785705566,
+          0.18332284688949585,
+          0.2635906934738159,
+          0.19014865159988403,
+          0.1738596260547638,
+          0.18259499967098236,
+          0.2465546578168869,
+          0.22968167066574097,
+          0.22011524438858032,
+          0.24449950456619263,
+          0.18738096952438354,
+          0.21003060042858124,
+          0.2808001637458801,
+          0.22914062440395355,
+          0.30897462368011475,
+          0.18859156966209412,
+          0.13073644042015076,
+          0.2885948717594147
+        ],
+        [
+          0.28360724449157715,
+          0.4910341203212738,
+          0.16536599397659302,
+          0.21984955668449402,
+          0.2131246030330658,
+          0.1938154399394989,
+          0.15987464785575867,
+          0.26705682277679443,
+          0.18178236484527588,
+          0.33108457922935486,
+          0.17091703414916992,
+          0.15406662225723267,
+          0.22706001996994019,
+          0.1825224757194519,
+          0.18703961372375488,
+          0.19288817048072815,
+          0.17604659497737885,
+          0.2271653413772583,
+          0.23256024718284607,
+          0.2111319601535797,
+          0.20706668496131897,
+          0.19403034448623657,
+          0.2027711272239685
+        ],
+        [
+          0.2944905459880829,
+          0.2565741539001465,
+          0.23629522323608398,
+          0.24300217628479004,
+          0.27028143405914307,
+          0.26703476905822754,
+          0.2483845055103302,
+          0.305803120136261,
+          0.24324466288089752,
+          0.21673092246055603,
+          0.269218385219574,
+          0.2689298391342163,
+          0.22737279534339905,
+          0.24748040735721588,
+          0.2696684002876282,
+          0.2435687929391861,
+          0.22866752743721008,
+          0.268129825592041,
+          0.2293126881122589,
+          0.21820801496505737,
+          0.31653013825416565,
+          0.2507840692996979,
+          0.21880367398262024
+        ],
+        [
+          0.33568769693374634,
+          0.466583788394928,
+          0.16544407606124878,
+          0.27192366123199463,
+          0.23932215571403503,
+          0.18512824177742004,
+          0.16702121496200562,
+          0.26173585653305054,
+          0.17265945672988892,
+          0.298647940158844,
+          0.19552767276763916,
+          0.17677511274814606,
+          0.2559283971786499,
+          0.19283433258533478,
+          0.20408794283866882,
+          0.18810749053955078,
+          0.19815076887607574,
+          0.2685199975967407,
+          0.29054486751556396,
+          0.24527035653591156,
+          0.2047572284936905,
+          0.20735865831375122,
+          0.23542049527168274
+        ],
+        [
+          0.24119818210601807,
+          0.1684260368347168,
+          0.16831248998641968,
+          0.300021231174469,
+          0.42414918541908264,
+          0.2033081352710724,
+          0.2298821657896042,
+          0.20857197046279907,
+          0.16093064844608307,
+          0.1458728164434433,
+          0.336309015750885,
+          0.1945669800043106,
+          0.2589094042778015,
+          0.19084632396697998,
+          0.21722348034381866,
+          0.19801124930381775,
+          0.14421527087688446,
+          0.24650026857852936,
+          0.23320147395133972,
+          0.25356197357177734,
+          0.2212807536125183,
+          0.19905328750610352,
+          0.27695944905281067
+        ],
+        [
+          0.2730048596858978,
+          0.2328118532896042,
+          0.3101015090942383,
+          0.24799086153507233,
+          0.22978846728801727,
+          0.3368445634841919,
+          0.2778061330318451,
+          0.27576205134391785,
+          0.28861433267593384,
+          0.23674476146697998,
+          0.26886165142059326,
+          0.27956801652908325,
+          0.25570183992385864,
+          0.27042216062545776,
+          0.2817375063896179,
+          0.2986343502998352,
+          0.2697877585887909,
+          0.2542823851108551,
+          0.251581609249115,
+          0.25428807735443115,
+          0.29593122005462646,
+          0.27044665813446045,
+          0.27462077140808105
+        ],
+        [
+          0.2507930397987366,
+          0.2052546590566635,
+          0.31956198811531067,
+          0.16264347732067108,
+          0.2399301826953888,
+          0.2944799065589905,
+          0.31495559215545654,
+          0.23233312368392944,
+          0.2531694769859314,
+          0.2211134135723114,
+          0.19089841842651367,
+          0.2523660659790039,
+          0.22533464431762695,
+          0.28225600719451904,
+          0.2772487998008728,
+          0.2810211777687073,
+          0.2380797564983368,
+          0.2953593134880066,
+          0.19130770862102509,
+          0.22184020280838013,
+          0.2782662510871887,
+          0.24434520304203033,
+          0.19825208187103271
+        ],
+        [
+          0.2401629388332367,
+          0.2169923335313797,
+          0.295637309551239,
+          0.22905179858207703,
+          0.21601837873458862,
+          0.2874869704246521,
+          0.25912755727767944,
+          0.2656494379043579,
+          0.288271963596344,
+          0.24085275828838348,
+          0.21910986304283142,
+          0.2686167359352112,
+          0.21310824155807495,
+          0.2675302028656006,
+          0.27833378314971924,
+          0.2738330364227295,
+          0.30831918120384216,
+          0.2375411093235016,
+          0.21181926131248474,
+          0.25628936290740967,
+          0.22664964199066162,
+          0.2156755030155182,
+          0.25767603516578674
+        ],
+        [
+          0.24260380864143372,
+          0.2078302800655365,
+          0.3053463101387024,
+          0.23532375693321228,
+          0.19705185294151306,
+          0.33150696754455566,
+          0.2887956202030182,
+          0.25889667868614197,
+          0.32080721855163574,
+          0.2344961166381836,
+          0.20626704394817352,
+          0.3022017180919647,
+          0.24731549620628357,
+          0.3255438804626465,
+          0.3039974272251129,
+          0.29883575439453125,
+          0.26612627506256104,
+          0.26322150230407715,
+          0.2241300493478775,
+          0.27362972497940063,
+          0.2888191342353821,
+          0.2404731810092926,
+          0.26353973150253296
+        ],
+        [
+          0.25263217091560364,
+          0.24368935823440552,
+          0.24668487906455994,
+          0.3008926808834076,
+          0.21429967880249023,
+          0.3150610625743866,
+          0.28979939222335815,
+          0.21055549383163452,
+          0.2659468948841095,
+          0.2995927631855011,
+          0.3031066358089447,
+          0.3019687831401825,
+          0.2512770891189575,
+          0.26461368799209595,
+          0.29020288586616516,
+          0.2953898310661316,
+          0.24881631135940552,
+          0.26430684328079224,
+          0.22961309552192688,
+          0.30761149525642395,
+          0.2931996285915375,
+          0.23979845643043518,
+          0.27843940258026123
+        ],
+        [
+          0.21773800253868103,
+          0.12216805666685104,
+          0.10650578886270523,
+          0.31246623396873474,
+          0.2822010815143585,
+          0.18150392174720764,
+          0.22477051615715027,
+          0.2131359875202179,
+          0.1571180522441864,
+          0.1476391702890396,
+          0.4848608672618866,
+          0.2360546886920929,
+          0.20883718132972717,
+          0.19601605832576752,
+          0.22502192854881287,
+          0.17878833413124084,
+          0.19240230321884155,
+          0.22845986485481262,
+          0.2075565755367279,
+          0.31736621260643005,
+          0.20115825533866882,
+          0.1799272894859314,
+          0.29036760330200195
+        ],
+        [
+          0.2560570538043976,
+          0.2557827830314636,
+          0.29638272523880005,
+          0.2543502449989319,
+          0.3027472198009491,
+          0.305397093296051,
+          0.2655342221260071,
+          0.3048340678215027,
+          0.3493572473526001,
+          0.23482093214988708,
+          0.20512861013412476,
+          0.2709317207336426,
+          0.2452092468738556,
+          0.3207223117351532,
+          0.2896767854690552,
+          0.30275046825408936,
+          0.2534046471118927,
+          0.24648821353912354,
+          0.2294251024723053,
+          0.26456138491630554,
+          0.2737410366535187,
+          0.24174226820468903,
+          0.27660953998565674
+        ],
+        [
+          0.27654170989990234,
+          0.2202185094356537,
+          0.18417364358901978,
+          0.34236592054367065,
+          0.2313898205757141,
+          0.20181801915168762,
+          0.23355060815811157,
+          0.23912200331687927,
+          0.19847321510314941,
+          0.1952730119228363,
+          0.18526488542556763,
+          0.22836002707481384,
+          0.32329821586608887,
+          0.23706486821174622,
+          0.2504430413246155,
+          0.19590196013450623,
+          0.17310765385627747,
+          0.23170039057731628,
+          0.3367465138435364,
+          0.2927980422973633,
+          0.22638094425201416,
+          0.20949414372444153,
+          0.304427832365036
+        ],
+        [
+          0.23626407980918884,
+          0.15135399997234344,
+          0.24534134566783905,
+          0.1778106987476349,
+          0.2095872461795807,
+          0.22888046503067017,
+          0.2311285436153412,
+          0.1747126430273056,
+          0.17449632287025452,
+          0.18410059809684753,
+          0.2275373786687851,
+          0.2685302793979645,
+          0.2256941795349121,
+          0.20454052090644836,
+          0.24228700995445251,
+          0.22689174115657806,
+          0.24096323549747467,
+          0.2655090391635895,
+          0.1611175239086151,
+          0.19143801927566528,
+          0.2807207703590393,
+          0.2748105227947235,
+          0.18637946248054504
+        ],
+        [
+          0.2653440833091736,
+          0.1907365620136261,
+          0.3173369765281677,
+          0.18584272265434265,
+          0.27443259954452515,
+          0.3139804005622864,
+          0.291923463344574,
+          0.2707507610321045,
+          0.24430687725543976,
+          0.1968824565410614,
+          0.18364033102989197,
+          0.2601693570613861,
+          0.2460424304008484,
+          0.26154401898384094,
+          0.2795805037021637,
+          0.28561800718307495,
+          0.24817825853824615,
+          0.28481221199035645,
+          0.1990429013967514,
+          0.2257002741098404,
+          0.32578158378601074,
+          0.29488512873649597,
+          0.21727587282657623
+        ],
+        [
+          0.2547265291213989,
+          0.20719286799430847,
+          0.3523519039154053,
+          0.2004203498363495,
+          0.25408390164375305,
+          0.31204622983932495,
+          0.29457738995552063,
+          0.2498949021100998,
+          0.2895655035972595,
+          0.26159873604774475,
+          0.1956687867641449,
+          0.244103342294693,
+          0.24189865589141846,
+          0.2760393023490906,
+          0.2750825583934784,
+          0.33926451206207275,
+          0.22965456545352936,
+          0.28693050146102905,
+          0.21060910820960999,
+          0.2250281274318695,
+          0.26046720147132874,
+          0.24911384284496307,
+          0.2534446716308594
+        ],
+        [
+          0.16518522799015045,
+          0.0849875807762146,
+          0.1639750897884369,
+          0.2173020839691162,
+          0.1557866930961609,
+          0.23261302709579468,
+          0.23048922419548035,
+          0.19895309209823608,
+          0.2891956567764282,
+          0.15288542211055756,
+          0.18312111496925354,
+          0.29142990708351135,
+          0.1874874234199524,
+          0.2655988335609436,
+          0.27945032715797424,
+          0.2342086136341095,
+          0.3881441354751587,
+          0.1959792673587799,
+          0.17813409864902496,
+          0.2789706587791443,
+          0.1741665005683899,
+          0.15530076622962952,
+          0.19301849603652954
+        ],
+        [
+          0.2795453667640686,
+          0.20127856731414795,
+          0.20106521248817444,
+          0.22865737974643707,
+          0.23297062516212463,
+          0.18303713202476501,
+          0.19445665180683136,
+          0.20530489087104797,
+          0.08570780605077744,
+          0.24938780069351196,
+          0.24154460430145264,
+          0.2236132025718689,
+          0.23118925094604492,
+          0.24189656972885132,
+          0.1956484019756317,
+          0.15993306040763855,
+          0.12993115186691284,
+          0.4181332588195801,
+          0.25290727615356445,
+          0.27078789472579956,
+          0.14266183972358704,
+          0.20224756002426147,
+          0.25976401567459106
+        ],
+        [
+          0.27404287457466125,
+          0.21082553267478943,
+          0.17662344872951508,
+          0.34519898891448975,
+          0.26659345626831055,
+          0.2020934820175171,
+          0.22406090795993805,
+          0.24431835114955902,
+          0.17494945228099823,
+          0.20470315217971802,
+          0.24426397681236267,
+          0.22252264618873596,
+          0.2945464253425598,
+          0.24546287953853607,
+          0.22559601068496704,
+          0.18630793690681458,
+          0.15560264885425568,
+          0.24864816665649414,
+          0.3564808964729309,
+          0.2423081398010254,
+          0.2095309942960739,
+          0.1719011664390564,
+          0.25600138306617737
+        ],
+        [
+          0.27105051279067993,
+          0.19471725821495056,
+          0.17876680195331573,
+          0.35899657011032104,
+          0.24913108348846436,
+          0.1916310042142868,
+          0.23696036636829376,
+          0.22878149151802063,
+          0.167076975107193,
+          0.19081154465675354,
+          0.256583571434021,
+          0.20977318286895752,
+          0.33737847208976746,
+          0.2063640058040619,
+          0.2293008416891098,
+          0.19420087337493896,
+          0.15832430124282837,
+          0.2393723428249359,
+          0.367623507976532,
+          0.2799704670906067,
+          0.20734742283821106,
+          0.20078715682029724,
+          0.2885424494743347
+        ],
+        [
+          0.3003786504268646,
+          0.48442161083221436,
+          0.17438264191150665,
+          0.21732230484485626,
+          0.20902833342552185,
+          0.19570064544677734,
+          0.15676824748516083,
+          0.2721053957939148,
+          0.17441454529762268,
+          0.320442259311676,
+          0.16409721970558167,
+          0.16226732730865479,
+          0.22831737995147705,
+          0.19174252450466156,
+          0.18888486921787262,
+          0.1848028302192688,
+          0.18076954782009125,
+          0.2348082959651947,
+          0.2434975653886795,
+          0.20183610916137695,
+          0.23421083390712738,
+          0.21085074543952942,
+          0.1979697048664093
+        ],
+        [
+          0.26203781366348267,
+          0.22369788587093353,
+          0.267381489276886,
+          0.23416203260421753,
+          0.2820095717906952,
+          0.2600584030151367,
+          0.2603992223739624,
+          0.2631470859050751,
+          0.21975374221801758,
+          0.21184498071670532,
+          0.20379355549812317,
+          0.2483745813369751,
+          0.2669947147369385,
+          0.25834110379219055,
+          0.2579139471054077,
+          0.2281230390071869,
+          0.2455340325832367,
+          0.21522560715675354,
+          0.2678321599960327,
+          0.2343023419380188,
+          0.34796106815338135,
+          0.25972408056259155,
+          0.25082483887672424
+        ],
+        [
+          0.2553330659866333,
+          0.23694783449172974,
+          0.21910309791564941,
+          0.3010491132736206,
+          0.2904784083366394,
+          0.21061170101165771,
+          0.23838898539543152,
+          0.2430853545665741,
+          0.1642858237028122,
+          0.22702810168266296,
+          0.20640191435813904,
+          0.17837010324001312,
+          0.3493332266807556,
+          0.17381255328655243,
+          0.2131657749414444,
+          0.22424641251564026,
+          0.15706589818000793,
+          0.21558064222335815,
+          0.363738477230072,
+          0.2496642768383026,
+          0.2423076182603836,
+          0.24068322777748108,
+          0.29055240750312805
+        ]
+      ],
+      "detection_clips": [
+        {
+          "end_frame_exclusive": 30,
+          "input_shape": [
+            30,
+            3,
+            512,
+            512
+          ],
+          "output_fingerprint": {
+            "pred_boxes": {
+              "dtype": "torch.float32",
+              "maximum": 0.999591052532196,
+              "mean": 0.28312405943870544,
+              "minimum": 0.00019174772023689002,
+              "shape": [
+                1,
+                30,
+                300,
+                4
+              ],
+              "sum": 10192.4658203125
+            },
+            "pred_digit_head": {
+              "dtype": "torch.float32",
+              "maximum": 2.7081193923950195,
+              "mean": -6.418227672576904,
+              "minimum": -10.129733085632324,
+              "shape": [
+                1,
+                30,
+                300,
+                10
+              ],
+              "sum": -577640.5
+            },
+            "pred_digit_tail": {
+              "dtype": "torch.float32",
+              "maximum": 2.7076001167297363,
+              "mean": -6.227527618408203,
+              "minimum": -9.920049667358398,
+              "shape": [
+                1,
+                30,
+                300,
+                11
+              ],
+              "sum": -616525.25
+            },
+            "pred_jn_holistic": {
+              "dtype": "torch.float32",
+              "maximum": 2.67283296585083,
+              "mean": -7.403902053833008,
+              "minimum": -11.690467834472656,
+              "shape": [
+                1,
+                30,
+                300,
+                101
+              ],
+              "sum": -6730147.0
+            },
+            "pred_keypoints_heatmap": {
+              "dtype": "torch.float32",
+              "maximum": 0.9999995231628418,
+              "mean": 0.017241377383470535,
+              "minimum": 0.0,
+              "shape": [
+                1,
+                30,
+                58,
+                256,
+                256
+              ],
+              "sum": 1966079.875
+            },
+            "pred_lines_heatmap": {
+              "dtype": "torch.float32",
+              "maximum": 0.9996747970581055,
+              "mean": 0.004539718851447105,
+              "minimum": 9.225956894158663e-19,
+              "shape": [
+                1,
+                30,
+                24,
+                256,
+                256
+              ],
+              "sum": 214210.8125
+            },
+            "pred_logits": {
+              "dtype": "torch.float32",
+              "maximum": 3.962707042694092,
+              "mean": -4.4511494636535645,
+              "minimum": -7.5673065185546875,
+              "shape": [
+                1,
+                30,
+                300,
+                1
+              ],
+              "sum": -40060.34375
+            },
+            "pred_roles": {
+              "dtype": "torch.float32",
+              "maximum": 3.239691734313965,
+              "mean": -6.755356311798096,
+              "minimum": -10.732952117919922,
+              "shape": [
+                1,
+                30,
+                300,
+                6
+              ],
+              "sum": -364789.25
+            }
+          },
+          "sequence": "SNGS-116",
+          "start_frame_zero_based": 0,
+          "valid_keypoints_frames": 30,
+          "valid_lines_frames": 30
+        },
+        {
+          "end_frame_exclusive": 390,
+          "input_shape": [
+            30,
+            3,
+            512,
+            512
+          ],
+          "output_fingerprint": {
+            "pred_boxes": {
+              "dtype": "torch.float32",
+              "maximum": 0.9995666146278381,
+              "mean": 0.28175032138824463,
+              "minimum": 0.00023119497927837074,
+              "shape": [
+                1,
+                30,
+                300,
+                4
+              ],
+              "sum": 10143.01171875
+            },
+            "pred_digit_head": {
+              "dtype": "torch.float32",
+              "maximum": 3.363907814025879,
+              "mean": -6.554625988006592,
+              "minimum": -10.181913375854492,
+              "shape": [
+                1,
+                30,
+                300,
+                10
+              ],
+              "sum": -589916.3125
+            },
+            "pred_digit_tail": {
+              "dtype": "torch.float32",
+              "maximum": 3.194098472595215,
+              "mean": -6.378260612487793,
+              "minimum": -9.874394416809082,
+              "shape": [
+                1,
+                30,
+                300,
+                11
+              ],
+              "sum": -631447.8125
+            },
+            "pred_jn_holistic": {
+              "dtype": "torch.float32",
+              "maximum": 3.231750011444092,
+              "mean": -7.539758205413818,
+              "minimum": -11.525690078735352,
+              "shape": [
+                1,
+                30,
+                300,
+                101
+              ],
+              "sum": -6853640.0
+            },
+            "pred_keypoints_heatmap": {
+              "dtype": "torch.float32",
+              "maximum": 1.0,
+              "mean": 0.017241377383470535,
+              "minimum": 0.0,
+              "shape": [
+                1,
+                30,
+                58,
+                256,
+                256
+              ],
+              "sum": 1966079.875
+            },
+            "pred_lines_heatmap": {
+              "dtype": "torch.float32",
+              "maximum": 0.9996618032455444,
+              "mean": 0.0035138376988470554,
+              "minimum": 1.0137259707056802e-17,
+              "shape": [
+                1,
+                30,
+                24,
+                256,
+                256
+              ],
+              "sum": 165803.65625
+            },
+            "pred_logits": {
+              "dtype": "torch.float32",
+              "maximum": 4.723451137542725,
+              "mean": -4.297167778015137,
+              "minimum": -7.262996673583984,
+              "shape": [
+                1,
+                30,
+                300,
+                1
+              ],
+              "sum": -38674.5078125
+            },
+            "pred_roles": {
+              "dtype": "torch.float32",
+              "maximum": 4.085788249969482,
+              "mean": -6.743295192718506,
+              "minimum": -10.79083251953125,
+              "shape": [
+                1,
+                30,
+                300,
+                6
+              ],
+              "sum": -364137.9375
+            }
+          },
+          "sequence": "SNGS-116",
+          "start_frame_zero_based": 360,
+          "valid_keypoints_frames": 30,
+          "valid_lines_frames": 30
+        }
+      ],
+      "metrics": {
+        "CaptionClassification": {
+          "avg_confidence": 0.598901629447937,
+          "classification_accuracy": 0.3478260934352875,
+          "macro_accuracy": 0.34782608695652173,
+          "macro_f1": 0.2855072463768116,
+          "macro_precision": 0.2644927536231884,
+          "macro_recall": 0.34782608695652173,
+          "num_classes_with_samples": 23,
+          "total_samples": 23
+        },
+        "KeypointsDetection": {
+          "keypoints_accuracy": 0.9613095238095242,
+          "keypoints_f1": 0.9178377477360977,
+          "keypoints_precision": 0.9861471861391867,
+          "keypoints_recall": 0.8587393162332636,
+          "keypoints_valid_samples": 60.0
+        },
+        "LinesDetection": {
+          "lines_accuracy": 0.9666666388511658,
+          "lines_f1": 0.9525341391563416,
+          "lines_high_accuracy_ratio": 1.0,
+          "lines_high_f1_ratio": 1.0,
+          "lines_precision": 0.9764814972877502,
+          "lines_recall": 0.9339814782142639,
+          "lines_valid_samples": 60.0
+        },
+        "SoccerNetGSR_Detection": {
+          "AP@0.50": 0.8626513481140137,
+          "AP@0.55": 0.8434269428253174,
+          "AP@0.60": 0.8119814395904541,
+          "AP@0.65": 0.7598329782485962,
+          "AP@0.70": 0.632585346698761,
+          "AP@0.75": 0.4987766742706299,
+          "AP@0.80": 0.33923736214637756,
+          "AP@0.85": 0.16225355863571167,
+          "AP@0.90": 0.03296326473355293,
+          "AP@0.95": 0.0010643636342138052,
+          "digit_head_accuracy": 0.8061224489795918,
+          "digit_head_matched_count": 882.0,
+          "digit_tail_accuracy": 0.8231292517006803,
+          "digit_tail_matched_count": 882.0,
+          "f1": 0.915412547373207,
+          "jersey_accuracy": 0.746031746031746,
+          "jersey_matched_count": 882.0,
+          "mAP": 0.49447732788976284,
+          "mAP@0.5": 0.8626513481140137,
+          "mAP@0.75": 0.4987766742706299,
+          "person_AP@0.50": 0.8626513481140137,
+          "person_AP@0.55": 0.8434269428253174,
+          "person_AP@0.60": 0.8119814395904541,
+          "person_AP@0.65": 0.7598329782485962,
+          "person_AP@0.70": 0.632585346698761,
+          "person_AP@0.75": 0.4987766742706299,
+          "person_AP@0.80": 0.33923736214637756,
+          "person_AP@0.85": 0.16225355863571167,
+          "person_AP@0.90": 0.03296326473355293,
+          "person_AP@0.95": 0.0010643636342138052,
+          "person_f1": 0.915412547373207,
+          "person_gt_count": 1019.0,
+          "person_mAP": 0.49447732788976284,
+          "person_mAP@0.5": 0.8626513481140137,
+          "person_mAP@0.75": 0.4987766742706299,
+          "person_precision": 0.9713656306266785,
+          "person_recall": 0.8655544519424438,
+          "precision": 0.9713656306266785,
+          "recall": 0.8655544519424438,
+          "role_accuracy": 0.9365079365079365,
+          "role_matched_count": 882.0
+        },
+        "VideoCaption": {
+          "retrieval_top_1_accuracy": 0.3478260934352875,
+          "retrieval_top_3_accuracy": 0.52173912525177,
+          "retrieval_top_5_accuracy": 0.6521739363670349,
+          "total_samples": 23
+        }
+      },
+      "pass_index": 2
+    }
+  ],
+  "peak_cpu_rss_kib": 8596992,
+  "repeatability": {
+    "atol": 1e-06,
+    "caption_frame_indices_identical": true,
+    "maximum_classification_logits_absolute_difference": 0.0,
+    "maximum_numeric_leaf_absolute_difference": 0.0,
+    "maximum_numeric_leaf_relative_difference": 0.0,
+    "maximum_similarity_absolute_difference": 0.0,
+    "passed": true,
+    "rtol": 1e-05
+  },
+  "resolved_config": {
+    "ACCUMULATE_STEPS": 1,
+    "AUG_AFFINE_DEGREES": 10,
+    "AUG_AFFINE_PROB": 0.5,
+    "AUG_AFFINE_SCALE": [
+      0.9,
+      1.1
+    ],
+    "AUG_AFFINE_SHEAR": 5,
+    "AUG_AFFINE_TRANSLATE": [
+      0.1,
+      0.1
+    ],
+    "AUG_BRIGHTNESS": 0.4,
+    "AUG_COLOR_JITTER_V2": true,
+    "AUG_CONTRAST": 0.4,
+    "AUG_ENABLE_RANDOM_AFFINE": true,
+    "AUG_ENABLE_RANDOM_CROP": true,
+    "AUG_ENABLE_RANDOM_PERSPECTIVE": true,
+    "AUG_ENABLE_TRAINING_AUGMENTATION": true,
+    "AUG_GAUSSIAN_BLUR": true,
+    "AUG_GAUSSIAN_BLUR_KERNEL_SIZE_RANGE": [
+      3,
+      7
+    ],
+    "AUG_GAUSSIAN_BLUR_PROB": 0.2,
+    "AUG_GAUSSIAN_BLUR_SIGMA_RANGE": [
+      0.1,
+      2.0
+    ],
+    "AUG_GAUSSIAN_NOISE": true,
+    "AUG_GAUSSIAN_NOISE_PROB": 0.3,
+    "AUG_GAUSSIAN_NOISE_STD": 0.02,
+    "AUG_HORIZONTAL_FLIP_PROB": 0.5,
+    "AUG_HUE": 0.2,
+    "AUG_MAX_SHIFT_RATIO": 0.06,
+    "AUG_MAX_SIZE": 512,
+    "AUG_MEAN": [
+      0.5,
+      0.5,
+      0.5
+    ],
+    "AUG_OVERFLOW_BBOX": false,
+    "AUG_PERSPECTIVE_DISTORTION_SCALE": 0.3,
+    "AUG_PERSPECTIVE_PROB": 0.5,
+    "AUG_RANDOM_CROP_PROB": 1.0,
+    "AUG_RANDOM_CROP_SIZE_RATIO_RANGE": [
+      0.6,
+      1.0
+    ],
+    "AUG_RANDOM_HORIZONTAL_FLIP": true,
+    "AUG_RANDOM_RESIZE": [
+      512
+    ],
+    "AUG_RESIZE_SCALES": [
+      512
+    ],
+    "AUG_SATURATION": 0.4,
+    "AUG_STD": [
+      0.5,
+      0.5,
+      0.5
+    ],
+    "BACKBONE_HIDDEN_DIM": 1024,
+    "BACKBONE_TYPE": "video",
+    "BACKBONE_USE_TEMPORAL_GATE": true,
+    "BATCH_SIZE": 1,
+    "CAMERA_FL_LOSS_WEIGHT": 1.0,
+    "CAMERA_R_LOSS_WEIGHT": 5.0,
+    "CAMERA_T_LOSS_WEIGHT": 1.0,
+    "CAPTION_CLASSIFICATION_DROPOUT_RATE": 0.0,
+    "CAPTION_CLASSIFICATION_LABEL_SMOOTHING": 0.0,
+    "CAPTION_CLASSIFICATION_LOSS_WEIGHT": 1.0,
+    "CAPTION_CLASSIFICATION_NUM_TRANSFORMER_ENCODER": 2,
+    "CAPTION_CLASSIFICATION_USE_ATTN_POOL": false,
+    "CAPTION_CLASSIFICATION_USE_LAYER_NORM": true,
+    "CAPTION_CLASSIFICATION_USE_MLP": false,
+    "CAPTION_CLASSIFICATION_USE_TRANSFORMERS": true,
+    "CKPT_PATH": "/remote-home/haolinyang/sports/Soccer-Backbone/pretrained_models/google/siglip2-large-patch16-512",
+    "CKPT_TYPE": "soccer_master",
+    "DATASETS_TO_HEADS": {
+      "SoccerNetGSR_Detection": [
+        "SoccerNetGSR_Detection",
+        "LinesDetection",
+        "KeypointsDetection"
+      ],
+      "VideoCaption": [
+        "VideoCaption",
+        "CaptionClassification"
+      ]
+    },
+    "DATASET_SPLITS": "train",
+    "DATA_ROOT": "/home/tianlin/SoccerMaster/reports/g5_fixed_data_view",
+    "DEBUG_START_ITERATION": 0,
+    "DETECTION_DATA_TYPE": "video",
+    "DETECT_BALL_ONLY": false,
+    "DETR_AUX_LOSS": true,
+    "DETR_BBOX_LOSS_COEF": 5.0,
+    "DETR_CLS_LOSS_COEF": 2.0,
+    "DETR_CRITERION_BATCH_LEN": 300,
+    "DETR_DEC_LAYERS": 1,
+    "DETR_DEC_N_POINTS": 4,
+    "DETR_DETECT_BALL": false,
+    "DETR_DIGIT_HEAD_LOSS_COEF": 1.0,
+    "DETR_DIGIT_TAIL_LOSS_COEF": 1.0,
+    "DETR_DIM_FEEDFORWARD": 1024,
+    "DETR_DROPOUT": 0.0,
+    "DETR_ENABLE_JN_CLASSIFICATION": true,
+    "DETR_ENABLE_ROLE_CLASSIFICATION": true,
+    "DETR_ENC_LAYERS": 0,
+    "DETR_ENC_N_POINTS": 4,
+    "DETR_FOCAL_ALPHA": 0.25,
+    "DETR_GIOU_LOSS_COEF": 2.0,
+    "DETR_HIDDEN_DIM": 256,
+    "DETR_JN_LOSS_COEF": 1.0,
+    "DETR_LOCAL_FEATURES_TYPE": "early",
+    "DETR_MASKS": false,
+    "DETR_NUM_FEATURE_LEVELS": 1,
+    "DETR_NUM_HEADS": 1,
+    "DETR_NUM_QUERIES": 300,
+    "DETR_POSITION_EMBEDDING": "sine",
+    "DETR_ROLE_LOSS_COEF": 2.0,
+    "DETR_SET_COST_BBOX": 5.0,
+    "DETR_SET_COST_CLASS": 2.0,
+    "DETR_SET_COST_GIOU": 2.0,
+    "DETR_TWO_STAGE": false,
+    "DETR_WITH_BOX_REFINE": true,
+    "DEVICE": "cpu",
+    "DILATION": false,
+    "DISTRIBUTED_GATHER": true,
+    "DPT_SELECTED_LAYERS": [
+      2,
+      5,
+      8,
+      11
+    ],
+    "ENABLE_SOFTMAX_FOCAL_LOSS": false,
+    "EPOCHS": 20,
+    "EVAL_PER_EPOCH": 1,
+    "EVAL_SCORE_THRESHOLD": 0.5,
+    "EXCLUDE_TEMPORAL_EMBEDDING_WEIGHT_DECAY": true,
+    "EXP_GROUP": "SoccerVisualBackbone",
+    "EXP_NAME": "Default",
+    "EXP_OWNER": "1020134037-shanghai-jiao-tong-university",
+    "EXP_PROJECT": "SoccerVisualBackbone",
+    "EXTRA_DATA_ONLY": false,
+    "EXTRA_DATA_PATH": "./datasets/SN-GSR-2024/SoccerNetGS/extracted_info.pkl",
+    "FREEZE_TEXT_ENCODER": true,
+    "FREEZE_VISION_ENCODER": false,
+    "GSR_KEYPOINTS_LOSS_WEIGHT": 1.0,
+    "GSR_LINES_LOSS_WEIGHT": 1.0,
+    "KEEP_ASPECT_RATIO": false,
+    "KEYPOINTS_LOCAL_FEATURES_TYPE": "early",
+    "LINES_HEAD_TYPE": "default",
+    "LINES_LOCAL_FEATURES_TYPE": "early",
+    "LOAD_CHECKPOINTS": false,
+    "LOAD_HEADS": true,
+    "LOGGING_INTERVAL": 20,
+    "LOG_PARAMS_GRADS": false,
+    "LR": 0.0001,
+    "LR_BACKBONE": 5e-05,
+    "LR_BACKBONE_TEMPORAL": 0.0001,
+    "LR_CAMERA_REGRESSION": 0.0001,
+    "LR_CAPTION_CLASSIFICATION": 0.0001,
+    "LR_CAPTION_CLASSIFICATION_CLASSIFIER": 0.0002,
+    "LR_KEYPOINTS_DETECTION": 0.0001,
+    "LR_LINES_DETECTION": 0.001,
+    "LR_SOCCERNET_GSR_DETECTION": 0.0001,
+    "LR_SOCCERNET_GSR_REID": 0.001,
+    "LR_TEXT_ENCODER": 5e-05,
+    "LR_VIDEO_CAPTION": 0.0001,
+    "LR_WARMUP_EPOCHS": 1,
+    "MAX_CLIP_NORM": 0.1,
+    "MODEL_ARCH": "multitask",
+    "MULTI_LAST_CHECKPOINTS": 0,
+    "NUM_CLASSES": 1,
+    "NUM_FRAMES": 30,
+    "NUM_KEYPOINTS": 58,
+    "NUM_LINES": 24,
+    "NUM_WORKERS": 0,
+    "OUTPUTS_DIR": null,
+    "PREFETCH_FACTOR": 2,
+    "RESUME_FROM_CHECKPOINT_DIR": null,
+    "RESUME_TENSORBOARD_CONTINUOUS": true,
+    "RESUME_TRAINING": false,
+    "SAVE_CHECKPOINT_PER_EPOCH": 1,
+    "SCHEDULER_GAMMA": 0.1,
+    "SCHEDULER_MILESTONES": [
+      9,
+      15
+    ],
+    "SCHEDULER_MIN_LR": 1e-08,
+    "SCHEDULER_TYPE": "CosineAnnealingLR",
+    "SEED": 42,
+    "SIGLIP_BACKBONE_TYPE": "unisoccer_part_temporal",
+    "SOCCER_NET_GSR_REID_BATCH_SIZE": 32,
+    "SOCCER_NET_GSR_REID_DIGIT_HEAD_FOCAL_LOSS_WEIGHT": 1.0,
+    "SOCCER_NET_GSR_REID_DIGIT_TAIL_FOCAL_LOSS_WEIGHT": 1.0,
+    "SOCCER_NET_GSR_REID_JN_HOISTIC_FOCAL_LOSS_WEIGHT": 1.0,
+    "SOCCER_NET_GSR_REID_MARGIN": 0.3,
+    "SOCCER_NET_GSR_REID_NUM_INSTANCES": 4,
+    "SOCCER_NET_GSR_REID_NUM_PIDS": 1343,
+    "SOCCER_NET_GSR_REID_OUTPUT_REID_DIM": 256,
+    "SOCCER_NET_GSR_REID_PID_FOCAL_LOSS_WEIGHT": 0.1,
+    "SOCCER_NET_GSR_REID_PID_TRIPLET_LOSS_WEIGHT": 1.0,
+    "SOCCER_NET_GSR_REID_ROLE_FOCAL_LOSS_WEIGHT": 1.0,
+    "SOCCER_NET_GSR_REID_TEAM_TRIPLET_LOSS_WEIGHT": 1.0,
+    "STAGE_1_CKPT_DIR": "/remote-home/haolinyang/sports/Soccer-Backbone/outputs/pretrain_large_512_multitask_aug_consine_part_temporal_early_freeze_text_lr_5e-5_cap_cls_weight_1_extra_7000_high_resolution/epoch_19",
+    "SUPER_CONFIG_PATH": "/home/tianlin/SoccerMaster/configs/default.yaml",
+    "SoccerNetGSR_DATA_SPLITS": "train",
+    "SoccerNetGSR_SUB_DIR": "SN-GSR-2024",
+    "TEMPORAL_START_LAYER": 16,
+    "TENSORBOARD_FLUSH_SECS": 30,
+    "TENSORBOARD_LOG_DIR": null,
+    "TEXT_ENCODER_CKPT_PATH": "/remote-home/haolinyang/sports/Soccer-Backbone/pretrained_models/google/siglip2-large-patch16-512",
+    "USE_ACCELERATE_CLIP_NORM": true,
+    "USE_CLIP_GRAD_NORM": true,
+    "USE_EXTRA_DATA": false,
+    "USE_EXTRA_DATA_AMOUNT": 7000,
+    "USE_GRADIENT_CHECKPOINTING": false,
+    "USE_LR_AMBIGUITY_FIX": true,
+    "USE_TENSORBOARD": true,
+    "USE_WANDB": false,
+    "VIDEO_CAPTION_BATCH_SIZE": 2,
+    "VIDEO_CAPTION_DATASETS": [
+      "SoccerReplay-1988",
+      "MatchTime",
+      "SoccerNet-v2"
+    ],
+    "VIDEO_CAPTION_DATA_ROOT": "./datasets/VideoCaption/",
+    "VIDEO_CAPTION_FIX_START": null,
+    "VIDEO_CAPTION_INFONCE_LOSS_WEIGHT": 1.0,
+    "VIDEO_CAPTION_LOSS_TYPE": "siglip_loss",
+    "VIDEO_CAPTION_MAX_NUM_FRAMES": -1,
+    "VIDEO_CAPTION_NUM_WORKERS": 0,
+    "VIDEO_CAPTION_SAMPLE": "middle",
+    "VIDEO_CAPTION_SIGLIP_LOSS_WEIGHT": 4.0,
+    "VIDEO_CAPTION_TEST_BATCH_SIZE": 1,
+    "VIDEO_CAPTION_TEXT_KEY": "comments_text_anonymized",
+    "VIDEO_CAPTION_TRIMMED30": false,
+    "WEIGHT_DECAY": 0.0001,
+    "YOLO_IMGSZ": 512,
+    "YOLO_MODEL_PATH": "./pretrained_models/yolo/yolo_v8x6_person_lr_default_best.pt",
+    "YOLO_USE_RECT": false
+  },
+  "seed": 42,
+  "status": "passed",
+  "timings_seconds": {
+    "build_fixed_detection_dataset": 2.49,
+    "compare_evaluation_passes": 0.002,
+    "construct_model_cpu": 25.68,
+    "evaluation_pass_1": 155.481,
+    "evaluation_pass_2": 123.663,
+    "import_framework": 4.654,
+    "load_checkpoint_cpu": 255.304,
+    "load_config": 0.019,
+    "load_manifest": 0.0,
+    "move_model_to_gpu": 1.59,
+    "prepare_local_detection_view": 0.001,
+    "validate_assets": 0.025,
+    "validate_caption_records": 0.042
+  },
+  "total_elapsed_seconds": 569.495
+}

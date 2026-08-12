@@ -1,0 +1,536 @@
+{
+  "artifacts": {
+    "contact_sheet": "/home/tianlin/SoccerMaster/reports/g4_real_video_contact_sheet_20260812.jpg",
+    "result_json": "/home/tianlin/SoccerMaster/reports/g4_real_video_result_20260812.json"
+  },
+  "assets": {
+    "caption": "end of half game",
+    "checkpoint": "/remote-home/haolinyang/sports/Soccer-Backbone/outputs/pretrain_large_512_multitask_aug_consine_part_temporal_early_freeze_text_lr_5e-5_cap_cls_weight_1_extra_7000_high_resolution/epoch_19",
+    "config": "/home/tianlin/SoccerMaster/configs/pretrain_large_512_multitask_aug_consine_part_temporal_early_freeze_text_lr_5e-5_cap_cls_weight_1_extra_7000_high_resolution.yaml",
+    "label_file": "/remote-home/haolinyang/sports/Soccer-Backbone/datasets/VideoCaption/video_clip_json/SoccerReplay-1988/classification_test.json",
+    "label_index": 0,
+    "model": "/remote-home/haolinyang/sports/Soccer-Backbone/pretrained_models/google/siglip2-large-patch16-512",
+    "text_length": 67,
+    "text_sha256": "632ebad71478a292d9589277be40b1e353052d3b4b2e82e7144d2b9168c09aa8",
+    "video": "/remote-home/haolinyang/sports/Soccer-Backbone/datasets/VideoCaption/video_clip/SoccerReplay-1988-high-resolution/italy_serie-a_2018-2019/2019-03-31_fc-internazionale-ss-lazio-serie-a-2018-2019/2_49_08.mp4",
+    "video_mtime_ns": 1722882271366231969,
+    "video_sha256": "2408eeb2eb11c0fce43067b8eb7a392ded4d4efc78cc7d91aecb3147ccf289b3",
+    "video_size_bytes": 6144860
+  },
+  "caption_outputs": {
+    "CaptionClassification": {
+      "features": {
+        "device": "cuda:0",
+        "dtype": "torch.float32",
+        "finite": true,
+        "shape": [
+          1,
+          1024
+        ],
+        "type": "tensor"
+      },
+      "logits": {
+        "device": "cuda:0",
+        "dtype": "torch.float32",
+        "finite": true,
+        "shape": [
+          1,
+          23
+        ],
+        "type": "tensor"
+      }
+    },
+    "VideoCaption": {
+      "base_similarity_matrix": {
+        "device": "cuda:0",
+        "dtype": "torch.float32",
+        "finite": true,
+        "shape": [
+          1,
+          1
+        ],
+        "type": "tensor"
+      },
+      "processed_similarity_matrix": {
+        "device": "cuda:0",
+        "dtype": "torch.float32",
+        "finite": true,
+        "shape": [
+          1,
+          1
+        ],
+        "type": "tensor"
+      },
+      "text_features": {
+        "device": "cuda:0",
+        "dtype": "torch.float32",
+        "finite": true,
+        "shape": [
+          1,
+          1024
+        ],
+        "type": "tensor"
+      },
+      "valid_text_mask": {
+        "device": "cuda:0",
+        "dtype": "torch.bool",
+        "finite": true,
+        "shape": [
+          1
+        ],
+        "type": "tensor"
+      },
+      "vision_features": {
+        "device": "cuda:0",
+        "dtype": "torch.float32",
+        "finite": true,
+        "shape": [
+          1,
+          1024
+        ],
+        "type": "tensor"
+      }
+    }
+  },
+  "code": {
+    "commit": "3733d21819261e926a2e7cb3b18eeb749877c8d0",
+    "dirty_files": [
+      " M data/video_caption.py",
+      "?? scripts/verify_g3_random_forward.py",
+      "?? scripts/verify_g4_real_video.py"
+    ]
+  },
+  "error": null,
+  "explicit_non_goals": [
+    "no Dataset or DataLoader construction",
+    "no loss, backward, optimizer, scheduler, or training",
+    "no detection-head inference",
+    "no aggregate evaluation metric",
+    "no G5 execution"
+  ],
+  "gate": "G4",
+  "gpu": {
+    "capability": [
+      9,
+      0
+    ],
+    "cuda_build": "12.1",
+    "logical_device": "cuda:0",
+    "name": "NVIDIA H800",
+    "torch_version": "2.4.1",
+    "visible_physical_index": 7
+  },
+  "memory_snapshots": [
+    {
+      "allocated_bytes": 0,
+      "free_bytes": 46920564736,
+      "label": "after_cuda_init",
+      "max_allocated_bytes": 0,
+      "max_reserved_bytes": 0,
+      "reserved_bytes": 0,
+      "total_bytes": 85028372480
+    },
+    {
+      "allocated_bytes": 0,
+      "free_bytes": 46920564736,
+      "label": "before_model_to_gpu",
+      "max_allocated_bytes": 0,
+      "max_reserved_bytes": 0,
+      "reserved_bytes": 0,
+      "total_bytes": 85028372480
+    },
+    {
+      "allocated_bytes": 3874581504,
+      "free_bytes": 43028250624,
+      "label": "after_model_to_gpu",
+      "max_allocated_bytes": 3874581504,
+      "max_reserved_bytes": 3892314112,
+      "reserved_bytes": 3892314112,
+      "total_bytes": 85028372480
+    },
+    {
+      "allocated_bytes": 3874581504,
+      "free_bytes": 43028250624,
+      "label": "before_real_video_forward",
+      "max_allocated_bytes": 3874581504,
+      "max_reserved_bytes": 3892314112,
+      "reserved_bytes": 3892314112,
+      "total_bytes": 85028372480
+    },
+    {
+      "allocated_bytes": 4002522112,
+      "free_bytes": 40314535936,
+      "label": "after_real_video_validation",
+      "max_allocated_bytes": 5764115456,
+      "max_reserved_bytes": 6228541440,
+      "reserved_bytes": 6228541440,
+      "total_bytes": 85028372480
+    }
+  ],
+  "peak_cpu_rss_kib": 8651656,
+  "prediction": {
+    "base_similarity": 0.49103423953056335,
+    "ground_truth_index": 1,
+    "ground_truth_label": "end of half game",
+    "ground_truth_probability": 0.9477134346961975,
+    "ground_truth_rank": 1,
+    "processed_similarity": 3.3450698852539062,
+    "top5": [
+      {
+        "index": 1,
+        "label": "end of half game",
+        "probability": 0.9477134346961975
+      },
+      {
+        "index": 20,
+        "label": "corner",
+        "probability": 0.016758864745497704
+      },
+      {
+        "index": 8,
+        "label": "shot off target",
+        "probability": 0.010657618753612041
+      },
+      {
+        "index": 18,
+        "label": "yellow card",
+        "probability": 0.007409966550767422
+      },
+      {
+        "index": 12,
+        "label": "red card",
+        "probability": 0.003028535284101963
+      }
+    ]
+  },
+  "preprocessing": {
+    "annotation_caption_index": 1,
+    "device": "cpu",
+    "dtype": "torch.float32",
+    "finite": true,
+    "image_size": [
+      512,
+      512
+    ],
+    "maximum": 1.0,
+    "mean": -0.40253719687461853,
+    "minimum": -1.0,
+    "original_image_size": [
+      572,
+      1024
+    ],
+    "scale_ratio_x": 0.5,
+    "scale_ratio_y": 0.8951048951048951,
+    "shape": [
+      30,
+      3,
+      512,
+      512
+    ]
+  },
+  "resolved_config": {
+    "ACCUMULATE_STEPS": 1,
+    "AUG_AFFINE_DEGREES": 10,
+    "AUG_AFFINE_PROB": 0.5,
+    "AUG_AFFINE_SCALE": [
+      0.9,
+      1.1
+    ],
+    "AUG_AFFINE_SHEAR": 5,
+    "AUG_AFFINE_TRANSLATE": [
+      0.1,
+      0.1
+    ],
+    "AUG_BRIGHTNESS": 0.4,
+    "AUG_COLOR_JITTER_V2": true,
+    "AUG_CONTRAST": 0.4,
+    "AUG_ENABLE_RANDOM_AFFINE": true,
+    "AUG_ENABLE_RANDOM_CROP": true,
+    "AUG_ENABLE_RANDOM_PERSPECTIVE": true,
+    "AUG_ENABLE_TRAINING_AUGMENTATION": true,
+    "AUG_GAUSSIAN_BLUR": true,
+    "AUG_GAUSSIAN_BLUR_KERNEL_SIZE_RANGE": [
+      3,
+      7
+    ],
+    "AUG_GAUSSIAN_BLUR_PROB": 0.2,
+    "AUG_GAUSSIAN_BLUR_SIGMA_RANGE": [
+      0.1,
+      2.0
+    ],
+    "AUG_GAUSSIAN_NOISE": true,
+    "AUG_GAUSSIAN_NOISE_PROB": 0.3,
+    "AUG_GAUSSIAN_NOISE_STD": 0.02,
+    "AUG_HORIZONTAL_FLIP_PROB": 0.5,
+    "AUG_HUE": 0.2,
+    "AUG_MAX_SHIFT_RATIO": 0.06,
+    "AUG_MAX_SIZE": 512,
+    "AUG_MEAN": [
+      0.5,
+      0.5,
+      0.5
+    ],
+    "AUG_OVERFLOW_BBOX": false,
+    "AUG_PERSPECTIVE_DISTORTION_SCALE": 0.3,
+    "AUG_PERSPECTIVE_PROB": 0.5,
+    "AUG_RANDOM_CROP_PROB": 1.0,
+    "AUG_RANDOM_CROP_SIZE_RATIO_RANGE": [
+      0.6,
+      1.0
+    ],
+    "AUG_RANDOM_HORIZONTAL_FLIP": true,
+    "AUG_RANDOM_RESIZE": [
+      512
+    ],
+    "AUG_RESIZE_SCALES": [
+      512
+    ],
+    "AUG_SATURATION": 0.4,
+    "AUG_STD": [
+      0.5,
+      0.5,
+      0.5
+    ],
+    "BACKBONE_HIDDEN_DIM": 1024,
+    "BACKBONE_TYPE": "video",
+    "BACKBONE_USE_TEMPORAL_GATE": true,
+    "BATCH_SIZE": 1,
+    "CAMERA_FL_LOSS_WEIGHT": 1.0,
+    "CAMERA_R_LOSS_WEIGHT": 5.0,
+    "CAMERA_T_LOSS_WEIGHT": 1.0,
+    "CAPTION_CLASSIFICATION_DROPOUT_RATE": 0.0,
+    "CAPTION_CLASSIFICATION_LABEL_SMOOTHING": 0.0,
+    "CAPTION_CLASSIFICATION_LOSS_WEIGHT": 1.0,
+    "CAPTION_CLASSIFICATION_NUM_TRANSFORMER_ENCODER": 2,
+    "CAPTION_CLASSIFICATION_USE_ATTN_POOL": false,
+    "CAPTION_CLASSIFICATION_USE_LAYER_NORM": true,
+    "CAPTION_CLASSIFICATION_USE_MLP": false,
+    "CAPTION_CLASSIFICATION_USE_TRANSFORMERS": true,
+    "CKPT_PATH": "/remote-home/haolinyang/sports/Soccer-Backbone/pretrained_models/google/siglip2-large-patch16-512",
+    "CKPT_TYPE": "soccer_master",
+    "DATASETS_TO_HEADS": {
+      "SoccerNetGSR_Detection": [
+        "SoccerNetGSR_Detection",
+        "LinesDetection",
+        "KeypointsDetection"
+      ],
+      "VideoCaption": [
+        "VideoCaption",
+        "CaptionClassification"
+      ]
+    },
+    "DATASET_SPLITS": "train",
+    "DATA_ROOT": "./datasets/",
+    "DEBUG_START_ITERATION": 0,
+    "DETECTION_DATA_TYPE": "video",
+    "DETECT_BALL_ONLY": false,
+    "DETR_AUX_LOSS": true,
+    "DETR_BBOX_LOSS_COEF": 5.0,
+    "DETR_CLS_LOSS_COEF": 2.0,
+    "DETR_CRITERION_BATCH_LEN": 300,
+    "DETR_DEC_LAYERS": 1,
+    "DETR_DEC_N_POINTS": 4,
+    "DETR_DETECT_BALL": false,
+    "DETR_DIGIT_HEAD_LOSS_COEF": 1.0,
+    "DETR_DIGIT_TAIL_LOSS_COEF": 1.0,
+    "DETR_DIM_FEEDFORWARD": 1024,
+    "DETR_DROPOUT": 0.0,
+    "DETR_ENABLE_JN_CLASSIFICATION": true,
+    "DETR_ENABLE_ROLE_CLASSIFICATION": true,
+    "DETR_ENC_LAYERS": 0,
+    "DETR_ENC_N_POINTS": 4,
+    "DETR_FOCAL_ALPHA": 0.25,
+    "DETR_GIOU_LOSS_COEF": 2.0,
+    "DETR_HIDDEN_DIM": 256,
+    "DETR_JN_LOSS_COEF": 1.0,
+    "DETR_LOCAL_FEATURES_TYPE": "early",
+    "DETR_MASKS": false,
+    "DETR_NUM_FEATURE_LEVELS": 1,
+    "DETR_NUM_HEADS": 1,
+    "DETR_NUM_QUERIES": 300,
+    "DETR_POSITION_EMBEDDING": "sine",
+    "DETR_ROLE_LOSS_COEF": 2.0,
+    "DETR_SET_COST_BBOX": 5.0,
+    "DETR_SET_COST_CLASS": 2.0,
+    "DETR_SET_COST_GIOU": 2.0,
+    "DETR_TWO_STAGE": false,
+    "DETR_WITH_BOX_REFINE": true,
+    "DEVICE": "cpu",
+    "DILATION": false,
+    "DISTRIBUTED_GATHER": true,
+    "DPT_SELECTED_LAYERS": [
+      2,
+      5,
+      8,
+      11
+    ],
+    "ENABLE_SOFTMAX_FOCAL_LOSS": false,
+    "EPOCHS": 20,
+    "EVAL_PER_EPOCH": 1,
+    "EVAL_SCORE_THRESHOLD": 0.5,
+    "EXCLUDE_TEMPORAL_EMBEDDING_WEIGHT_DECAY": true,
+    "EXP_GROUP": "SoccerVisualBackbone",
+    "EXP_NAME": "Default",
+    "EXP_OWNER": "1020134037-shanghai-jiao-tong-university",
+    "EXP_PROJECT": "SoccerVisualBackbone",
+    "EXTRA_DATA_ONLY": false,
+    "EXTRA_DATA_PATH": "./datasets/SN-GSR-2024/SoccerNetGS/extracted_info.pkl",
+    "FREEZE_TEXT_ENCODER": true,
+    "FREEZE_VISION_ENCODER": false,
+    "GSR_KEYPOINTS_LOSS_WEIGHT": 1.0,
+    "GSR_LINES_LOSS_WEIGHT": 1.0,
+    "KEEP_ASPECT_RATIO": false,
+    "KEYPOINTS_LOCAL_FEATURES_TYPE": "early",
+    "LINES_HEAD_TYPE": "default",
+    "LINES_LOCAL_FEATURES_TYPE": "early",
+    "LOAD_CHECKPOINTS": false,
+    "LOAD_HEADS": true,
+    "LOGGING_INTERVAL": 20,
+    "LOG_PARAMS_GRADS": false,
+    "LR": 0.0001,
+    "LR_BACKBONE": 5e-05,
+    "LR_BACKBONE_TEMPORAL": 0.0001,
+    "LR_CAMERA_REGRESSION": 0.0001,
+    "LR_CAPTION_CLASSIFICATION": 0.0001,
+    "LR_CAPTION_CLASSIFICATION_CLASSIFIER": 0.0002,
+    "LR_KEYPOINTS_DETECTION": 0.0001,
+    "LR_LINES_DETECTION": 0.001,
+    "LR_SOCCERNET_GSR_DETECTION": 0.0001,
+    "LR_SOCCERNET_GSR_REID": 0.001,
+    "LR_TEXT_ENCODER": 5e-05,
+    "LR_VIDEO_CAPTION": 0.0001,
+    "LR_WARMUP_EPOCHS": 1,
+    "MAX_CLIP_NORM": 0.1,
+    "MODEL_ARCH": "multitask",
+    "MULTI_LAST_CHECKPOINTS": 0,
+    "NUM_CLASSES": 1,
+    "NUM_FRAMES": 30,
+    "NUM_KEYPOINTS": 58,
+    "NUM_LINES": 24,
+    "NUM_WORKERS": 8,
+    "OUTPUTS_DIR": null,
+    "PREFETCH_FACTOR": 2,
+    "RESUME_FROM_CHECKPOINT_DIR": null,
+    "RESUME_TENSORBOARD_CONTINUOUS": true,
+    "RESUME_TRAINING": false,
+    "SAVE_CHECKPOINT_PER_EPOCH": 1,
+    "SCHEDULER_GAMMA": 0.1,
+    "SCHEDULER_MILESTONES": [
+      9,
+      15
+    ],
+    "SCHEDULER_MIN_LR": 1e-08,
+    "SCHEDULER_TYPE": "CosineAnnealingLR",
+    "SEED": 42,
+    "SIGLIP_BACKBONE_TYPE": "unisoccer_part_temporal",
+    "SOCCER_NET_GSR_REID_BATCH_SIZE": 32,
+    "SOCCER_NET_GSR_REID_DIGIT_HEAD_FOCAL_LOSS_WEIGHT": 1.0,
+    "SOCCER_NET_GSR_REID_DIGIT_TAIL_FOCAL_LOSS_WEIGHT": 1.0,
+    "SOCCER_NET_GSR_REID_JN_HOISTIC_FOCAL_LOSS_WEIGHT": 1.0,
+    "SOCCER_NET_GSR_REID_MARGIN": 0.3,
+    "SOCCER_NET_GSR_REID_NUM_INSTANCES": 4,
+    "SOCCER_NET_GSR_REID_NUM_PIDS": 1343,
+    "SOCCER_NET_GSR_REID_OUTPUT_REID_DIM": 256,
+    "SOCCER_NET_GSR_REID_PID_FOCAL_LOSS_WEIGHT": 0.1,
+    "SOCCER_NET_GSR_REID_PID_TRIPLET_LOSS_WEIGHT": 1.0,
+    "SOCCER_NET_GSR_REID_ROLE_FOCAL_LOSS_WEIGHT": 1.0,
+    "SOCCER_NET_GSR_REID_TEAM_TRIPLET_LOSS_WEIGHT": 1.0,
+    "STAGE_1_CKPT_DIR": "/remote-home/haolinyang/sports/Soccer-Backbone/outputs/pretrain_large_512_multitask_aug_consine_part_temporal_early_freeze_text_lr_5e-5_cap_cls_weight_1_extra_7000_high_resolution/epoch_19",
+    "SUPER_CONFIG_PATH": "/home/tianlin/SoccerMaster/configs/default.yaml",
+    "SoccerNetGSR_DATA_SPLITS": "train",
+    "SoccerNetGSR_SUB_DIR": "SN-GSR-2024",
+    "TEMPORAL_START_LAYER": 16,
+    "TENSORBOARD_FLUSH_SECS": 30,
+    "TENSORBOARD_LOG_DIR": null,
+    "TEXT_ENCODER_CKPT_PATH": "/remote-home/haolinyang/sports/Soccer-Backbone/pretrained_models/google/siglip2-large-patch16-512",
+    "USE_ACCELERATE_CLIP_NORM": true,
+    "USE_CLIP_GRAD_NORM": true,
+    "USE_EXTRA_DATA": true,
+    "USE_EXTRA_DATA_AMOUNT": 7000,
+    "USE_GRADIENT_CHECKPOINTING": false,
+    "USE_LR_AMBIGUITY_FIX": true,
+    "USE_TENSORBOARD": true,
+    "USE_WANDB": false,
+    "VIDEO_CAPTION_BATCH_SIZE": 2,
+    "VIDEO_CAPTION_DATASETS": [
+      "SoccerReplay-1988",
+      "MatchTime",
+      "SoccerNet-v2"
+    ],
+    "VIDEO_CAPTION_DATA_ROOT": "./datasets/VideoCaption/",
+    "VIDEO_CAPTION_FIX_START": null,
+    "VIDEO_CAPTION_INFONCE_LOSS_WEIGHT": 1.0,
+    "VIDEO_CAPTION_LOSS_TYPE": "siglip_loss",
+    "VIDEO_CAPTION_MAX_NUM_FRAMES": -1,
+    "VIDEO_CAPTION_NUM_WORKERS": 16,
+    "VIDEO_CAPTION_SAMPLE": "middle",
+    "VIDEO_CAPTION_SIGLIP_LOSS_WEIGHT": 4.0,
+    "VIDEO_CAPTION_TEST_BATCH_SIZE": 3,
+    "VIDEO_CAPTION_TEXT_KEY": "comments_text_anonymized",
+    "VIDEO_CAPTION_TRIMMED30": false,
+    "WEIGHT_DECAY": 0.0001,
+    "YOLO_IMGSZ": 512,
+    "YOLO_MODEL_PATH": "./pretrained_models/yolo/yolo_v8x6_person_lr_default_best.pt",
+    "YOLO_USE_RECT": false
+  },
+  "sampling": {
+    "decoded_dtype": "torch.uint8",
+    "decoded_shape": [
+      30,
+      3,
+      572,
+      1024
+    ],
+    "duration_seconds": 30.0,
+    "frame_indices": [
+      12,
+      37,
+      62,
+      87,
+      112,
+      137,
+      162,
+      187,
+      212,
+      237,
+      262,
+      287,
+      312,
+      337,
+      362,
+      387,
+      412,
+      437,
+      462,
+      487,
+      512,
+      537,
+      562,
+      587,
+      612,
+      637,
+      662,
+      687,
+      712,
+      737
+    ],
+    "method": "middle"
+  },
+  "seed": 42,
+  "status": "passed",
+  "timings_seconds": {
+    "construct_model_cpu": 8.514,
+    "decode_real_video": 1.193,
+    "hash_video": 0.035,
+    "import_framework": 5.608,
+    "load_and_validate_label": 0.04,
+    "load_checkpoint_cpu": 4.136,
+    "load_config": 0.017,
+    "move_model_to_gpu": 1.583,
+    "real_video_caption_forward": 1.075,
+    "save_contact_sheet": 0.019,
+    "test_preprocessing": 0.493,
+    "validate_and_summarize_outputs": 0.074
+  },
+  "total_elapsed_seconds": 23.557
+}

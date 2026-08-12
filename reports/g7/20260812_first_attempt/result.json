@@ -1,0 +1,58 @@
+{
+  "artifacts": {
+    "checkpoint": "/home/tianlin/SoccerMaster/outputs/g7_caption_classification_probe_20260812_step_000003",
+    "result_json": "/home/tianlin/SoccerMaster/reports/g7_single_task_result_20260812.json"
+  },
+  "assertions": {},
+  "assets": {},
+  "checkpoint": {},
+  "code": {
+    "commit": "3733d21819261e926a2e7cb3b18eeb749877c8d0",
+    "dirty_files": [
+      " M AGENTS.md",
+      " M README.md",
+      " M REPRODUCTION_STATUS.md",
+      " M data/video_caption.py",
+      " M docs/README.md",
+      "?? reports/",
+      "?? scripts/g5_fixed_small_manifest.json",
+      "?? scripts/g6_tiny_overfit_manifest.json",
+      "?? scripts/g7_single_task_manifest.json",
+      "?? scripts/verify_g3_random_forward.py",
+      "?? scripts/verify_g4_real_video.py",
+      "?? scripts/verify_g5_fixed_small_eval.py",
+      "?? scripts/verify_g6_tiny_overfit.py",
+      "?? scripts/verify_g7_single_task_training.py"
+    ]
+  },
+  "environment": {},
+  "error": {
+    "message": "G7 requires exactly one visible CUDA device",
+    "traceback": "Traceback (most recent call last):\n  File \"/home/tianlin/SoccerMaster/scripts/verify_g7_single_task_training.py\", line 793, in main\n    raise RuntimeError(\"G7 requires exactly one visible CUDA device\")\nRuntimeError: G7 requires exactly one visible CUDA device\n",
+    "type": "RuntimeError"
+  },
+  "explicit_non_goals": [
+    "no test split access",
+    "no backbone or text encoder update",
+    "no VideoCaption or detection-head training",
+    "no mixed precision, DataLoader, distributed training, or multi-task scheduling",
+    "no G8 execution"
+  ],
+  "gate": "G7",
+  "gpu": {},
+  "manifest": "/home/tianlin/SoccerMaster/scripts/g7_single_task_manifest.json",
+  "memory_snapshots": [],
+  "peak_cpu_rss_kib": 771580,
+  "status": "failed",
+  "timings_seconds": {
+    "import_framework": 5.082,
+    "load_manifest": 0.0,
+    "validate_fixed_records": 0.329,
+    "validate_paths": 0.229
+  },
+  "total_elapsed_seconds": 5.647,
+  "training": {
+    "epochs": [],
+    "resume_probe": {}
+  }
+}

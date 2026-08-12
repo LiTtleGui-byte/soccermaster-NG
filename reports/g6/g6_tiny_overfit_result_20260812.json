@@ -1,0 +1,1096 @@
+{
+  "artifacts": {
+    "result_json": "/home/tianlin/SoccerMaster/reports/g6_tiny_overfit_result_20260812.json"
+  },
+  "assets": {
+    "checkpoint": "/remote-home/haolinyang/sports/Soccer-Backbone/outputs/pretrain_large_512_multitask_aug_consine_part_temporal_early_freeze_text_lr_5e-5_cap_cls_weight_1_extra_7000_high_resolution/epoch_19",
+    "checkpoint_type": "soccer_master",
+    "config": "/home/tianlin/SoccerMaster/configs/pretrain_large_512_multitask_aug_consine_part_temporal_early_freeze_text_lr_5e-5_cap_cls_weight_1_extra_7000_high_resolution.yaml",
+    "frame_indices": [
+      [
+        12,
+        37,
+        62,
+        87,
+        112,
+        137,
+        162,
+        187,
+        212,
+        237,
+        262,
+        287,
+        312,
+        337,
+        362,
+        387,
+        412,
+        437,
+        462,
+        487,
+        512,
+        537,
+        562,
+        587,
+        612,
+        637,
+        662,
+        687,
+        712,
+        737
+      ],
+      [
+        12,
+        37,
+        62,
+        87,
+        112,
+        137,
+        162,
+        187,
+        212,
+        237,
+        262,
+        287,
+        312,
+        337,
+        362,
+        387,
+        412,
+        437,
+        462,
+        487,
+        512,
+        537,
+        562,
+        587,
+        612,
+        637,
+        662,
+        687,
+        712,
+        737
+      ],
+      [
+        12,
+        37,
+        62,
+        87,
+        112,
+        137,
+        162,
+        187,
+        212,
+        237,
+        262,
+        287,
+        312,
+        337,
+        362,
+        387,
+        412,
+        437,
+        462,
+        487,
+        512,
+        537,
+        562,
+        587,
+        612,
+        637,
+        662,
+        687,
+        712,
+        737
+      ],
+      [
+        12,
+        37,
+        62,
+        87,
+        112,
+        137,
+        162,
+        187,
+        212,
+        237,
+        262,
+        287,
+        312,
+        337,
+        362,
+        388,
+        413,
+        438,
+        463,
+        488,
+        513,
+        538,
+        563,
+        588,
+        613,
+        638,
+        663,
+        688,
+        713,
+        738
+      ]
+    ],
+    "load_heads": true,
+    "model": "/remote-home/haolinyang/sports/Soccer-Backbone/pretrained_models/google/siglip2-large-patch16-512",
+    "sample_count": 4,
+    "samples": [
+      {
+        "caption": "second yellow card",
+        "caption_index": 3,
+        "expected_initial_top1": "end of half game",
+        "manifest_index": 0,
+        "relative_video": "italy_serie-a_2018-2019/2018-10-20_as-roma-s-p-a-l-2013/2_30_17.mp4",
+        "text_sha256": "ddf1ff1111b66d2490a5220a4ff3fc126918445c42258085323e924cbc32933a",
+        "video": "/remote-home/haolinyang/sports/Soccer-Backbone/datasets/VideoCaption/video_clip/SoccerReplay-1988-high-resolution/italy_serie-a_2018-2019/2018-10-20_as-roma-s-p-a-l-2013/2_30_17.mp4"
+      },
+      {
+        "caption": "throw in",
+        "caption_index": 6,
+        "expected_initial_top1": "clearance",
+        "manifest_index": 1,
+        "relative_video": "england_epl_2021-2022/2021-08-22_southampton-fc-manchester-united-premier-league-2021-2022/1_20_30.mp4",
+        "text_sha256": "5331b51c45607ffd757fe7fd17d711d5f88c5dc7dee6b81dc9ca41739f2cb4f9",
+        "video": "/remote-home/haolinyang/sports/Soccer-Backbone/datasets/VideoCaption/video_clip/SoccerReplay-1988-high-resolution/england_epl_2021-2022/2021-08-22_southampton-fc-manchester-united-premier-league-2021-2022/1_20_30.mp4"
+      },
+      {
+        "caption": "show added time",
+        "caption_index": 7,
+        "expected_initial_top1": "saved by goal-keeper",
+        "manifest_index": 2,
+        "relative_video": "italy_serie-a_2018-2019/2019-03-31_fc-internazionale-ss-lazio-serie-a-2018-2019/2_45_00.mp4",
+        "text_sha256": "0514d0d70ee04fea45cebb5f406b4600ba9e0417ee2435c661baa6717093f204",
+        "video": "/remote-home/haolinyang/sports/Soccer-Backbone/datasets/VideoCaption/video_clip/SoccerReplay-1988-high-resolution/italy_serie-a_2018-2019/2019-03-31_fc-internazionale-ss-lazio-serie-a-2018-2019/2_45_00.mp4"
+      },
+      {
+        "caption": "start of half game",
+        "caption_index": 9,
+        "expected_initial_top1": "corner",
+        "manifest_index": 3,
+        "relative_video": "italy_serie-a_2018-2019/2019-03-31_fc-internazionale-ss-lazio-serie-a-2018-2019/2_00_01.mp4",
+        "text_sha256": "46b3efde4dd4affa433edfd43239bbc34d0e66386850ce0bd144decb7945f411",
+        "video": "/remote-home/haolinyang/sports/Soccer-Backbone/datasets/VideoCaption/video_clip/SoccerReplay-1988-high-resolution/italy_serie-a_2018-2019/2019-03-31_fc-internazionale-ss-lazio-serie-a-2018-2019/2_00_01.mp4"
+      }
+    ],
+    "total_video_bytes": 21947461
+  },
+  "code": {
+    "commit": "3733d21819261e926a2e7cb3b18eeb749877c8d0",
+    "dirty_files": [
+      " M AGENTS.md",
+      " M README.md",
+      " M REPRODUCTION_STATUS.md",
+      " M data/video_caption.py",
+      " M docs/README.md",
+      "?? reports/",
+      "?? scripts/g5_fixed_small_manifest.json",
+      "?? scripts/g6_tiny_overfit_manifest.json",
+      "?? scripts/verify_g3_random_forward.py",
+      "?? scripts/verify_g4_real_video.py",
+      "?? scripts/verify_g5_fixed_small_eval.py",
+      "?? scripts/verify_g6_tiny_overfit.py"
+    ]
+  },
+  "environment": {
+    "cublas_workspace_config": ":4096:8",
+    "cuda_build": "12.1",
+    "dtype": "torch.float32",
+    "ld_library_path": "/home/tianlin/SoccerMaster/.local_envs/SoccerMaster-repro/lib/python3.10/site-packages/cv2/../../lib64:/home/tianlin/SoccerMaster/.local_envs/SoccerMaster-repro/lib/python3.10/site-packages/torch/lib:/home/tianlin/SoccerMaster/.local_envs/SoccerMaster-repro/lib",
+    "python": "/home/tianlin/SoccerMaster/.local_envs/SoccerMaster-repro/bin/python",
+    "python_version": "3.10.16",
+    "pythondontwritebytecode": "1",
+    "pythonpath": "/home/tianlin/SoccerMaster/models/deformable_detr/ops/build/lib.linux-x86_64-cpython-310:/home/tianlin/SoccerMaster",
+    "torch": "2.4.1"
+  },
+  "error": null,
+  "explicit_non_goals": [
+    "no backbone, text encoder, transformer encoder, or other head update",
+    "no scheduler, DataLoader, distributed training, or mixed precision",
+    "no model, optimizer, or checkpoint save",
+    "no validation-set or population-level performance claim",
+    "no G7 execution"
+  ],
+  "gate": "G6",
+  "gpu": {
+    "capability": [
+      9,
+      0
+    ],
+    "logical_device": "cuda:0",
+    "name": "NVIDIA H800",
+    "visible_physical_index": 7
+  },
+  "manifest": "/home/tianlin/SoccerMaster/scripts/g6_tiny_overfit_manifest.json",
+  "manifest_sha256": "2bb8f5a493c7caeef66f293059f52721e6735b01c9666bd69b1342fbbf21a4fe",
+  "memory_snapshots": [
+    {
+      "allocated_bytes": 0,
+      "free_bytes": 46920564736,
+      "label": "after_cuda_init",
+      "max_allocated_bytes": 0,
+      "max_reserved_bytes": 0,
+      "reserved_bytes": 0,
+      "total_bytes": 85028372480
+    },
+    {
+      "allocated_bytes": 0,
+      "free_bytes": 46920564736,
+      "label": "before_model_to_gpu",
+      "max_allocated_bytes": 0,
+      "max_reserved_bytes": 0,
+      "reserved_bytes": 0,
+      "total_bytes": 85028372480
+    },
+    {
+      "allocated_bytes": 3799319552,
+      "free_bytes": 43116331008,
+      "label": "after_model_to_gpu",
+      "max_allocated_bytes": 3799319552,
+      "max_reserved_bytes": 3804233728,
+      "reserved_bytes": 3804233728,
+      "total_bytes": 85028372480
+    },
+    {
+      "allocated_bytes": 3833365504,
+      "free_bytes": 40637497344,
+      "label": "before_tiny_overfit",
+      "max_allocated_bytes": 5689222144,
+      "max_reserved_bytes": 6140461056,
+      "reserved_bytes": 6140461056,
+      "total_bytes": 85028372480
+    },
+    {
+      "allocated_bytes": 3867204096,
+      "free_bytes": 40603942912,
+      "label": "after_tiny_overfit",
+      "max_allocated_bytes": 3872892416,
+      "max_reserved_bytes": 6140461056,
+      "reserved_bytes": 6140461056,
+      "total_bytes": 85028372480
+    }
+  ],
+  "peak_cpu_rss_kib": 8433976,
+  "resolved_config": {
+    "ACCUMULATE_STEPS": 1,
+    "AUG_AFFINE_DEGREES": 10,
+    "AUG_AFFINE_PROB": 0.5,
+    "AUG_AFFINE_SCALE": [
+      0.9,
+      1.1
+    ],
+    "AUG_AFFINE_SHEAR": 5,
+    "AUG_AFFINE_TRANSLATE": [
+      0.1,
+      0.1
+    ],
+    "AUG_BRIGHTNESS": 0.4,
+    "AUG_COLOR_JITTER_V2": true,
+    "AUG_CONTRAST": 0.4,
+    "AUG_ENABLE_RANDOM_AFFINE": true,
+    "AUG_ENABLE_RANDOM_CROP": true,
+    "AUG_ENABLE_RANDOM_PERSPECTIVE": true,
+    "AUG_ENABLE_TRAINING_AUGMENTATION": true,
+    "AUG_GAUSSIAN_BLUR": true,
+    "AUG_GAUSSIAN_BLUR_KERNEL_SIZE_RANGE": [
+      3,
+      7
+    ],
+    "AUG_GAUSSIAN_BLUR_PROB": 0.2,
+    "AUG_GAUSSIAN_BLUR_SIGMA_RANGE": [
+      0.1,
+      2.0
+    ],
+    "AUG_GAUSSIAN_NOISE": true,
+    "AUG_GAUSSIAN_NOISE_PROB": 0.3,
+    "AUG_GAUSSIAN_NOISE_STD": 0.02,
+    "AUG_HORIZONTAL_FLIP_PROB": 0.5,
+    "AUG_HUE": 0.2,
+    "AUG_MAX_SHIFT_RATIO": 0.06,
+    "AUG_MAX_SIZE": 512,
+    "AUG_MEAN": [
+      0.5,
+      0.5,
+      0.5
+    ],
+    "AUG_OVERFLOW_BBOX": false,
+    "AUG_PERSPECTIVE_DISTORTION_SCALE": 0.3,
+    "AUG_PERSPECTIVE_PROB": 0.5,
+    "AUG_RANDOM_CROP_PROB": 1.0,
+    "AUG_RANDOM_CROP_SIZE_RATIO_RANGE": [
+      0.6,
+      1.0
+    ],
+    "AUG_RANDOM_HORIZONTAL_FLIP": true,
+    "AUG_RANDOM_RESIZE": [
+      512
+    ],
+    "AUG_RESIZE_SCALES": [
+      512
+    ],
+    "AUG_SATURATION": 0.4,
+    "AUG_STD": [
+      0.5,
+      0.5,
+      0.5
+    ],
+    "BACKBONE_HIDDEN_DIM": 1024,
+    "BACKBONE_TYPE": "video",
+    "BACKBONE_USE_TEMPORAL_GATE": true,
+    "BATCH_SIZE": 1,
+    "CAMERA_FL_LOSS_WEIGHT": 1.0,
+    "CAMERA_R_LOSS_WEIGHT": 5.0,
+    "CAMERA_T_LOSS_WEIGHT": 1.0,
+    "CAPTION_CLASSIFICATION_DROPOUT_RATE": 0.0,
+    "CAPTION_CLASSIFICATION_LABEL_SMOOTHING": 0.0,
+    "CAPTION_CLASSIFICATION_LOSS_WEIGHT": 1.0,
+    "CAPTION_CLASSIFICATION_NUM_TRANSFORMER_ENCODER": 2,
+    "CAPTION_CLASSIFICATION_USE_ATTN_POOL": false,
+    "CAPTION_CLASSIFICATION_USE_LAYER_NORM": true,
+    "CAPTION_CLASSIFICATION_USE_MLP": false,
+    "CAPTION_CLASSIFICATION_USE_TRANSFORMERS": true,
+    "CKPT_PATH": "/remote-home/haolinyang/sports/Soccer-Backbone/pretrained_models/google/siglip2-large-patch16-512",
+    "CKPT_TYPE": "soccer_master",
+    "DATASETS_TO_HEADS": {
+      "VideoCaption": [
+        "CaptionClassification"
+      ]
+    },
+    "DATASET_SPLITS": "train",
+    "DATA_ROOT": "./datasets/",
+    "DEBUG_START_ITERATION": 0,
+    "DETECTION_DATA_TYPE": "video",
+    "DETECT_BALL_ONLY": false,
+    "DETR_AUX_LOSS": true,
+    "DETR_BBOX_LOSS_COEF": 5.0,
+    "DETR_CLS_LOSS_COEF": 2.0,
+    "DETR_CRITERION_BATCH_LEN": 300,
+    "DETR_DEC_LAYERS": 1,
+    "DETR_DEC_N_POINTS": 4,
+    "DETR_DETECT_BALL": false,
+    "DETR_DIGIT_HEAD_LOSS_COEF": 1.0,
+    "DETR_DIGIT_TAIL_LOSS_COEF": 1.0,
+    "DETR_DIM_FEEDFORWARD": 1024,
+    "DETR_DROPOUT": 0.0,
+    "DETR_ENABLE_JN_CLASSIFICATION": true,
+    "DETR_ENABLE_ROLE_CLASSIFICATION": true,
+    "DETR_ENC_LAYERS": 0,
+    "DETR_ENC_N_POINTS": 4,
+    "DETR_FOCAL_ALPHA": 0.25,
+    "DETR_GIOU_LOSS_COEF": 2.0,
+    "DETR_HIDDEN_DIM": 256,
+    "DETR_JN_LOSS_COEF": 1.0,
+    "DETR_LOCAL_FEATURES_TYPE": "early",
+    "DETR_MASKS": false,
+    "DETR_NUM_FEATURE_LEVELS": 1,
+    "DETR_NUM_HEADS": 1,
+    "DETR_NUM_QUERIES": 300,
+    "DETR_POSITION_EMBEDDING": "sine",
+    "DETR_ROLE_LOSS_COEF": 2.0,
+    "DETR_SET_COST_BBOX": 5.0,
+    "DETR_SET_COST_CLASS": 2.0,
+    "DETR_SET_COST_GIOU": 2.0,
+    "DETR_TWO_STAGE": false,
+    "DETR_WITH_BOX_REFINE": true,
+    "DEVICE": "cpu",
+    "DILATION": false,
+    "DISTRIBUTED_GATHER": true,
+    "DPT_SELECTED_LAYERS": [
+      2,
+      5,
+      8,
+      11
+    ],
+    "ENABLE_SOFTMAX_FOCAL_LOSS": false,
+    "EPOCHS": 20,
+    "EVAL_PER_EPOCH": 1,
+    "EVAL_SCORE_THRESHOLD": 0.5,
+    "EXCLUDE_TEMPORAL_EMBEDDING_WEIGHT_DECAY": true,
+    "EXP_GROUP": "SoccerVisualBackbone",
+    "EXP_NAME": "Default",
+    "EXP_OWNER": "1020134037-shanghai-jiao-tong-university",
+    "EXP_PROJECT": "SoccerVisualBackbone",
+    "EXTRA_DATA_ONLY": false,
+    "EXTRA_DATA_PATH": "./datasets/SN-GSR-2024/SoccerNetGS/extracted_info.pkl",
+    "FREEZE_TEXT_ENCODER": true,
+    "FREEZE_VISION_ENCODER": false,
+    "GSR_KEYPOINTS_LOSS_WEIGHT": 1.0,
+    "GSR_LINES_LOSS_WEIGHT": 1.0,
+    "KEEP_ASPECT_RATIO": false,
+    "KEYPOINTS_LOCAL_FEATURES_TYPE": "early",
+    "LINES_HEAD_TYPE": "default",
+    "LINES_LOCAL_FEATURES_TYPE": "early",
+    "LOAD_CHECKPOINTS": false,
+    "LOAD_HEADS": true,
+    "LOGGING_INTERVAL": 20,
+    "LOG_PARAMS_GRADS": false,
+    "LR": 0.0001,
+    "LR_BACKBONE": 5e-05,
+    "LR_BACKBONE_TEMPORAL": 0.0001,
+    "LR_CAMERA_REGRESSION": 0.0001,
+    "LR_CAPTION_CLASSIFICATION": 0.0001,
+    "LR_CAPTION_CLASSIFICATION_CLASSIFIER": 0.0002,
+    "LR_KEYPOINTS_DETECTION": 0.0001,
+    "LR_LINES_DETECTION": 0.001,
+    "LR_SOCCERNET_GSR_DETECTION": 0.0001,
+    "LR_SOCCERNET_GSR_REID": 0.001,
+    "LR_TEXT_ENCODER": 5e-05,
+    "LR_VIDEO_CAPTION": 0.0001,
+    "LR_WARMUP_EPOCHS": 1,
+    "MAX_CLIP_NORM": 0.1,
+    "MODEL_ARCH": "multitask",
+    "MULTI_LAST_CHECKPOINTS": 0,
+    "NUM_CLASSES": 1,
+    "NUM_FRAMES": 30,
+    "NUM_KEYPOINTS": 58,
+    "NUM_LINES": 24,
+    "NUM_WORKERS": 8,
+    "OUTPUTS_DIR": null,
+    "PREFETCH_FACTOR": 2,
+    "RESUME_FROM_CHECKPOINT_DIR": null,
+    "RESUME_TENSORBOARD_CONTINUOUS": true,
+    "RESUME_TRAINING": false,
+    "SAVE_CHECKPOINT_PER_EPOCH": 1,
+    "SCHEDULER_GAMMA": 0.1,
+    "SCHEDULER_MILESTONES": [
+      9,
+      15
+    ],
+    "SCHEDULER_MIN_LR": 1e-08,
+    "SCHEDULER_TYPE": "CosineAnnealingLR",
+    "SEED": 42,
+    "SIGLIP_BACKBONE_TYPE": "unisoccer_part_temporal",
+    "SOCCER_NET_GSR_REID_BATCH_SIZE": 32,
+    "SOCCER_NET_GSR_REID_DIGIT_HEAD_FOCAL_LOSS_WEIGHT": 1.0,
+    "SOCCER_NET_GSR_REID_DIGIT_TAIL_FOCAL_LOSS_WEIGHT": 1.0,
+    "SOCCER_NET_GSR_REID_JN_HOISTIC_FOCAL_LOSS_WEIGHT": 1.0,
+    "SOCCER_NET_GSR_REID_MARGIN": 0.3,
+    "SOCCER_NET_GSR_REID_NUM_INSTANCES": 4,
+    "SOCCER_NET_GSR_REID_NUM_PIDS": 1343,
+    "SOCCER_NET_GSR_REID_OUTPUT_REID_DIM": 256,
+    "SOCCER_NET_GSR_REID_PID_FOCAL_LOSS_WEIGHT": 0.1,
+    "SOCCER_NET_GSR_REID_PID_TRIPLET_LOSS_WEIGHT": 1.0,
+    "SOCCER_NET_GSR_REID_ROLE_FOCAL_LOSS_WEIGHT": 1.0,
+    "SOCCER_NET_GSR_REID_TEAM_TRIPLET_LOSS_WEIGHT": 1.0,
+    "STAGE_1_CKPT_DIR": "/remote-home/haolinyang/sports/Soccer-Backbone/outputs/pretrain_large_512_multitask_aug_consine_part_temporal_early_freeze_text_lr_5e-5_cap_cls_weight_1_extra_7000_high_resolution/epoch_19",
+    "SUPER_CONFIG_PATH": "/home/tianlin/SoccerMaster/configs/default.yaml",
+    "SoccerNetGSR_DATA_SPLITS": "train",
+    "SoccerNetGSR_SUB_DIR": "SN-GSR-2024",
+    "TEMPORAL_START_LAYER": 16,
+    "TENSORBOARD_FLUSH_SECS": 30,
+    "TENSORBOARD_LOG_DIR": null,
+    "TEXT_ENCODER_CKPT_PATH": "/remote-home/haolinyang/sports/Soccer-Backbone/pretrained_models/google/siglip2-large-patch16-512",
+    "USE_ACCELERATE_CLIP_NORM": true,
+    "USE_CLIP_GRAD_NORM": true,
+    "USE_EXTRA_DATA": true,
+    "USE_EXTRA_DATA_AMOUNT": 7000,
+    "USE_GRADIENT_CHECKPOINTING": false,
+    "USE_LR_AMBIGUITY_FIX": true,
+    "USE_TENSORBOARD": true,
+    "USE_WANDB": false,
+    "VIDEO_CAPTION_BATCH_SIZE": 2,
+    "VIDEO_CAPTION_DATASETS": [
+      "SoccerReplay-1988",
+      "MatchTime",
+      "SoccerNet-v2"
+    ],
+    "VIDEO_CAPTION_DATA_ROOT": "./datasets/VideoCaption/",
+    "VIDEO_CAPTION_FIX_START": null,
+    "VIDEO_CAPTION_INFONCE_LOSS_WEIGHT": 1.0,
+    "VIDEO_CAPTION_LOSS_TYPE": "siglip_loss",
+    "VIDEO_CAPTION_MAX_NUM_FRAMES": -1,
+    "VIDEO_CAPTION_NUM_WORKERS": 16,
+    "VIDEO_CAPTION_SAMPLE": "middle",
+    "VIDEO_CAPTION_SIGLIP_LOSS_WEIGHT": 4.0,
+    "VIDEO_CAPTION_TEST_BATCH_SIZE": 3,
+    "VIDEO_CAPTION_TEXT_KEY": "comments_text_anonymized",
+    "VIDEO_CAPTION_TRIMMED30": false,
+    "WEIGHT_DECAY": 0.0001,
+    "YOLO_IMGSZ": 512,
+    "YOLO_MODEL_PATH": "./pretrained_models/yolo/yolo_v8x6_person_lr_default_best.pt",
+    "YOLO_USE_RECT": false
+  },
+  "status": "passed",
+  "timings_seconds": {
+    "cache_fixed_backbone_features": 10.256,
+    "construct_model_cpu": 8.697,
+    "import_framework": 4.507,
+    "load_checkpoint_cpu": 4.321,
+    "load_config": 0.015,
+    "load_manifest": 0.0,
+    "move_model_to_gpu": 1.476,
+    "tiny_overfit_training": 1.347,
+    "validate_assets": 0.008,
+    "validate_records": 0.04
+  },
+  "total_elapsed_seconds": 31.23,
+  "training": {
+    "assertions": {
+      "early_stop_stability_reached": true,
+      "final_accuracy_reached": true,
+      "final_loss_below_threshold": true,
+      "frozen_parameters_unchanged": true,
+      "frozen_parameters_without_gradients": true,
+      "initial_accuracy_below_one": true,
+      "loss_ratio_below_threshold": true,
+      "nonzero_finite_gradient_each_step": true,
+      "trainable_parameters_changed": true
+    },
+    "batch_size": 4,
+    "checkpoint_saved": false,
+    "completed_steps": 110,
+    "curve": [
+      {
+        "accuracy": 0.0,
+        "loss": 3.8764548301696777,
+        "maximum_probability": [
+          0.5814114212989807,
+          0.7375646233558655,
+          0.3701161742210388,
+          0.20226041972637177
+        ],
+        "prediction_indices": [
+          1,
+          2,
+          11,
+          20
+        ],
+        "prediction_labels": [
+          "end of half game",
+          "clearance",
+          "saved by goal-keeper",
+          "corner"
+        ],
+        "step": 0,
+        "target_indices": [
+          3,
+          6,
+          7,
+          9
+        ],
+        "target_labels": [
+          "second yellow card",
+          "throw in",
+          "show added time",
+          "start of half game"
+        ]
+      },
+      {
+        "accuracy": 0.0,
+        "loss": 3.786196708679199,
+        "maximum_probability": [
+          0.5780445337295532,
+          0.7346994876861572,
+          0.367596298456192,
+          0.19964896142482758
+        ],
+        "prediction_indices": [
+          1,
+          2,
+          11,
+          20
+        ],
+        "prediction_labels": [
+          "end of half game",
+          "clearance",
+          "saved by goal-keeper",
+          "corner"
+        ],
+        "step": 1,
+        "target_indices": [
+          3,
+          6,
+          7,
+          9
+        ],
+        "target_labels": [
+          "second yellow card",
+          "throw in",
+          "show added time",
+          "start of half game"
+        ]
+      },
+      {
+        "accuracy": 0.25,
+        "loss": 2.992161989212036,
+        "maximum_probability": [
+          0.5400947332382202,
+          0.7049194574356079,
+          0.3426479995250702,
+          0.20289213955402374
+        ],
+        "prediction_indices": [
+          1,
+          2,
+          11,
+          9
+        ],
+        "prediction_labels": [
+          "end of half game",
+          "clearance",
+          "saved by goal-keeper",
+          "start of half game"
+        ],
+        "step": 10,
+        "target_indices": [
+          3,
+          6,
+          7,
+          9
+        ],
+        "target_labels": [
+          "second yellow card",
+          "throw in",
+          "show added time",
+          "start of half game"
+        ]
+      },
+      {
+        "accuracy": 0.25,
+        "loss": 2.1686034202575684,
+        "maximum_probability": [
+          0.47356852889060974,
+          0.6579589247703552,
+          0.3071635067462921,
+          0.3612893223762512
+        ],
+        "prediction_indices": [
+          1,
+          2,
+          11,
+          9
+        ],
+        "prediction_labels": [
+          "end of half game",
+          "clearance",
+          "saved by goal-keeper",
+          "start of half game"
+        ],
+        "step": 20,
+        "target_indices": [
+          3,
+          6,
+          7,
+          9
+        ],
+        "target_labels": [
+          "second yellow card",
+          "throw in",
+          "show added time",
+          "start of half game"
+        ]
+      },
+      {
+        "accuracy": 0.25,
+        "loss": 1.4469516277313232,
+        "maximum_probability": [
+          0.36893022060394287,
+          0.5819138884544373,
+          0.2696132957935333,
+          0.5433952808380127
+        ],
+        "prediction_indices": [
+          1,
+          2,
+          2,
+          9
+        ],
+        "prediction_labels": [
+          "end of half game",
+          "clearance",
+          "clearance",
+          "start of half game"
+        ],
+        "step": 30,
+        "target_indices": [
+          3,
+          6,
+          7,
+          9
+        ],
+        "target_labels": [
+          "second yellow card",
+          "throw in",
+          "show added time",
+          "start of half game"
+        ]
+      },
+      {
+        "accuracy": 0.75,
+        "loss": 0.8749115467071533,
+        "maximum_probability": [
+          0.4656517505645752,
+          0.4585345983505249,
+          0.37927284836769104,
+          0.699745237827301
+        ],
+        "prediction_indices": [
+          3,
+          2,
+          7,
+          9
+        ],
+        "prediction_labels": [
+          "second yellow card",
+          "clearance",
+          "show added time",
+          "start of half game"
+        ],
+        "step": 40,
+        "target_indices": [
+          3,
+          6,
+          7,
+          9
+        ],
+        "target_labels": [
+          "second yellow card",
+          "throw in",
+          "show added time",
+          "start of half game"
+        ]
+      },
+      {
+        "accuracy": 1.0,
+        "loss": 0.4815533459186554,
+        "maximum_probability": [
+          0.6760903000831604,
+          0.44889411330223083,
+          0.5922801494598389,
+          0.810551106929779
+        ],
+        "prediction_indices": [
+          3,
+          6,
+          7,
+          9
+        ],
+        "prediction_labels": [
+          "second yellow card",
+          "throw in",
+          "show added time",
+          "start of half game"
+        ],
+        "step": 50,
+        "target_indices": [
+          3,
+          6,
+          7,
+          9
+        ],
+        "target_labels": [
+          "second yellow card",
+          "throw in",
+          "show added time",
+          "start of half game"
+        ]
+      },
+      {
+        "accuracy": 1.0,
+        "loss": 0.24925972521305084,
+        "maximum_probability": [
+          0.8212927579879761,
+          0.6666893362998962,
+          0.7624877691268921,
+          0.8837656378746033
+        ],
+        "prediction_indices": [
+          3,
+          6,
+          7,
+          9
+        ],
+        "prediction_labels": [
+          "second yellow card",
+          "throw in",
+          "show added time",
+          "start of half game"
+        ],
+        "step": 60,
+        "target_indices": [
+          3,
+          6,
+          7,
+          9
+        ],
+        "target_labels": [
+          "second yellow card",
+          "throw in",
+          "show added time",
+          "start of half game"
+        ]
+      },
+      {
+        "accuracy": 1.0,
+        "loss": 0.12646019458770752,
+        "maximum_probability": [
+          0.9065813422203064,
+          0.8264961838722229,
+          0.8637927174568176,
+          0.9316633343696594
+        ],
+        "prediction_indices": [
+          3,
+          6,
+          7,
+          9
+        ],
+        "prediction_labels": [
+          "second yellow card",
+          "throw in",
+          "show added time",
+          "start of half game"
+        ],
+        "step": 70,
+        "target_indices": [
+          3,
+          6,
+          7,
+          9
+        ],
+        "target_labels": [
+          "second yellow card",
+          "throw in",
+          "show added time",
+          "start of half game"
+        ]
+      },
+      {
+        "accuracy": 1.0,
+        "loss": 0.06470348685979843,
+        "maximum_probability": [
+          0.9535850882530212,
+          0.9161175489425659,
+          0.9184447526931763,
+          0.9621323943138123
+        ],
+        "prediction_indices": [
+          3,
+          6,
+          7,
+          9
+        ],
+        "prediction_labels": [
+          "second yellow card",
+          "throw in",
+          "show added time",
+          "start of half game"
+        ],
+        "step": 80,
+        "target_indices": [
+          3,
+          6,
+          7,
+          9
+        ],
+        "target_labels": [
+          "second yellow card",
+          "throw in",
+          "show added time",
+          "start of half game"
+        ]
+      },
+      {
+        "accuracy": 1.0,
+        "loss": 0.03384663164615631,
+        "maximum_probability": [
+          0.9776506423950195,
+          0.9584936499595642,
+          0.9509134888648987,
+          0.980140745639801
+        ],
+        "prediction_indices": [
+          3,
+          6,
+          7,
+          9
+        ],
+        "prediction_labels": [
+          "second yellow card",
+          "throw in",
+          "show added time",
+          "start of half game"
+        ],
+        "step": 90,
+        "target_indices": [
+          3,
+          6,
+          7,
+          9
+        ],
+        "target_labels": [
+          "second yellow card",
+          "throw in",
+          "show added time",
+          "start of half game"
+        ]
+      },
+      {
+        "accuracy": 1.0,
+        "loss": 0.018119540065526962,
+        "maximum_probability": [
+          0.9891392588615417,
+          0.9772198796272278,
+          0.9720743298530579,
+          0.9898603558540344
+        ],
+        "prediction_indices": [
+          3,
+          6,
+          7,
+          9
+        ],
+        "prediction_labels": [
+          "second yellow card",
+          "throw in",
+          "show added time",
+          "start of half game"
+        ],
+        "step": 100,
+        "target_indices": [
+          3,
+          6,
+          7,
+          9
+        ],
+        "target_labels": [
+          "second yellow card",
+          "throw in",
+          "show added time",
+          "start of half game"
+        ]
+      },
+      {
+        "accuracy": 1.0,
+        "loss": 0.01002940908074379,
+        "maximum_probability": [
+          0.9945483803749084,
+          0.9865372180938721,
+          0.984282910823822,
+          0.9947587847709656
+        ],
+        "prediction_indices": [
+          3,
+          6,
+          7,
+          9
+        ],
+        "prediction_labels": [
+          "second yellow card",
+          "throw in",
+          "show added time",
+          "start of half game"
+        ],
+        "step": 110,
+        "target_indices": [
+          3,
+          6,
+          7,
+          9
+        ],
+        "target_labels": [
+          "second yellow card",
+          "throw in",
+          "show added time",
+          "start of half game"
+        ]
+      }
+    ],
+    "evaluation_interval_steps": 10,
+    "final": {
+      "accuracy": 1.0,
+      "loss": 0.01002940908074379,
+      "maximum_probability": [
+        0.9945483803749084,
+        0.9865372180938721,
+        0.984282910823822,
+        0.9947587847709656
+      ],
+      "prediction_indices": [
+        3,
+        6,
+        7,
+        9
+      ],
+      "prediction_labels": [
+        "second yellow card",
+        "throw in",
+        "show added time",
+        "start of half game"
+      ],
+      "target_indices": [
+        3,
+        6,
+        7,
+        9
+      ],
+      "target_labels": [
+        "second yellow card",
+        "throw in",
+        "show added time",
+        "start of half game"
+      ]
+    },
+    "final_to_initial_loss_ratio": 0.0025872632392584306,
+    "frozen_parameter_count": 891,
+    "gradient_clip_max_norm": 0.1,
+    "initial": {
+      "accuracy": 0.0,
+      "loss": 3.8764548301696777,
+      "maximum_probability": [
+        0.5814114212989807,
+        0.7375646233558655,
+        0.3701161742210388,
+        0.20226041972637177
+      ],
+      "prediction_indices": [
+        1,
+        2,
+        11,
+        20
+      ],
+      "prediction_labels": [
+        "end of half game",
+        "clearance",
+        "saved by goal-keeper",
+        "corner"
+      ],
+      "target_indices": [
+        3,
+        6,
+        7,
+        9
+      ],
+      "target_labels": [
+        "second yellow card",
+        "throw in",
+        "show added time",
+        "start of half game"
+      ]
+    },
+    "learning_rate": 0.0002,
+    "max_steps": 1000,
+    "maximum_gradient_norm": 16.407506942749023,
+    "maximum_parameter_delta": 0.03459266573190689,
+    "minimum_gradient_norm": 0.07115683704614639,
+    "nonzero_gradient_steps": 110,
+    "optimizer": "AdamW",
+    "parameter_maximum_absolute_deltas": {
+      "multi_task_head.CaptionClassification.classifier.bias": 0.022253789007663727,
+      "multi_task_head.CaptionClassification.classifier.weight": 0.03459266573190689
+    },
+    "required_consecutive_successful_evaluations": 5,
+    "scheduler": null,
+    "scope": "CaptionClassification.classifier weight and bias only",
+    "trainable_parameter_count": 23575,
+    "trainable_parameter_names": [
+      "multi_task_head.CaptionClassification.classifier.bias",
+      "multi_task_head.CaptionClassification.classifier.weight"
+    ],
+    "weight_decay": 0.0001
+  }
+}
