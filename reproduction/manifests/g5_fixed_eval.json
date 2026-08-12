@@ -1,0 +1,197 @@
+{
+  "schema_version": 1,
+  "gate": "G5",
+  "description": "Fixed small evaluation set covering all five SoccerMaster heads.",
+  "detection": {
+    "dataset": "SoccerNetGS",
+    "split": "test",
+    "source_root": "/remote-home/haolinyang/sports/Soccer-Backbone/datasets/SN-GSR-2024",
+    "sequence": "SNGS-116",
+    "label_sha256": "d0b1eb05ec23247a8512556f0de239488507b4228d412ba6dc244d3acaafdfe0",
+    "clips": [
+      {
+        "start_frame_zero_based": 0,
+        "end_frame_exclusive": 30,
+        "first_image": "000001.jpg",
+        "last_image": "000030.jpg",
+        "total_bytes": 9845637
+      },
+      {
+        "start_frame_zero_based": 360,
+        "end_frame_exclusive": 390,
+        "first_image": "000361.jpg",
+        "last_image": "000390.jpg",
+        "total_bytes": 8725491
+      }
+    ]
+  },
+  "caption": {
+    "dataset": "SoccerReplay-1988",
+    "split": "test",
+    "source_root": "/remote-home/haolinyang/sports/Soccer-Backbone/datasets/VideoCaption",
+    "label_sha256": "fc65c3b5f061c57c8850452d1e5f1d11e584f1c022a5d4cecb3a8acf826ad123",
+    "samples": [
+      {
+        "label": "var",
+        "label_index": 346,
+        "relative_video": "italy_serie-a_2018-2019/2018-12-08_cagliari-calcio-as-roma/2_23_37.mp4",
+        "video_bytes": 3404526,
+        "text_length": 131
+      },
+      {
+        "label": "end of half game",
+        "label_index": 0,
+        "relative_video": "italy_serie-a_2018-2019/2019-03-31_fc-internazionale-ss-lazio-serie-a-2018-2019/2_49_08.mp4",
+        "video_bytes": 6144860,
+        "text_length": 67
+      },
+      {
+        "label": "clearance",
+        "label_index": 2,
+        "relative_video": "italy_serie-a_2018-2019/2019-03-31_fc-internazionale-ss-lazio-serie-a-2018-2019/2_48_41.mp4",
+        "video_bytes": 4476659,
+        "text_length": 99
+      },
+      {
+        "label": "second yellow card",
+        "label_index": 157,
+        "relative_video": "italy_serie-a_2018-2019/2018-10-20_as-roma-s-p-a-l-2013/2_30_17.mp4",
+        "video_bytes": 5645142,
+        "text_length": 168
+      },
+      {
+        "label": "injury",
+        "label_index": 60,
+        "relative_video": "italy_serie-a_2018-2019/2019-03-31_fc-internazionale-ss-lazio-serie-a-2018-2019/1_26_22.mp4",
+        "video_bytes": 5985917,
+        "text_length": 77
+      },
+      {
+        "label": "ball possession",
+        "label_index": 118,
+        "relative_video": "italy_serie-a_2018-2019/2019-01-20_ssc-napoli-ss-lazio-serie-a-2018-2019/1_43_44.mp4",
+        "video_bytes": 4911526,
+        "text_length": 166
+      },
+      {
+        "label": "throw in",
+        "label_index": 491,
+        "relative_video": "england_epl_2021-2022/2021-08-22_southampton-fc-manchester-united-premier-league-2021-2022/1_20_30.mp4",
+        "video_bytes": 5335562,
+        "text_length": 106
+      },
+      {
+        "label": "show added time",
+        "label_index": 3,
+        "relative_video": "italy_serie-a_2018-2019/2019-03-31_fc-internazionale-ss-lazio-serie-a-2018-2019/2_45_00.mp4",
+        "video_bytes": 5183781,
+        "text_length": 47
+      },
+      {
+        "label": "shot off target",
+        "label_index": 28,
+        "relative_video": "italy_serie-a_2018-2019/2019-03-31_fc-internazionale-ss-lazio-serie-a-2018-2019/2_16_45.mp4",
+        "video_bytes": 4839286,
+        "text_length": 165
+      },
+      {
+        "label": "start of half game",
+        "label_index": 44,
+        "relative_video": "italy_serie-a_2018-2019/2019-03-31_fc-internazionale-ss-lazio-serie-a-2018-2019/2_00_01.mp4",
+        "video_bytes": 5782976,
+        "text_length": 61
+      },
+      {
+        "label": "substitution",
+        "label_index": 5,
+        "relative_video": "italy_serie-a_2018-2019/2019-03-31_fc-internazionale-ss-lazio-serie-a-2018-2019/2_40_27.mp4",
+        "video_bytes": 5602047,
+        "text_length": 88
+      },
+      {
+        "label": "saved by goal-keeper",
+        "label_index": 10,
+        "relative_video": "italy_serie-a_2018-2019/2019-03-31_fc-internazionale-ss-lazio-serie-a-2018-2019/2_37_45.mp4",
+        "video_bytes": 5486488,
+        "text_length": 195
+      },
+      {
+        "label": "red card",
+        "label_index": 103,
+        "relative_video": "italy_serie-a_2018-2019/2019-01-20_ssc-napoli-ss-lazio-serie-a-2018-2019/2_24_06.mp4",
+        "video_bytes": 5565421,
+        "text_length": 117
+      },
+      {
+        "label": "lead to corner",
+        "label_index": 98,
+        "relative_video": "italy_serie-a_2018-2019/2019-01-20_ssc-napoli-ss-lazio-serie-a-2018-2019/2_29_01.mp4",
+        "video_bytes": 5967068,
+        "text_length": 119
+      },
+      {
+        "label": "ball out of play",
+        "label_index": 26,
+        "relative_video": "italy_serie-a_2018-2019/2019-03-31_fc-internazionale-ss-lazio-serie-a-2018-2019/2_18_17.mp4",
+        "video_bytes": 4869487,
+        "text_length": 192
+      },
+      {
+        "label": "off side",
+        "label_index": 119,
+        "relative_video": "italy_serie-a_2018-2019/2019-01-20_ssc-napoli-ss-lazio-serie-a-2018-2019/1_41_30.mp4",
+        "video_bytes": 4854282,
+        "text_length": 143
+      },
+      {
+        "label": "goal",
+        "label_index": 70,
+        "relative_video": "italy_serie-a_2018-2019/2019-03-31_fc-internazionale-ss-lazio-serie-a-2018-2019/1_11_58.mp4",
+        "video_bytes": 6525780,
+        "text_length": 178
+      },
+      {
+        "label": "penalty",
+        "label_index": 178,
+        "relative_video": "italy_serie-a_2018-2019/2018-10-20_as-roma-s-p-a-l-2013/1_37_09.mp4",
+        "video_bytes": 4710903,
+        "text_length": 65
+      },
+      {
+        "label": "yellow card",
+        "label_index": 82,
+        "relative_video": "italy_serie-a_2018-2019/2019-01-20_ssc-napoli-ss-lazio-serie-a-2018-2019/2_45_57.mp4",
+        "video_bytes": 9887973,
+        "text_length": 72
+      },
+      {
+        "label": "foul lead to penalty",
+        "label_index": 180,
+        "relative_video": "italy_serie-a_2018-2019/2018-10-20_as-roma-s-p-a-l-2013/1_36_26.mp4",
+        "video_bytes": 5179675,
+        "text_length": 123
+      },
+      {
+        "label": "corner",
+        "label_index": 1,
+        "relative_video": "italy_serie-a_2018-2019/2019-03-31_fc-internazionale-ss-lazio-serie-a-2018-2019/2_48_53.mp4",
+        "video_bytes": 5604893,
+        "text_length": 95
+      },
+      {
+        "label": "free kick",
+        "label_index": 20,
+        "relative_video": "italy_serie-a_2018-2019/2019-03-31_fc-internazionale-ss-lazio-serie-a-2018-2019/2_24_55.mp4",
+        "video_bytes": 5928935,
+        "text_length": 84
+      },
+      {
+        "label": "foul with no card",
+        "label_index": 4,
+        "relative_video": "italy_serie-a_2018-2019/2019-03-31_fc-internazionale-ss-lazio-serie-a-2018-2019/2_44_10.mp4",
+        "video_bytes": 5613661,
+        "text_length": 158
+      }
+    ]
+  }
+}

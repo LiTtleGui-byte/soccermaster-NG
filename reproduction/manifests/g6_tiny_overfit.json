@@ -1,0 +1,74 @@
+{
+  "schema_version": 1,
+  "gate": "G6",
+  "task": "CaptionClassification",
+  "selection_policy": "Four distinct fixed SoccerReplay-1988 test samples that were misclassified by the epoch_19 checkpoint in G5.",
+  "dataset": "SoccerReplay-1988",
+  "split": "test",
+  "source_root": "/remote-home/haolinyang/sports/Soccer-Backbone/datasets/VideoCaption",
+  "label_sha256": "fc65c3b5f061c57c8850452d1e5f1d11e584f1c022a5d4cecb3a8acf826ad123",
+  "samples": [
+    {
+      "target_class_index": 3,
+      "label": "second yellow card",
+      "label_index": 157,
+      "relative_video": "italy_serie-a_2018-2019/2018-10-20_as-roma-s-p-a-l-2013/2_30_17.mp4",
+      "video_bytes": 5645142,
+      "text_length": 168,
+      "g5_initial_top1": "end of half game"
+    },
+    {
+      "target_class_index": 6,
+      "label": "throw in",
+      "label_index": 491,
+      "relative_video": "england_epl_2021-2022/2021-08-22_southampton-fc-manchester-united-premier-league-2021-2022/1_20_30.mp4",
+      "video_bytes": 5335562,
+      "text_length": 106,
+      "g5_initial_top1": "clearance"
+    },
+    {
+      "target_class_index": 7,
+      "label": "show added time",
+      "label_index": 3,
+      "relative_video": "italy_serie-a_2018-2019/2019-03-31_fc-internazionale-ss-lazio-serie-a-2018-2019/2_45_00.mp4",
+      "video_bytes": 5183781,
+      "text_length": 47,
+      "g5_initial_top1": "saved by goal-keeper"
+    },
+    {
+      "target_class_index": 9,
+      "label": "start of half game",
+      "label_index": 44,
+      "relative_video": "italy_serie-a_2018-2019/2019-03-31_fc-internazionale-ss-lazio-serie-a-2018-2019/2_00_01.mp4",
+      "video_bytes": 5782976,
+      "text_length": 61,
+      "g5_initial_top1": "corner"
+    }
+  ],
+  "training_contract": {
+    "seed": 42,
+    "batch_size": 4,
+    "num_frames": 30,
+    "image_size": 512,
+    "frame_sampling": "middle",
+    "augmentation": "deterministic test transform",
+    "trainable_scope": "CaptionClassification.classifier weight and bias only",
+    "optimizer": "AdamW",
+    "learning_rate_source": "LR_CAPTION_CLASSIFICATION_CLASSIFIER",
+    "weight_decay_source": "WEIGHT_DECAY",
+    "gradient_clip_source": "MAX_CLIP_NORM",
+    "scheduler": null,
+    "max_steps": 1000,
+    "evaluation_interval_steps": 10,
+    "early_stop_consecutive_evaluations": 5,
+    "success": {
+      "initial_accuracy_below": 1.0,
+      "final_accuracy": 1.0,
+      "maximum_final_loss": 0.2,
+      "maximum_final_to_initial_loss_ratio": 0.25,
+      "require_nonzero_finite_gradient": true,
+      "require_trainable_parameter_change": true,
+      "require_frozen_parameter_unchanged": true
+    }
+  }
+}
