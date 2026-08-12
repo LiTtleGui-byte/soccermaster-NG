@@ -17,6 +17,7 @@ env/
 .conda_pkgs:/
 .local_envs/
 .local_deps/
+.runtime/
 
 # Packaging and native-extension build products
 build/
