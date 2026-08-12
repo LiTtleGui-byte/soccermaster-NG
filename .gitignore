@@ -1,36 +1,67 @@
-datasets/
-
+# Python bytecode and test/tool caches
 __pycache__/
 *.py[cod]
 *$py.class
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
 
-tmp
-pretrained_models
+# Local Python/Conda environments and dependency staging
+.venv/
+venv/
+env/
+.conda/
+.conda_pkgs/
+.conda_pkgs:/
+.local_envs/
+.local_deps/
 
-*.txt
-*.pth
-*.csv
-datasets
-outputs
-
-# Deformable attention compiled files
+# Packaging and native-extension build products
+build/
+dist/
+*.egg
+*.egg-info/
 *.so
 *.o
 *.a
-build/
-*.egg
-models/ops/MultiScaleDeformableAttention.egg-info/PKG-INFO
-models/deformable_detr/ops/MultiScaleDeformableAttention.egg-info/PKG-INFO
-memory_demo.py
 
-.vscode
+# Large datasets, pretrained models, and experiment artifacts
+datasets/
+pretrained_models/
+checkpoints/
+outputs/
+artifacts/
+tmp/
 
-models/bak
+# Model weights and array dumps must stay outside Git
+*.pt
+*.pth
+*.ckpt
+*.safetensors
+*.npy
+*.npz
+
+# Raw runtime logs are local; commit Markdown/JSON summaries intentionally
+*.log
+wandb/
+runs/
+lightning_logs/
+
+# Local third-party or generated research material
+dinov3/
+paper/
+models/bak/
+
+# Editor, agent-runtime, and operating-system metadata
+.vscode/
+.idea/
 .cursorignore
-pyrightconfig.json
-soccerbackbone.egg-info
-
-# macOS system files
+.agents/
+.codex/
+*.swp
+*~
 .DS_Store
 .DS_Store?
 ._*
@@ -39,6 +70,6 @@ soccerbackbone.egg-info
 ehthumbs.db
 Thumbs.db
 
-training_scripts/
-dinov3/
-paper/
+# Existing root-level local experiments/configuration; promote only after review
+/memory_demo.py
+/pyrightconfig.json
