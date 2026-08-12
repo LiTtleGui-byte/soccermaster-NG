@@ -48,11 +48,11 @@ CHECKPOINT_DIR = Path(
     "pretrain_large_512_multitask_aug_consine_part_temporal_early_"
     "freeze_text_lr_5e-5_cap_cls_weight_1_extra_7000_high_resolution/epoch_19"
 )
-REPORTS = REPO / "reports/g7/20260812_retry1_interrupted"
+REPORTS = REPO / "reports/g7/20260812_retry2_full_2epochs"
 OUTPUTS = REPO / "outputs"
 RESULT_PATH = REPORTS / "result.json"
-CHECKPOINT_PATH = OUTPUTS / "g7/20260812_retry1_interrupted/step_000003"
-CHECKPOINT_TEMP_PATH = OUTPUTS / "g7/20260812_retry1_interrupted/.step_000003.tmp"
+CHECKPOINT_PATH = OUTPUTS / "g7/20260812_retry2_full_2epochs/step_000003"
+CHECKPOINT_TEMP_PATH = OUTPUTS / "g7/20260812_retry2_full_2epochs/.step_000003.tmp"
 
 DEVICE = "cuda:0"
 CONFIG_DEVICE = "cpu"
