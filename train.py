@@ -735,7 +735,23 @@ def train_engine(config: dict):
     if config["LOAD_CHECKPOINTS"]:
         model.load_checkpoint(config["STAGE_1_CKPT_DIR"], config["CKPT_TYPE"], logger, load_heads=config["LOAD_HEADS"])
     if config['USE_GRADIENT_CHECKPOINTING']:
-        model.backbone.vision_model.gradient_checkpointing_enable()
+        vision_model = model.backbone.vision_model
+        vision_model.gradient_checkpointing_enable()
+        total_blocks = len(vision_model.timesformer.resblocks)
+        enabled_blocks = vision_model.timesformer.checkpoint_num
+        checkpointing_active = vision_model.is_gradient_checkpointing
+        if total_blocks <= 0 or enabled_blocks != total_blocks or not checkpointing_active:
+            raise RuntimeError(
+                "Gradient checkpointing did not enable every vision block: "
+                f"enabled_blocks={enabled_blocks}, total_blocks={total_blocks}, "
+                f"active={checkpointing_active}"
+            )
+        print(
+            "[GRADIENT_CHECKPOINTING_ASSERT] "
+            f"rank={accelerator.process_index} enabled_blocks={enabled_blocks} "
+            f"total_blocks={total_blocks} active={checkpointing_active} passed=1",
+            flush=True,
+        )
     
     # Create optimizer with parameter groups
     param_groups = create_param_groups(model, config)

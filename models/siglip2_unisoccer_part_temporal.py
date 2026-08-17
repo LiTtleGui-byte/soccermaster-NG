@@ -82,13 +82,23 @@ class Timesformer(nn.Module):
             self.resblocks.append(ResidualAttentionBlock(res_idx=idx, d_model=width, n_head=heads, drop_path=dpr[idx], dropout=dropout, model_name=model_name, use_temporal=use_temporal))
         self.checkpoint_num = checkpoint_num
         # self.checkpoint_num = 24
-            
+
+    def forward_block(self, idx, x, B, T):
+        blk = self.resblocks[idx]
+        if self.training and idx < self.checkpoint_num:
+            return checkpoint.checkpoint(
+                blk,
+                x,
+                B,
+                T,
+                use_reentrant=False,
+                preserve_rng_state=True,
+            )
+        return blk(x, B, T)
+
     def forward(self, x, B, T):
-        for idx, blk in enumerate(self.resblocks):
-            if idx < self.checkpoint_num:
-                x = checkpoint.checkpoint(blk, x)
-            else:
-                x = blk(x, B, T)
+        for idx in range(len(self.resblocks)):
+            x = self.forward_block(idx, x, B, T)
         return x
     
 class UniSoccerBackbone(nn.Module):
@@ -126,7 +136,7 @@ class UniSoccerBackbone(nn.Module):
             
             # Image mode: only process first temporal_start_layer layers
             for idx in range(self.temporal_start_layer):
-                x = self.timesformer.resblocks[idx](x, B, T)
+                x = self.timesformer.forward_block(idx, x, B, T)
             
             # Save output as local_features_late [B, N, D]
             local_features_late = x  # [B, N, D]
@@ -142,7 +152,7 @@ class UniSoccerBackbone(nn.Module):
             # Video mode: full processing with temporal attention
             # Process spatial-only layers (before temporal_start_layer)
             for idx in range(self.temporal_start_layer):
-                x = self.timesformer.resblocks[idx](x, B, T)
+                x = self.timesformer.forward_block(idx, x, B, T)
             
             # Save output at temporal_start_layer as early local_features
             local_features_early = x  # [B*T, N, D]
@@ -155,7 +165,7 @@ class UniSoccerBackbone(nn.Module):
             
             # Process temporal layers (from temporal_start_layer to end)
             for idx in range(self.temporal_start_layer, self.num_layers):
-                x = self.timesformer.resblocks[idx](x, B, T)
+                x = self.timesformer.forward_block(idx, x, B, T)
             
             # Save output at last layer as late local_features
             local_features_late = x  # [B*T, N, D]
@@ -167,6 +177,16 @@ class UniSoccerBackbone(nn.Module):
             x2 = rearrange(x2, '(b t) m -> b t m', b=B, t=T)
             
             return local_features_early, local_features_late, None, x2
+
+    def gradient_checkpointing_enable(self):
+        self.timesformer.checkpoint_num = len(self.timesformer.resblocks)
+
+    def gradient_checkpointing_disable(self):
+        self.timesformer.checkpoint_num = 0
+
+    @property
+    def is_gradient_checkpointing(self):
+        return self.timesformer.checkpoint_num > 0
 
 class SiglipBackbone(nn.Module):
     def __init__(self, backbone_type: str, 
