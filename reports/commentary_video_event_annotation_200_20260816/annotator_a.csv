@@ -1,0 +1,201 @@
+annotation_id,video_path,primary_event,secondary_events,observability,confidence,notes,annotation_complete
+CE200-148,/mnt/nas2/homes/jiayuanrao/UniSoccer_training_videos/SoccerNetv2/MatchTime/SN-Caption-test-align/england_epl_2016-2017/2016-08-27 - 14-30 Tottenham 1 - 1 Liverpool/1_28_30.mp4,,,,,,no
+CE200-003,/mnt/nas2/homes/jiayuanrao/UniSoccer_training_videos/SoccerNetv2/MatchTime/SN-Caption-test-align/europe_uefa-champions-league_2016-2017/2016-11-23 - 22-45 Arsenal 2 - 2 Paris SG/1_26_14.mp4,,,,,,no
+CE200-004,/mnt/nas2/homes/jiayuanrao/UniSoccer_training_videos/SoccerNetv2/MatchTime/SN-Caption-test-align/europe_uefa-champions-league_2016-2017/2016-11-23 - 22-45 Arsenal 2 - 2 Paris SG/1_19_42.mp4,,,,,,no
+CE200-184,/mnt/nas2/homes/jiayuanrao/UniSoccer_training_videos/SoccerNetv2/MatchTime/SN-Caption-test-align/england_epl_2015-2016/2015-09-26 - 19-30 Newcastle Utd 2 - 2 Chelsea/1_29_19.mp4,,,,,,no
+CE200-146,/mnt/nas2/homes/jiayuanrao/UniSoccer_training_videos/SoccerNetv2/MatchTime/SN-Caption-test-align/england_epl_2016-2017/2016-08-27 - 14-30 Tottenham 1 - 1 Liverpool/2_05_37.mp4,,,,,,no
+CE200-070,/mnt/nas2/homes/jiayuanrao/UniSoccer_training_videos/SoccerNetv2/MatchTime/SN-Caption-test-align/italy_serie-a_2015-2016/2015-08-29 - 21-45 AC Milan 2 - 1 Empoli/1_43_40.mp4,,,,,,no
+CE200-100,/mnt/nas2/homes/jiayuanrao/UniSoccer_training_videos/SoccerNetv2/MatchTime/SN-Caption-test-align/spain_laliga_2016-2017/2017-03-12 - 22-45 Real Madrid 2 - 1 Betis/2_44_51.mp4,,,,,,no
+CE200-168,/mnt/nas2/homes/jiayuanrao/UniSoccer_training_videos/SoccerNetv2/MatchTime/SN-Caption-test-align/germany_bundesliga_2015-2016/2015-11-08 - 17-30 Dortmund 3 - 2 Schalke/2_31_26.mp4,,,,,,no
+CE200-099,/mnt/nas2/homes/jiayuanrao/UniSoccer_training_videos/SoccerNetv2/MatchTime/SN-Caption-test-align/spain_laliga_2016-2017/2017-04-26 - 20-30 Barcelona 7 - 1 Osasuna/1_14_25.mp4,,,,,,no
+CE200-015,/mnt/nas2/homes/jiayuanrao/UniSoccer_training_videos/SoccerNetv2/MatchTime/SN-Caption-test-align/europe_uefa-champions-league_2016-2017/2017-05-02 - 21-45 Real Madrid 3 - 0 Atl. Madrid/1_39_24.mp4,,,,,,no
+CE200-179,/mnt/nas2/homes/jiayuanrao/UniSoccer_training_videos/SoccerNetv2/MatchTime/SN-Caption-test-align/england_epl_2015-2016/2015-09-26 - 19-30 Newcastle Utd 2 - 2 Chelsea/2_06_59.mp4,,,,,,no
+CE200-047,/mnt/nas2/homes/jiayuanrao/UniSoccer_training_videos/SoccerNetv2/MatchTime/SN-Caption-test-align/italy_serie-a_2016-2017/2016-09-11 - 16-00 AC Milan 0 - 1 Udinese/2_14_46.mp4,,,,,,no
+CE200-105,/mnt/nas2/homes/jiayuanrao/UniSoccer_training_videos/SoccerNetv2/MatchTime/SN-Caption-test-align/spain_laliga_2016-2017/2016-09-24 - 21-45 Las Palmas 2 - 2 Real Madrid/1_22_51.mp4,,,,,,no
+CE200-107,/mnt/nas2/homes/jiayuanrao/UniSoccer_training_videos/SoccerNetv2/MatchTime/SN-Caption-test-align/spain_laliga_2015-2016/2015-12-05 - 18-00 Real Madrid 4 - 1 Getafe/2_02_46.mp4,,,,,,no
+CE200-009,/mnt/nas2/homes/jiayuanrao/UniSoccer_training_videos/SoccerNetv2/MatchTime/SN-Caption-test-align/europe_uefa-champions-league_2016-2017/2017-03-08 - 22-45 Barcelona 6 - 1 Paris SG/2_29_27.mp4,,,,,,no
+CE200-054,/mnt/nas2/homes/jiayuanrao/UniSoccer_training_videos/SoccerNetv2/MatchTime/SN-Caption-test-align/italy_serie-a_2016-2017/2016-10-02 - 21-45 AS Roma 2 - 1 Inter/2_19_59.mp4,,,,,,no
+CE200-177,/mnt/nas2/homes/jiayuanrao/UniSoccer_training_videos/SoccerNetv2/MatchTime/SN-Caption-test-align/england_epl_2015-2016/2015-09-26 - 19-30 Newcastle Utd 2 - 2 Chelsea/2_13_48.mp4,,,,,,no
+CE200-014,/mnt/nas2/homes/jiayuanrao/UniSoccer_training_videos/SoccerNetv2/MatchTime/SN-Caption-test-align/europe_uefa-champions-league_2016-2017/2017-05-02 - 21-45 Real Madrid 3 - 0 Atl. Madrid/2_31_59.mp4,,,,,,no
+CE200-167,/mnt/nas2/homes/jiayuanrao/UniSoccer_training_videos/SoccerNetv2/MatchTime/SN-Caption-test-align/germany_bundesliga_2015-2016/2015-11-08 - 17-30 Dortmund 3 - 2 Schalke/2_33_58.mp4,,,,,,no
+CE200-065,/mnt/nas2/homes/jiayuanrao/UniSoccer_training_videos/SoccerNetv2/MatchTime/SN-Caption-test-align/italy_serie-a_2016-2017/2016-12-04 - 17-00 Lazio 0 - 2 AS Roma/1_19_27.mp4,,,,,,no
+CE200-067,/mnt/nas2/homes/jiayuanrao/UniSoccer_training_videos/SoccerNetv2/MatchTime/SN-Caption-test-align/italy_serie-a_2015-2016/2015-08-29 - 21-45 AC Milan 2 - 1 Empoli/2_18_03.mp4,,,,,,no
+CE200-022,/mnt/nas2/homes/jiayuanrao/UniSoccer_training_videos/SoccerNetv2/MatchTime/SN-Caption-test-align/europe_uefa-champions-league_2015-2016/2015-11-03 - 22-45 Sevilla 1 - 3 Manchester City/2_40_22.mp4,,,,,,no
+CE200-062,/mnt/nas2/homes/jiayuanrao/UniSoccer_training_videos/SoccerNetv2/MatchTime/SN-Caption-test-align/italy_serie-a_2016-2017/2016-12-04 - 17-00 Lazio 0 - 2 AS Roma/2_17_21.mp4,,,,,,no
+CE200-170,/mnt/nas2/homes/jiayuanrao/UniSoccer_training_videos/SoccerNetv2/MatchTime/SN-Caption-test-align/germany_bundesliga_2015-2016/2015-11-08 - 17-30 Dortmund 3 - 2 Schalke/2_09_40.mp4,,,,,,no
+CE200-136,/mnt/nas2/homes/jiayuanrao/UniSoccer_training_videos/SoccerNetv2/MatchTime/SN-Caption-test-align/germany_bundesliga_2016-2017/2016-11-19 - 20-30 Dortmund 1 - 0 Bayern Munich/1_13_19.mp4,,,,,,no
+CE200-147,/mnt/nas2/homes/jiayuanrao/UniSoccer_training_videos/SoccerNetv2/MatchTime/SN-Caption-test-align/england_epl_2016-2017/2016-08-27 - 14-30 Tottenham 1 - 1 Liverpool/2_00_01.mp4,,,,,,no
+CE200-018,/mnt/nas2/homes/jiayuanrao/UniSoccer_training_videos/SoccerNetv2/MatchTime/SN-Caption-test-align/europe_uefa-champions-league_2016-2017/2016-11-01 - 20-45 Besiktas 1 - 1 Napoli/2_36_12.mp4,,,,,,no
+CE200-169,/mnt/nas2/homes/jiayuanrao/UniSoccer_training_videos/SoccerNetv2/MatchTime/SN-Caption-test-align/germany_bundesliga_2015-2016/2015-11-08 - 17-30 Dortmund 3 - 2 Schalke/2_14_44.mp4,,,,,,no
+CE200-005,/mnt/nas2/homes/jiayuanrao/UniSoccer_training_videos/SoccerNetv2/MatchTime/SN-Caption-test-align/europe_uefa-champions-league_2016-2017/2016-11-23 - 22-45 Arsenal 2 - 2 Paris SG/1_13_15.mp4,,,,,,no
+CE200-071,/mnt/nas2/homes/jiayuanrao/UniSoccer_training_videos/SoccerNetv2/MatchTime/SN-Caption-test-align/italy_serie-a_2015-2016/2015-08-29 - 21-45 AC Milan 2 - 1 Empoli/1_33_15.mp4,,,,,,no
+CE200-077,/mnt/nas2/homes/jiayuanrao/UniSoccer_training_videos/SoccerNetv2/MatchTime/SN-Caption-test-align/europe_uefa-champions-league_2014-2015/2015-03-10 - 22-45 Real Madrid 3 - 4 Schalke/2_46_45.mp4,,,,,,no
+CE200-016,/mnt/nas2/homes/jiayuanrao/UniSoccer_training_videos/SoccerNetv2/MatchTime/SN-Caption-test-align/europe_uefa-champions-league_2016-2017/2017-05-02 - 21-45 Real Madrid 3 - 0 Atl. Madrid/1_28_12.mp4,,,,,,no
+CE200-076,/mnt/nas2/homes/jiayuanrao/UniSoccer_training_videos/SoccerNetv2/MatchTime/SN-Caption-test-align/europe_uefa-champions-league_2014-2015/2015-02-24 - 22-45 Manchester City 1 - 2 Barcelona/1_24_12.mp4,,,,,,no
+CE200-064,/mnt/nas2/homes/jiayuanrao/UniSoccer_training_videos/SoccerNetv2/MatchTime/SN-Caption-test-align/italy_serie-a_2016-2017/2016-12-04 - 17-00 Lazio 0 - 2 AS Roma/2_07_20.mp4,,,,,,no
+CE200-132,/mnt/nas2/homes/jiayuanrao/UniSoccer_training_videos/SoccerNetv2/MatchTime/SN-Caption-test-align/germany_bundesliga_2016-2017/2016-11-19 - 20-30 Dortmund 1 - 0 Bayern Munich/2_41_19.mp4,,,,,,no
+CE200-109,/mnt/nas2/homes/jiayuanrao/UniSoccer_training_videos/SoccerNetv2/MatchTime/SN-Caption-test-align/spain_laliga_2015-2016/2016-05-14 - 18-00 Dep. La Coruna 0 - 2 Real Madrid/2_19_54.mp4,,,,,,no
+CE200-052,/mnt/nas2/homes/jiayuanrao/UniSoccer_training_videos/SoccerNetv2/MatchTime/SN-Caption-test-align/italy_serie-a_2016-2017/2016-11-20 - 17-00 Atalanta 2 - 1 AS Roma/1_38_39.mp4,,,,,,no
+CE200-126,/mnt/nas2/homes/jiayuanrao/UniSoccer_training_videos/SoccerNetv2/MatchTime/SN-Caption-test-align/spain_laliga_2014-2015/2015-04-18 - 21-00 Real Madrid 3 - 1 Malaga/2_30_42.mp4,,,,,,no
+CE200-164,/mnt/nas2/homes/jiayuanrao/UniSoccer_training_videos/SoccerNetv2/MatchTime/SN-Caption-test-align/germany_bundesliga_2015-2016/2015-10-24 - 16-30 Bayern Munich 4 - 0 FC Koln/2_09_55.mp4,,,,,,no
+CE200-130,/mnt/nas2/homes/jiayuanrao/UniSoccer_training_videos/SoccerNetv2/MatchTime/SN-Caption-test-align/germany_bundesliga_2016-2017/2016-09-10 - 19-30 RB Leipzig 1 - 0 Dortmund/2_04_24.mp4,,,,,,no
+CE200-049,/mnt/nas2/homes/jiayuanrao/UniSoccer_training_videos/SoccerNetv2/MatchTime/SN-Caption-test-align/italy_serie-a_2016-2017/2016-09-11 - 16-00 AC Milan 0 - 1 Udinese/1_40_21.mp4,,,,,,no
+CE200-198,/mnt/nas2/homes/jiayuanrao/UniSoccer_training_videos/SoccerNetv2/MatchTime/SN-Caption-test-align/england_epl_2015-2016/2015-08-23 - 15-30 West Brom 2 - 3 Chelsea/2_23_46.mp4,,,,,,no
+CE200-193,/mnt/nas2/homes/jiayuanrao/UniSoccer_training_videos/SoccerNetv2/MatchTime/SN-Caption-test-align/england_epl_2015-2016/2016-02-03 - 22-45 Watford 0 - 0 Chelsea/2_36_12.mp4,,,,,,no
+CE200-142,/mnt/nas2/homes/jiayuanrao/UniSoccer_training_videos/SoccerNetv2/MatchTime/SN-Caption-test-align/england_epl_2016-2017/2017-01-21 - 15-30 Liverpool 2 - 3 Swansea/2_31_37.mp4,,,,,,no
+CE200-103,/mnt/nas2/homes/jiayuanrao/UniSoccer_training_videos/SoccerNetv2/MatchTime/SN-Caption-test-align/spain_laliga_2016-2017/2016-09-24 - 21-45 Las Palmas 2 - 2 Real Madrid/2_36_38.mp4,,,,,,no
+CE200-046,/mnt/nas2/homes/jiayuanrao/UniSoccer_training_videos/SoccerNetv2/MatchTime/SN-Caption-test-align/italy_serie-a_2016-2017/2016-09-11 - 16-00 AC Milan 0 - 1 Udinese/2_27_52.mp4,,,,,,no
+CE200-051,/mnt/nas2/homes/jiayuanrao/UniSoccer_training_videos/SoccerNetv2/MatchTime/SN-Caption-test-align/italy_serie-a_2016-2017/2017-01-29 - 17-00 Sampdoria 3 - 2 AS Roma/1_38_12.mp4,,,,,,no
+CE200-195,/mnt/nas2/homes/jiayuanrao/UniSoccer_training_videos/SoccerNetv2/MatchTime/SN-Caption-test-align/england_epl_2015-2016/2015-11-08 - 19-00 Arsenal 1 - 1 Tottenham/1_24_31.mp4,,,,,,no
+CE200-039,/mnt/nas2/homes/jiayuanrao/UniSoccer_training_videos/SoccerNetv2/MatchTime/SN-Caption-test-align/italy_serie-a_2016-2017/2017-02-25 - 20-00 Napoli 0 - 2 Atalanta/2_03_57.mp4,,,,,,no
+CE200-101,/mnt/nas2/homes/jiayuanrao/UniSoccer_training_videos/SoccerNetv2/MatchTime/SN-Caption-test-align/spain_laliga_2016-2017/2017-03-12 - 22-45 Real Madrid 2 - 1 Betis/2_02_52.mp4,,,,,,no
+CE200-002,/mnt/nas2/homes/jiayuanrao/UniSoccer_training_videos/SoccerNetv2/MatchTime/SN-Caption-test-align/europe_uefa-champions-league_2016-2017/2016-11-23 - 22-45 Arsenal 2 - 2 Paris SG/1_30_06.mp4,,,,,,no
+CE200-031,/mnt/nas2/homes/jiayuanrao/UniSoccer_training_videos/SoccerNetv2/MatchTime/SN-Caption-test-align/europe_uefa-champions-league_2015-2016/2015-11-25 - 22-45 Shakhtar Donetsk 3 - 4 Real Madrid/1_41_33.mp4,,,,,,no
+CE200-050,/mnt/nas2/homes/jiayuanrao/UniSoccer_training_videos/SoccerNetv2/MatchTime/SN-Caption-test-align/italy_serie-a_2016-2017/2016-09-11 - 16-00 AC Milan 0 - 1 Udinese/1_15_43.mp4,,,,,,no
+CE200-194,/mnt/nas2/homes/jiayuanrao/UniSoccer_training_videos/SoccerNetv2/MatchTime/SN-Caption-test-align/england_epl_2015-2016/2015-11-08 - 19-00 Arsenal 1 - 1 Tottenham/1_42_30.mp4,,,,,,no
+CE200-188,/mnt/nas2/homes/jiayuanrao/UniSoccer_training_videos/SoccerNetv2/MatchTime/SN-Caption-test-align/england_epl_2015-2016/2015-10-03 - 19-30 Chelsea 1 - 3 Southampton/1_36_42.mp4,,,,,,no
+CE200-079,/mnt/nas2/homes/jiayuanrao/UniSoccer_training_videos/SoccerNetv2/MatchTime/SN-Caption-test-align/europe_uefa-champions-league_2014-2015/2015-03-10 - 22-45 Real Madrid 3 - 4 Schalke/2_24_50.mp4,,,,,,no
+CE200-072,/mnt/nas2/homes/jiayuanrao/UniSoccer_training_videos/SoccerNetv2/MatchTime/SN-Caption-test-align/italy_serie-a_2015-2016/2015-08-29 - 21-45 AC Milan 2 - 1 Empoli/1_23_14.mp4,,,,,,no
+CE200-042,/mnt/nas2/homes/jiayuanrao/UniSoccer_training_videos/SoccerNetv2/MatchTime/SN-Caption-test-align/italy_serie-a_2016-2017/2017-02-25 - 20-00 Napoli 0 - 2 Atalanta/1_12_53.mp4,,,,,,no
+CE200-096,/mnt/nas2/homes/jiayuanrao/UniSoccer_training_videos/SoccerNetv2/MatchTime/SN-Caption-test-align/spain_laliga_2016-2017/2016-09-21 - 21-00 Real Madrid 1 - 1 Villarreal/1_10_06.mp4,,,,,,no
+CE200-175,/mnt/nas2/homes/jiayuanrao/UniSoccer_training_videos/SoccerNetv2/MatchTime/SN-Caption-test-align/england_epl_2015-2016/2015-08-16 - 18-00 Manchester City 3 - 0 Chelsea/2_19_18.mp4,,,,,,no
+CE200-029,/mnt/nas2/homes/jiayuanrao/UniSoccer_training_videos/SoccerNetv2/MatchTime/SN-Caption-test-align/europe_uefa-champions-league_2015-2016/2015-11-25 - 22-45 Shakhtar Donetsk 3 - 4 Real Madrid/2_28_50.mp4,,,,,,no
+CE200-058,/mnt/nas2/homes/jiayuanrao/UniSoccer_training_videos/SoccerNetv2/MatchTime/SN-Caption-test-align/italy_serie-a_2016-2017/2017-02-26 - 22-45 Inter 1 - 3 AS Roma/2_39_56.mp4,,,,,,no
+CE200-044,/mnt/nas2/homes/jiayuanrao/UniSoccer_training_videos/SoccerNetv2/MatchTime/SN-Caption-test-align/italy_serie-a_2016-2017/2016-09-11 - 16-00 AC Milan 0 - 1 Udinese/2_37_18.mp4,,,,,,no
+CE200-149,/mnt/nas2/homes/jiayuanrao/UniSoccer_training_videos/SoccerNetv2/MatchTime/SN-Caption-test-align/england_epl_2016-2017/2016-10-15 - 14-30 Chelsea 3 - 0 Leicester/2_20_28.mp4,,,,,,no
+CE200-129,/mnt/nas2/homes/jiayuanrao/UniSoccer_training_videos/SoccerNetv2/MatchTime/SN-Caption-test-align/germany_bundesliga_2016-2017/2016-09-10 - 19-30 RB Leipzig 1 - 0 Dortmund/2_37_33.mp4,,,,,,no
+CE200-010,/mnt/nas2/homes/jiayuanrao/UniSoccer_training_videos/SoccerNetv2/MatchTime/SN-Caption-test-align/europe_uefa-champions-league_2016-2017/2017-03-08 - 22-45 Barcelona 6 - 1 Paris SG/2_28_44.mp4,,,,,,no
+CE200-098,/mnt/nas2/homes/jiayuanrao/UniSoccer_training_videos/SoccerNetv2/MatchTime/SN-Caption-test-align/spain_laliga_2016-2017/2017-04-26 - 20-30 Barcelona 7 - 1 Osasuna/1_29_17.mp4,,,,,,no
+CE200-196,/mnt/nas2/homes/jiayuanrao/UniSoccer_training_videos/SoccerNetv2/MatchTime/SN-Caption-test-align/england_epl_2015-2016/2015-11-08 - 19-00 Arsenal 1 - 1 Tottenham/1_14_54.mp4,,,,,,no
+CE200-082,/mnt/nas2/homes/jiayuanrao/UniSoccer_training_videos/SoccerNetv2/MatchTime/SN-Caption-test-align/europe_uefa-champions-league_2014-2015/2015-03-10 - 22-45 Real Madrid 3 - 4 Schalke/1_23_20.mp4,,,,,,no
+CE200-141,/mnt/nas2/homes/jiayuanrao/UniSoccer_training_videos/SoccerNetv2/MatchTime/SN-Caption-test-align/england_epl_2016-2017/2017-01-21 - 15-30 Liverpool 2 - 3 Swansea/2_33_29.mp4,,,,,,no
+CE200-034,/mnt/nas2/homes/jiayuanrao/UniSoccer_training_videos/SoccerNetv2/MatchTime/SN-Caption-test-align/italy_serie-a_2016-2017/2017-05-20 - 21-45 Napoli 4 - 1 Fiorentina/2_26_53.mp4,,,,,,no
+CE200-165,/mnt/nas2/homes/jiayuanrao/UniSoccer_training_videos/SoccerNetv2/MatchTime/SN-Caption-test-align/germany_bundesliga_2015-2016/2015-10-24 - 16-30 Bayern Munich 4 - 0 FC Koln/1_31_18.mp4,,,,,,no
+CE200-178,/mnt/nas2/homes/jiayuanrao/UniSoccer_training_videos/SoccerNetv2/MatchTime/SN-Caption-test-align/england_epl_2015-2016/2015-09-26 - 19-30 Newcastle Utd 2 - 2 Chelsea/2_10_16.mp4,,,,,,no
+CE200-032,/mnt/nas2/homes/jiayuanrao/UniSoccer_training_videos/SoccerNetv2/MatchTime/SN-Caption-test-align/europe_uefa-champions-league_2015-2016/2015-11-25 - 22-45 Shakhtar Donetsk 3 - 4 Real Madrid/1_31_53.mp4,,,,,,no
+CE200-088,/mnt/nas2/homes/jiayuanrao/UniSoccer_training_videos/SoccerNetv2/MatchTime/SN-Caption-test-align/europe_uefa-champions-league_2014-2015/2015-04-15 - 21-45 FC Porto 3 - 1 Bayern Munich/1_42_55.mp4,,,,,,no
+CE200-128,/mnt/nas2/homes/jiayuanrao/UniSoccer_training_videos/SoccerNetv2/MatchTime/SN-Caption-test-align/germany_bundesliga_2016-2017/2016-10-01 - 19-30 Bayer Leverkusen 2 - 0 Dortmund/2_36_00.mp4,,,,,,no
+CE200-043,/mnt/nas2/homes/jiayuanrao/UniSoccer_training_videos/SoccerNetv2/MatchTime/SN-Caption-test-align/italy_serie-a_2016-2017/2017-02-25 - 20-00 Napoli 0 - 2 Atalanta/1_10_05.mp4,,,,,,no
+CE200-102,/mnt/nas2/homes/jiayuanrao/UniSoccer_training_videos/SoccerNetv2/MatchTime/SN-Caption-test-align/spain_laliga_2016-2017/2017-03-12 - 22-45 Real Madrid 2 - 1 Betis/1_27_34.mp4,,,,,,no
+CE200-063,/mnt/nas2/homes/jiayuanrao/UniSoccer_training_videos/SoccerNetv2/MatchTime/SN-Caption-test-align/italy_serie-a_2016-2017/2016-12-04 - 17-00 Lazio 0 - 2 AS Roma/2_08_46.mp4,,,,,,no
+CE200-020,/mnt/nas2/homes/jiayuanrao/UniSoccer_training_videos/SoccerNetv2/MatchTime/SN-Caption-test-align/europe_uefa-champions-league_2016-2017/2016-11-01 - 20-45 Besiktas 1 - 1 Napoli/2_05_47.mp4,,,,,,no
+CE200-123,/mnt/nas2/homes/jiayuanrao/UniSoccer_training_videos/SoccerNetv2/MatchTime/SN-Caption-test-align/spain_laliga_2014-2015/2015-04-25 - 17-00 Espanyol 0 - 2 Barcelona/1_34_18.mp4,,,,,,no
+CE200-151,/mnt/nas2/homes/jiayuanrao/UniSoccer_training_videos/SoccerNetv2/MatchTime/SN-Caption-test-align/england_epl_2016-2017/2016-10-15 - 14-30 Chelsea 3 - 0 Leicester/1_12_30.mp4,,,,,,no
+CE200-131,/mnt/nas2/homes/jiayuanrao/UniSoccer_training_videos/SoccerNetv2/MatchTime/SN-Caption-test-align/germany_bundesliga_2016-2017/2016-09-10 - 19-30 RB Leipzig 1 - 0 Dortmund/1_20_50.mp4,,,,,,no
+CE200-106,/mnt/nas2/homes/jiayuanrao/UniSoccer_training_videos/SoccerNetv2/MatchTime/SN-Caption-test-align/spain_laliga_2015-2016/2015-12-05 - 18-00 Real Madrid 4 - 1 Getafe/2_05_08.mp4,,,,,,no
+CE200-173,/mnt/nas2/homes/jiayuanrao/UniSoccer_training_videos/SoccerNetv2/MatchTime/SN-Caption-test-align/germany_bundesliga_2015-2016/2015-11-08 - 17-30 Dortmund 3 - 2 Schalke/1_32_05.mp4,,,,,,no
+CE200-007,/mnt/nas2/homes/jiayuanrao/UniSoccer_training_videos/SoccerNetv2/MatchTime/SN-Caption-test-align/europe_uefa-champions-league_2016-2017/2017-03-08 - 22-45 Barcelona 6 - 1 Paris SG/2_40_30.mp4,,,,,,no
+CE200-187,/mnt/nas2/homes/jiayuanrao/UniSoccer_training_videos/SoccerNetv2/MatchTime/SN-Caption-test-align/england_epl_2015-2016/2015-10-03 - 19-30 Chelsea 1 - 3 Southampton/1_40_45.mp4,,,,,,no
+CE200-012,/mnt/nas2/homes/jiayuanrao/UniSoccer_training_videos/SoccerNetv2/MatchTime/SN-Caption-test-align/europe_uefa-champions-league_2016-2017/2017-03-08 - 22-45 Barcelona 6 - 1 Paris SG/1_28_08.mp4,,,,,,no
+CE200-056,/mnt/nas2/homes/jiayuanrao/UniSoccer_training_videos/SoccerNetv2/MatchTime/SN-Caption-test-align/italy_serie-a_2016-2017/2016-10-02 - 21-45 AS Roma 2 - 1 Inter/2_07_47.mp4,,,,,,no
+CE200-111,/mnt/nas2/homes/jiayuanrao/UniSoccer_training_videos/SoccerNetv2/MatchTime/SN-Caption-test-align/spain_laliga_2015-2016/2016-05-14 - 18-00 Dep. La Coruna 0 - 2 Real Madrid/1_24_28.mp4,,,,,,no
+CE200-135,/mnt/nas2/homes/jiayuanrao/UniSoccer_training_videos/SoccerNetv2/MatchTime/SN-Caption-test-align/germany_bundesliga_2016-2017/2016-11-19 - 20-30 Dortmund 1 - 0 Bayern Munich/1_25_16.mp4,,,,,,no
+CE200-153,/mnt/nas2/homes/jiayuanrao/UniSoccer_training_videos/SoccerNetv2/MatchTime/SN-Caption-test-align/germany_bundesliga_2015-2016/2015-08-29 - 19-30 Bayern Munich 3 - 0 Bayer Leverkusen/2_26_04.mp4,,,,,,no
+CE200-006,/mnt/nas2/homes/jiayuanrao/UniSoccer_training_videos/SoccerNetv2/MatchTime/SN-Caption-test-align/europe_uefa-champions-league_2016-2017/2017-03-08 - 22-45 Barcelona 6 - 1 Paris SG/2_44_17.mp4,,,,,,no
+CE200-157,/mnt/nas2/homes/jiayuanrao/UniSoccer_training_videos/SoccerNetv2/MatchTime/SN-Caption-test-align/germany_bundesliga_2015-2016/2015-08-29 - 19-30 Bayern Munich 3 - 0 Bayer Leverkusen/1_19_55.mp4,,,,,,no
+CE200-161,/mnt/nas2/homes/jiayuanrao/UniSoccer_training_videos/SoccerNetv2/MatchTime/SN-Caption-test-align/germany_bundesliga_2015-2016/2015-10-24 - 16-30 Bayern Munich 4 - 0 FC Koln/2_25_20.mp4,,,,,,no
+CE200-001,/mnt/nas2/homes/jiayuanrao/UniSoccer_training_videos/SoccerNetv2/MatchTime/SN-Caption-test-align/europe_uefa-champions-league_2016-2017/2016-11-23 - 22-45 Arsenal 2 - 2 Paris SG/1_32_39.mp4,,,,,,no
+CE200-124,/mnt/nas2/homes/jiayuanrao/UniSoccer_training_videos/SoccerNetv2/MatchTime/SN-Caption-test-align/spain_laliga_2014-2015/2015-04-25 - 17-00 Espanyol 0 - 2 Barcelona/1_32_09.mp4,,,,,,no
+CE200-185,/mnt/nas2/homes/jiayuanrao/UniSoccer_training_videos/SoccerNetv2/MatchTime/SN-Caption-test-align/england_epl_2015-2016/2015-09-26 - 19-30 Newcastle Utd 2 - 2 Chelsea/1_23_10.mp4,,,,,,no
+CE200-186,/mnt/nas2/homes/jiayuanrao/UniSoccer_training_videos/SoccerNetv2/MatchTime/SN-Caption-test-align/england_epl_2015-2016/2015-09-26 - 19-30 Newcastle Utd 2 - 2 Chelsea/1_21_29.mp4,,,,,,no
+CE200-024,/mnt/nas2/homes/jiayuanrao/UniSoccer_training_videos/SoccerNetv2/MatchTime/SN-Caption-test-align/europe_uefa-champions-league_2015-2016/2015-11-03 - 22-45 Sevilla 1 - 3 Manchester City/2_13_57.mp4,,,,,,no
+CE200-144,/mnt/nas2/homes/jiayuanrao/UniSoccer_training_videos/SoccerNetv2/MatchTime/SN-Caption-test-align/england_epl_2016-2017/2016-08-27 - 14-30 Tottenham 1 - 1 Liverpool/2_31_38.mp4,,,,,,no
+CE200-040,/mnt/nas2/homes/jiayuanrao/UniSoccer_training_videos/SoccerNetv2/MatchTime/SN-Caption-test-align/italy_serie-a_2016-2017/2017-02-25 - 20-00 Napoli 0 - 2 Atalanta/1_25_15.mp4,,,,,,no
+CE200-017,/mnt/nas2/homes/jiayuanrao/UniSoccer_training_videos/SoccerNetv2/MatchTime/SN-Caption-test-align/europe_uefa-champions-league_2016-2017/2017-05-02 - 21-45 Real Madrid 3 - 0 Atl. Madrid/1_21_04.mp4,,,,,,no
+CE200-143,/mnt/nas2/homes/jiayuanrao/UniSoccer_training_videos/SoccerNetv2/MatchTime/SN-Caption-test-align/england_epl_2016-2017/2017-01-21 - 15-30 Liverpool 2 - 3 Swansea/2_19_17.mp4,,,,,,no
+CE200-033,/mnt/nas2/homes/jiayuanrao/UniSoccer_training_videos/SoccerNetv2/MatchTime/SN-Caption-test-align/europe_uefa-champions-league_2015-2016/2015-11-25 - 22-45 Shakhtar Donetsk 3 - 4 Real Madrid/1_20_26.mp4,,,,,,no
+CE200-183,/mnt/nas2/homes/jiayuanrao/UniSoccer_training_videos/SoccerNetv2/MatchTime/SN-Caption-test-align/england_epl_2015-2016/2015-09-26 - 19-30 Newcastle Utd 2 - 2 Chelsea/1_33_59.mp4,,,,,,no
+CE200-057,/mnt/nas2/homes/jiayuanrao/UniSoccer_training_videos/SoccerNetv2/MatchTime/SN-Caption-test-align/italy_serie-a_2016-2017/2016-10-02 - 21-45 AS Roma 2 - 1 Inter/1_11_33.mp4,,,,,,no
+CE200-037,/mnt/nas2/homes/jiayuanrao/UniSoccer_training_videos/SoccerNetv2/MatchTime/SN-Caption-test-align/italy_serie-a_2016-2017/2017-02-25 - 20-00 Napoli 0 - 2 Atalanta/2_34_45.mp4,,,,,,no
+CE200-117,/mnt/nas2/homes/jiayuanrao/UniSoccer_training_videos/SoccerNetv2/MatchTime/SN-Caption-test-align/spain_laliga_2015-2016/2015-09-19 - 17-00 Real Madrid 1 - 0 Granada CF/2_21_52.mp4,,,,,,no
+CE200-192,/mnt/nas2/homes/jiayuanrao/UniSoccer_training_videos/SoccerNetv2/MatchTime/SN-Caption-test-align/england_epl_2015-2016/2016-02-03 - 22-45 Watford 0 - 0 Chelsea/2_40_34.mp4,,,,,,no
+CE200-019,/mnt/nas2/homes/jiayuanrao/UniSoccer_training_videos/SoccerNetv2/MatchTime/SN-Caption-test-align/europe_uefa-champions-league_2016-2017/2016-11-01 - 20-45 Besiktas 1 - 1 Napoli/2_19_52.mp4,,,,,,no
+CE200-074,/mnt/nas2/homes/jiayuanrao/UniSoccer_training_videos/SoccerNetv2/MatchTime/SN-Caption-test-align/europe_uefa-champions-league_2014-2015/2015-02-24 - 22-45 Manchester City 1 - 2 Barcelona/2_40_27.mp4,,,,,,no
+CE200-172,/mnt/nas2/homes/jiayuanrao/UniSoccer_training_videos/SoccerNetv2/MatchTime/SN-Caption-test-align/germany_bundesliga_2015-2016/2015-11-08 - 17-30 Dortmund 3 - 2 Schalke/1_42_33.mp4,,,,,,no
+CE200-121,/mnt/nas2/homes/jiayuanrao/UniSoccer_training_videos/SoccerNetv2/MatchTime/SN-Caption-test-align/spain_laliga_2015-2016/2015-09-19 - 17-00 Real Madrid 1 - 0 Granada CF/1_17_22.mp4,,,,,,no
+CE200-197,/mnt/nas2/homes/jiayuanrao/UniSoccer_training_videos/SoccerNetv2/MatchTime/SN-Caption-test-align/england_epl_2015-2016/2015-08-23 - 15-30 West Brom 2 - 3 Chelsea/2_39_52.mp4,,,,,,no
+CE200-025,/mnt/nas2/homes/jiayuanrao/UniSoccer_training_videos/SoccerNetv2/MatchTime/SN-Caption-test-align/europe_uefa-champions-league_2015-2016/2015-11-03 - 22-45 Sevilla 1 - 3 Manchester City/2_04_49.mp4,,,,,,no
+CE200-068,/mnt/nas2/homes/jiayuanrao/UniSoccer_training_videos/SoccerNetv2/MatchTime/SN-Caption-test-align/italy_serie-a_2015-2016/2015-08-29 - 21-45 AC Milan 2 - 1 Empoli/2_07_50.mp4,,,,,,no
+CE200-182,/mnt/nas2/homes/jiayuanrao/UniSoccer_training_videos/SoccerNetv2/MatchTime/SN-Caption-test-align/england_epl_2015-2016/2015-09-26 - 19-30 Newcastle Utd 2 - 2 Chelsea/1_36_21.mp4,,,,,,no
+CE200-119,/mnt/nas2/homes/jiayuanrao/UniSoccer_training_videos/SoccerNetv2/MatchTime/SN-Caption-test-align/spain_laliga_2015-2016/2015-09-19 - 17-00 Real Madrid 1 - 0 Granada CF/1_44_56.mp4,,,,,,no
+CE200-138,/mnt/nas2/homes/jiayuanrao/UniSoccer_training_videos/SoccerNetv2/MatchTime/SN-Caption-test-align/england_epl_2016-2017/2017-05-06 - 17-00 Leicester 3 - 0 Watford/2_40_19.mp4,,,,,,no
+CE200-160,/mnt/nas2/homes/jiayuanrao/UniSoccer_training_videos/SoccerNetv2/MatchTime/SN-Caption-test-align/germany_bundesliga_2015-2016/2015-10-24 - 16-30 Bayern Munich 4 - 0 FC Koln/2_41_19.mp4,,,,,,no
+CE200-021,/mnt/nas2/homes/jiayuanrao/UniSoccer_training_videos/SoccerNetv2/MatchTime/SN-Caption-test-align/europe_uefa-champions-league_2016-2017/2016-11-01 - 20-45 Besiktas 1 - 1 Napoli/1_10_26.mp4,,,,,,no
+CE200-150,/mnt/nas2/homes/jiayuanrao/UniSoccer_training_videos/SoccerNetv2/MatchTime/SN-Caption-test-align/england_epl_2016-2017/2016-10-15 - 14-30 Chelsea 3 - 0 Leicester/1_15_45.mp4,,,,,,no
+CE200-060,/mnt/nas2/homes/jiayuanrao/UniSoccer_training_videos/SoccerNetv2/MatchTime/SN-Caption-test-align/italy_serie-a_2016-2017/2017-02-26 - 22-45 Inter 1 - 3 AS Roma/1_34_59.mp4,,,,,,no
+CE200-113,/mnt/nas2/homes/jiayuanrao/UniSoccer_training_videos/SoccerNetv2/MatchTime/SN-Caption-test-align/spain_laliga_2015-2016/2016-03-02 - 23-00 Levante 1 - 3 Real Madrid/2_24_10.mp4,,,,,,no
+CE200-127,/mnt/nas2/homes/jiayuanrao/UniSoccer_training_videos/SoccerNetv2/MatchTime/SN-Caption-test-align/spain_laliga_2014-2015/2015-04-18 - 21-00 Real Madrid 3 - 1 Malaga/2_18_30.mp4,,,,,,no
+CE200-085,/mnt/nas2/homes/jiayuanrao/UniSoccer_training_videos/SoccerNetv2/MatchTime/SN-Caption-test-align/europe_uefa-champions-league_2014-2015/2015-04-22 - 21-45 Real Madrid 1 - 0 Atl. Madrid/2_13_30.mp4,,,,,,no
+CE200-061,/mnt/nas2/homes/jiayuanrao/UniSoccer_training_videos/SoccerNetv2/MatchTime/SN-Caption-test-align/italy_serie-a_2016-2017/2017-02-26 - 22-45 Inter 1 - 3 AS Roma/1_29_30.mp4,,,,,,no
+CE200-152,/mnt/nas2/homes/jiayuanrao/UniSoccer_training_videos/SoccerNetv2/MatchTime/SN-Caption-test-align/germany_bundesliga_2015-2016/2015-08-29 - 19-30 Bayern Munich 3 - 0 Bayer Leverkusen/2_32_20.mp4,,,,,,no
+CE200-104,/mnt/nas2/homes/jiayuanrao/UniSoccer_training_videos/SoccerNetv2/MatchTime/SN-Caption-test-align/spain_laliga_2016-2017/2016-09-24 - 21-45 Las Palmas 2 - 2 Real Madrid/2_17_47.mp4,,,,,,no
+CE200-171,/mnt/nas2/homes/jiayuanrao/UniSoccer_training_videos/SoccerNetv2/MatchTime/SN-Caption-test-align/germany_bundesliga_2015-2016/2015-11-08 - 17-30 Dortmund 3 - 2 Schalke/2_07_26.mp4,,,,,,no
+CE200-087,/mnt/nas2/homes/jiayuanrao/UniSoccer_training_videos/SoccerNetv2/MatchTime/SN-Caption-test-align/europe_uefa-champions-league_2014-2015/2015-04-15 - 21-45 FC Porto 3 - 1 Bayern Munich/2_02_09.mp4,,,,,,no
+CE200-030,/mnt/nas2/homes/jiayuanrao/UniSoccer_training_videos/SoccerNetv2/MatchTime/SN-Caption-test-align/europe_uefa-champions-league_2015-2016/2015-11-25 - 22-45 Shakhtar Donetsk 3 - 4 Real Madrid/2_24_32.mp4,,,,,,no
+CE200-174,/mnt/nas2/homes/jiayuanrao/UniSoccer_training_videos/SoccerNetv2/MatchTime/SN-Caption-test-align/england_epl_2015-2016/2015-08-16 - 18-00 Manchester City 3 - 0 Chelsea/2_42_51.mp4,,,,,,no
+CE200-069,/mnt/nas2/homes/jiayuanrao/UniSoccer_training_videos/SoccerNetv2/MatchTime/SN-Caption-test-align/italy_serie-a_2015-2016/2015-08-29 - 21-45 AC Milan 2 - 1 Empoli/2_02_21.mp4,,,,,,no
+CE200-035,/mnt/nas2/homes/jiayuanrao/UniSoccer_training_videos/SoccerNetv2/MatchTime/SN-Caption-test-align/italy_serie-a_2016-2017/2017-05-20 - 21-45 Napoli 4 - 1 Fiorentina/2_24_16.mp4,,,,,,no
+CE200-008,/mnt/nas2/homes/jiayuanrao/UniSoccer_training_videos/SoccerNetv2/MatchTime/SN-Caption-test-align/europe_uefa-champions-league_2016-2017/2017-03-08 - 22-45 Barcelona 6 - 1 Paris SG/2_33_47.mp4,,,,,,no
+CE200-110,/mnt/nas2/homes/jiayuanrao/UniSoccer_training_videos/SoccerNetv2/MatchTime/SN-Caption-test-align/spain_laliga_2015-2016/2016-05-14 - 18-00 Dep. La Coruna 0 - 2 Real Madrid/2_15_10.mp4,,,,,,no
+CE200-089,/mnt/nas2/homes/jiayuanrao/UniSoccer_training_videos/SoccerNetv2/MatchTime/SN-Caption-test-align/spain_laliga_2016-2017/2016-12-18 - 22-45 Barcelona 4 - 1 Espanyol/2_33_43.mp4,,,,,,no
+CE200-122,/mnt/nas2/homes/jiayuanrao/UniSoccer_training_videos/SoccerNetv2/MatchTime/SN-Caption-test-align/spain_laliga_2014-2015/2015-04-25 - 17-00 Espanyol 0 - 2 Barcelona/1_41_09.mp4,,,,,,no
+CE200-083,/mnt/nas2/homes/jiayuanrao/UniSoccer_training_videos/SoccerNetv2/MatchTime/SN-Caption-test-align/europe_uefa-champions-league_2014-2015/2015-03-10 - 22-45 Real Madrid 3 - 4 Schalke/1_16_11.mp4,,,,,,no
+CE200-108,/mnt/nas2/homes/jiayuanrao/UniSoccer_training_videos/SoccerNetv2/MatchTime/SN-Caption-test-align/spain_laliga_2015-2016/2016-05-14 - 18-00 Dep. La Coruna 0 - 2 Real Madrid/2_21_17.mp4,,,,,,no
+CE200-023,/mnt/nas2/homes/jiayuanrao/UniSoccer_training_videos/SoccerNetv2/MatchTime/SN-Caption-test-align/europe_uefa-champions-league_2015-2016/2015-11-03 - 22-45 Sevilla 1 - 3 Manchester City/2_27_30.mp4,,,,,,no
+CE200-125,/mnt/nas2/homes/jiayuanrao/UniSoccer_training_videos/SoccerNetv2/MatchTime/SN-Caption-test-align/spain_laliga_2014-2015/2015-04-25 - 17-00 Espanyol 0 - 2 Barcelona/1_12_32.mp4,,,,,,no
+CE200-154,/mnt/nas2/homes/jiayuanrao/UniSoccer_training_videos/SoccerNetv2/MatchTime/SN-Caption-test-align/germany_bundesliga_2015-2016/2015-08-29 - 19-30 Bayern Munich 3 - 0 Bayer Leverkusen/2_12_27.mp4,,,,,,no
+CE200-092,/mnt/nas2/homes/jiayuanrao/UniSoccer_training_videos/SoccerNetv2/MatchTime/SN-Caption-test-align/spain_laliga_2016-2017/2016-11-26 - 18-15 Real Madrid 2 - 1 Gijon/2_27_17.mp4,,,,,,no
+CE200-156,/mnt/nas2/homes/jiayuanrao/UniSoccer_training_videos/SoccerNetv2/MatchTime/SN-Caption-test-align/germany_bundesliga_2015-2016/2015-08-29 - 19-30 Bayern Munich 3 - 0 Bayer Leverkusen/1_37_12.mp4,,,,,,no
+CE200-134,/mnt/nas2/homes/jiayuanrao/UniSoccer_training_videos/SoccerNetv2/MatchTime/SN-Caption-test-align/germany_bundesliga_2016-2017/2016-11-19 - 20-30 Dortmund 1 - 0 Bayern Munich/2_22_01.mp4,,,,,,no
+CE200-158,/mnt/nas2/homes/jiayuanrao/UniSoccer_training_videos/SoccerNetv2/MatchTime/SN-Caption-test-align/germany_bundesliga_2015-2016/2015-08-29 - 19-30 Bayern Munich 3 - 0 Bayer Leverkusen/1_18_34.mp4,,,,,,no
+CE200-041,/mnt/nas2/homes/jiayuanrao/UniSoccer_training_videos/SoccerNetv2/MatchTime/SN-Caption-test-align/italy_serie-a_2016-2017/2017-02-25 - 20-00 Napoli 0 - 2 Atalanta/1_19_46.mp4,,,,,,no
+CE200-114,/mnt/nas2/homes/jiayuanrao/UniSoccer_training_videos/SoccerNetv2/MatchTime/SN-Caption-test-align/spain_laliga_2015-2016/2016-03-02 - 23-00 Levante 1 - 3 Real Madrid/2_22_08.mp4,,,,,,no
+CE200-011,/mnt/nas2/homes/jiayuanrao/UniSoccer_training_videos/SoccerNetv2/MatchTime/SN-Caption-test-align/europe_uefa-champions-league_2016-2017/2017-03-08 - 22-45 Barcelona 6 - 1 Paris SG/2_26_10.mp4,,,,,,no
+CE200-036,/mnt/nas2/homes/jiayuanrao/UniSoccer_training_videos/SoccerNetv2/MatchTime/SN-Caption-test-align/italy_serie-a_2016-2017/2017-05-20 - 21-45 Napoli 4 - 1 Fiorentina/2_02_53.mp4,,,,,,no
+CE200-145,/mnt/nas2/homes/jiayuanrao/UniSoccer_training_videos/SoccerNetv2/MatchTime/SN-Caption-test-align/england_epl_2016-2017/2016-08-27 - 14-30 Tottenham 1 - 1 Liverpool/2_26_18.mp4,,,,,,no
+CE200-155,/mnt/nas2/homes/jiayuanrao/UniSoccer_training_videos/SoccerNetv2/MatchTime/SN-Caption-test-align/germany_bundesliga_2015-2016/2015-08-29 - 19-30 Bayern Munich 3 - 0 Bayer Leverkusen/2_12_18.mp4,,,,,,no
+CE200-094,/mnt/nas2/homes/jiayuanrao/UniSoccer_training_videos/SoccerNetv2/MatchTime/SN-Caption-test-align/spain_laliga_2016-2017/2016-09-21 - 21-00 Real Madrid 1 - 1 Villarreal/2_17_34.mp4,,,,,,no
+CE200-166,/mnt/nas2/homes/jiayuanrao/UniSoccer_training_videos/SoccerNetv2/MatchTime/SN-Caption-test-align/germany_bundesliga_2015-2016/2015-10-24 - 16-30 Bayern Munich 4 - 0 FC Koln/1_30_50.mp4,,,,,,no
+CE200-027,/mnt/nas2/homes/jiayuanrao/UniSoccer_training_videos/SoccerNetv2/MatchTime/SN-Caption-test-align/europe_uefa-champions-league_2015-2016/2015-11-03 - 22-45 Sevilla 1 - 3 Manchester City/2_02_27.mp4,,,,,,no
+CE200-066,/mnt/nas2/homes/jiayuanrao/UniSoccer_training_videos/SoccerNetv2/MatchTime/SN-Caption-test-align/italy_serie-a_2015-2016/2015-08-29 - 21-45 AC Milan 2 - 1 Empoli/2_30_22.mp4,,,,,,no
+CE200-112,/mnt/nas2/homes/jiayuanrao/UniSoccer_training_videos/SoccerNetv2/MatchTime/SN-Caption-test-align/spain_laliga_2015-2016/2016-03-02 - 23-00 Levante 1 - 3 Real Madrid/2_42_07.mp4,,,,,,no
+CE200-091,/mnt/nas2/homes/jiayuanrao/UniSoccer_training_videos/SoccerNetv2/MatchTime/SN-Caption-test-align/spain_laliga_2016-2017/2016-11-26 - 18-15 Real Madrid 2 - 1 Gijon/2_31_54.mp4,,,,,,no
+CE200-097,/mnt/nas2/homes/jiayuanrao/UniSoccer_training_videos/SoccerNetv2/MatchTime/SN-Caption-test-align/spain_laliga_2016-2017/2017-04-26 - 20-30 Barcelona 7 - 1 Osasuna/2_21_40.mp4,,,,,,no
+CE200-090,/mnt/nas2/homes/jiayuanrao/UniSoccer_training_videos/SoccerNetv2/MatchTime/SN-Caption-test-align/spain_laliga_2016-2017/2016-11-26 - 18-15 Real Madrid 2 - 1 Gijon/2_31_57.mp4,,,,,,no
+CE200-028,/mnt/nas2/homes/jiayuanrao/UniSoccer_training_videos/SoccerNetv2/MatchTime/SN-Caption-test-align/europe_uefa-champions-league_2015-2016/2015-11-03 - 22-45 Sevilla 1 - 3 Manchester City/1_14_50.mp4,,,,,,no
+CE200-199,/mnt/nas2/homes/jiayuanrao/UniSoccer_training_videos/SoccerNetv2/MatchTime/SN-Caption-test-align/england_epl_2015-2016/2015-08-23 - 15-30 West Brom 2 - 3 Chelsea/1_33_42.mp4,,,,,,no
+CE200-081,/mnt/nas2/homes/jiayuanrao/UniSoccer_training_videos/SoccerNetv2/MatchTime/SN-Caption-test-align/europe_uefa-champions-league_2014-2015/2015-03-10 - 22-45 Real Madrid 3 - 4 Schalke/2_00_57.mp4,,,,,,no
+CE200-059,/mnt/nas2/homes/jiayuanrao/UniSoccer_training_videos/SoccerNetv2/MatchTime/SN-Caption-test-align/italy_serie-a_2016-2017/2017-02-26 - 22-45 Inter 1 - 3 AS Roma/2_26_38.mp4,,,,,,no
+CE200-139,/mnt/nas2/homes/jiayuanrao/UniSoccer_training_videos/SoccerNetv2/MatchTime/SN-Caption-test-align/england_epl_2016-2017/2017-05-06 - 17-00 Leicester 3 - 0 Watford/2_29_00.mp4,,,,,,no
+CE200-073,/mnt/nas2/homes/jiayuanrao/UniSoccer_training_videos/SoccerNetv2/MatchTime/SN-Caption-test-align/italy_serie-a_2015-2016/2015-08-29 - 21-45 AC Milan 2 - 1 Empoli/1_12_38.mp4,,,,,,no
+CE200-053,/mnt/nas2/homes/jiayuanrao/UniSoccer_training_videos/SoccerNetv2/MatchTime/SN-Caption-test-align/italy_serie-a_2016-2017/2016-10-02 - 21-45 AS Roma 2 - 1 Inter/2_21_42.mp4,,,,,,no
+CE200-180,/mnt/nas2/homes/jiayuanrao/UniSoccer_training_videos/SoccerNetv2/MatchTime/SN-Caption-test-align/england_epl_2015-2016/2015-09-26 - 19-30 Newcastle Utd 2 - 2 Chelsea/2_03_25.mp4,,,,,,no
+CE200-181,/mnt/nas2/homes/jiayuanrao/UniSoccer_training_videos/SoccerNetv2/MatchTime/SN-Caption-test-align/england_epl_2015-2016/2015-09-26 - 19-30 Newcastle Utd 2 - 2 Chelsea/1_37_41.mp4,,,,,,no
+CE200-075,/mnt/nas2/homes/jiayuanrao/UniSoccer_training_videos/SoccerNetv2/MatchTime/SN-Caption-test-align/europe_uefa-champions-league_2014-2015/2015-02-24 - 22-45 Manchester City 1 - 2 Barcelona/2_25_52.mp4,,,,,,no
+CE200-048,/mnt/nas2/homes/jiayuanrao/UniSoccer_training_videos/SoccerNetv2/MatchTime/SN-Caption-test-align/italy_serie-a_2016-2017/2016-09-11 - 16-00 AC Milan 0 - 1 Udinese/2_11_06.mp4,,,,,,no
+CE200-045,/mnt/nas2/homes/jiayuanrao/UniSoccer_training_videos/SoccerNetv2/MatchTime/SN-Caption-test-align/italy_serie-a_2016-2017/2016-09-11 - 16-00 AC Milan 0 - 1 Udinese/2_35_06.mp4,,,,,,no
+CE200-055,/mnt/nas2/homes/jiayuanrao/UniSoccer_training_videos/SoccerNetv2/MatchTime/SN-Caption-test-align/italy_serie-a_2016-2017/2016-10-02 - 21-45 AS Roma 2 - 1 Inter/2_13_05.mp4,,,,,,no
+CE200-078,/mnt/nas2/homes/jiayuanrao/UniSoccer_training_videos/SoccerNetv2/MatchTime/SN-Caption-test-align/europe_uefa-champions-league_2014-2015/2015-03-10 - 22-45 Real Madrid 3 - 4 Schalke/2_41_29.mp4,,,,,,no
+CE200-116,/mnt/nas2/homes/jiayuanrao/UniSoccer_training_videos/SoccerNetv2/MatchTime/SN-Caption-test-align/spain_laliga_2015-2016/2015-09-19 - 17-00 Real Madrid 1 - 0 Granada CF/2_25_19.mp4,,,,,,no
+CE200-200,/mnt/nas2/homes/jiayuanrao/UniSoccer_training_videos/SoccerNetv2/MatchTime/SN-Caption-test-align/england_epl_2015-2016/2015-08-23 - 15-30 West Brom 2 - 3 Chelsea/1_13_34.mp4,,,,,,no
+CE200-093,/mnt/nas2/homes/jiayuanrao/UniSoccer_training_videos/SoccerNetv2/MatchTime/SN-Caption-test-align/spain_laliga_2016-2017/2016-11-26 - 18-15 Real Madrid 2 - 1 Gijon/1_32_44.mp4,,,,,,no
+CE200-176,/mnt/nas2/homes/jiayuanrao/UniSoccer_training_videos/SoccerNetv2/MatchTime/SN-Caption-test-align/england_epl_2015-2016/2015-09-26 - 19-30 Newcastle Utd 2 - 2 Chelsea/2_40_55.mp4,,,,,,no
+CE200-115,/mnt/nas2/homes/jiayuanrao/UniSoccer_training_videos/SoccerNetv2/MatchTime/SN-Caption-test-align/spain_laliga_2015-2016/2016-03-02 - 23-00 Levante 1 - 3 Real Madrid/1_13_02.mp4,,,,,,no
+CE200-084,/mnt/nas2/homes/jiayuanrao/UniSoccer_training_videos/SoccerNetv2/MatchTime/SN-Caption-test-align/europe_uefa-champions-league_2014-2015/2015-03-10 - 22-45 Real Madrid 3 - 4 Schalke/1_13_19.mp4,,,,,,no
+CE200-137,/mnt/nas2/homes/jiayuanrao/UniSoccer_training_videos/SoccerNetv2/MatchTime/SN-Caption-test-align/england_epl_2016-2017/2017-05-06 - 17-00 Leicester 3 - 0 Watford/2_43_12.mp4,,,,,,no
+CE200-095,/mnt/nas2/homes/jiayuanrao/UniSoccer_training_videos/SoccerNetv2/MatchTime/SN-Caption-test-align/spain_laliga_2016-2017/2016-09-21 - 21-00 Real Madrid 1 - 1 Villarreal/1_41_41.mp4,,,,,,no
+CE200-080,/mnt/nas2/homes/jiayuanrao/UniSoccer_training_videos/SoccerNetv2/MatchTime/SN-Caption-test-align/europe_uefa-champions-league_2014-2015/2015-03-10 - 22-45 Real Madrid 3 - 4 Schalke/2_12_29.mp4,,,,,,no
+CE200-140,/mnt/nas2/homes/jiayuanrao/UniSoccer_training_videos/SoccerNetv2/MatchTime/SN-Caption-test-align/england_epl_2016-2017/2017-05-06 - 17-00 Leicester 3 - 0 Watford/2_21_15.mp4,,,,,,no
+CE200-190,/mnt/nas2/homes/jiayuanrao/UniSoccer_training_videos/SoccerNetv2/MatchTime/SN-Caption-test-align/england_epl_2015-2016/2015-10-24 - 17-00 West Ham 2 - 1 Chelsea/1_15_02.mp4,,,,,,no
+CE200-133,/mnt/nas2/homes/jiayuanrao/UniSoccer_training_videos/SoccerNetv2/MatchTime/SN-Caption-test-align/germany_bundesliga_2016-2017/2016-11-19 - 20-30 Dortmund 1 - 0 Bayern Munich/2_29_29.mp4,,,,,,no
+CE200-013,/mnt/nas2/homes/jiayuanrao/UniSoccer_training_videos/SoccerNetv2/MatchTime/SN-Caption-test-align/europe_uefa-champions-league_2016-2017/2017-05-02 - 21-45 Real Madrid 3 - 0 Atl. Madrid/2_40_06.mp4,,,,,,no
+CE200-163,/mnt/nas2/homes/jiayuanrao/UniSoccer_training_videos/SoccerNetv2/MatchTime/SN-Caption-test-align/germany_bundesliga_2015-2016/2015-10-24 - 16-30 Bayern Munich 4 - 0 FC Koln/2_13_57.mp4,,,,,,no
+CE200-120,/mnt/nas2/homes/jiayuanrao/UniSoccer_training_videos/SoccerNetv2/MatchTime/SN-Caption-test-align/spain_laliga_2015-2016/2015-09-19 - 17-00 Real Madrid 1 - 0 Granada CF/1_22_56.mp4,,,,,,no
+CE200-038,/mnt/nas2/homes/jiayuanrao/UniSoccer_training_videos/SoccerNetv2/MatchTime/SN-Caption-test-align/italy_serie-a_2016-2017/2017-02-25 - 20-00 Napoli 0 - 2 Atalanta/2_07_25.mp4,,,,,,no
+CE200-086,/mnt/nas2/homes/jiayuanrao/UniSoccer_training_videos/SoccerNetv2/MatchTime/SN-Caption-test-align/europe_uefa-champions-league_2014-2015/2015-04-15 - 21-45 FC Porto 3 - 1 Bayern Munich/2_31_08.mp4,,,,,,no
+CE200-118,/mnt/nas2/homes/jiayuanrao/UniSoccer_training_videos/SoccerNetv2/MatchTime/SN-Caption-test-align/spain_laliga_2015-2016/2015-09-19 - 17-00 Real Madrid 1 - 0 Granada CF/2_09_15.mp4,,,,,,no
+CE200-162,/mnt/nas2/homes/jiayuanrao/UniSoccer_training_videos/SoccerNetv2/MatchTime/SN-Caption-test-align/germany_bundesliga_2015-2016/2015-10-24 - 16-30 Bayern Munich 4 - 0 FC Koln/2_16_30.mp4,,,,,,no
+CE200-159,/mnt/nas2/homes/jiayuanrao/UniSoccer_training_videos/SoccerNetv2/MatchTime/SN-Caption-test-align/germany_bundesliga_2015-2016/2015-08-29 - 19-30 Bayern Munich 3 - 0 Bayer Leverkusen/1_10_43.mp4,,,,,,no
+CE200-026,/mnt/nas2/homes/jiayuanrao/UniSoccer_training_videos/SoccerNetv2/MatchTime/SN-Caption-test-align/europe_uefa-champions-league_2015-2016/2015-11-03 - 22-45 Sevilla 1 - 3 Manchester City/2_03_45.mp4,,,,,,no
+CE200-191,/mnt/nas2/homes/jiayuanrao/UniSoccer_training_videos/SoccerNetv2/MatchTime/SN-Caption-test-align/england_epl_2015-2016/2015-10-24 - 17-00 West Ham 2 - 1 Chelsea/1_12_04.mp4,,,,,,no
+CE200-189,/mnt/nas2/homes/jiayuanrao/UniSoccer_training_videos/SoccerNetv2/MatchTime/SN-Caption-test-align/england_epl_2015-2016/2015-10-24 - 17-00 West Ham 2 - 1 Chelsea/1_30_17.mp4,,,,,,no
