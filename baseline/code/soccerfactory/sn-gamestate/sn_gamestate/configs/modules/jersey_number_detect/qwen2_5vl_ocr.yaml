@@ -1,0 +1,6 @@
+_target_: sn_gamestate.jersey.qwen2_5vl_ocr_api.QWEN2_5VL_OCR
+batch_size: 32
+cfg:
+  save_jersey_number_full_detection: False
+  use_legibility_filter: False
+  legibility_filter_threshold: 0.5

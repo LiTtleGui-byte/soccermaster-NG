@@ -1,0 +1,41 @@
+# SoccerTrackerTransformer Configuration
+
+# Import base configuration
+imports:
+  - base.yaml
+
+# Override specific values
+experiment_name: "train_aaformer_100clip_role_only_not_0init_startaug_xyflip_train+valid"
+
+model:
+  type: SoccerTrackerTransformerAAFormer
+  zero_init_for_residual: false
+
+data:
+  dataset_type: "SoccerSequenceCachedDataset"  # Just override the dataset type
+  train_split: "train+valid"
+  val_split: "test"
+  max_clip_frames: 100
+  flip_x_prob: 0.5
+  flip_y_prob: 0.5
+  use_all_frames_as_start: true
+
+training:
+  num_workers: 4
+
+  # Only specify the tasks that differ from base.yaml
+  tasks:
+    track: false
+    role: true
+    team: false
+    jersey: false
+    coord: false
+    missing: false 
+
+  loss_weights:
+    track: 1.0     # Track association loss weight
+    role: 1.0      # Role classification loss weight
+    team: 1.0      # Team classification loss weight
+    jersey: 1.0    # Jersey number prediction loss weight
+    coord: 1.0     # Coordinate refinement loss weight
+    missing: 1.0   # Missing detections prediction loss weight

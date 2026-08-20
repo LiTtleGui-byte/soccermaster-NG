@@ -1,0 +1,33 @@
+{
+  "schema_version": 1,
+  "gate": "G10-B",
+  "stage": "step3_interface_smoke_run1_execute",
+  "description": "One CPU-only empty-pipeline TrackLab load/save interface smoke authorized by the user after static review.",
+  "python": "/remote-home/haolinyang/anaconda3/envs/tracklab2/bin/python",
+  "config_dir": "/home/tianlin/SoccerMaster/reproduction/configs/g10",
+  "config_name": "g10_step3_interface_sngs10004_run1",
+  "input_state": "/home/tianlin/SoccerMaster/.runtime/g10/sngs10004_refiner_probe/run2/output/refined_sn-gamestate.pklz",
+  "output_dir": "/home/tianlin/SoccerMaster/.runtime/g10/sngs10004_step3_interface/run1",
+  "output_state": "/home/tianlin/SoccerMaster/.runtime/g10/sngs10004_step3_interface/run1/states/sn-gamestate.pklz",
+  "report_dir": "/home/tianlin/SoccerMaster/reports/g10/20260819_step3_interface_smoke_run1",
+  "log": "/home/tianlin/SoccerMaster/reports/g10/20260819_step3_interface_smoke_run1/run.log",
+  "result": "/home/tianlin/SoccerMaster/reports/g10/20260819_step3_interface_smoke_run1/result.json",
+  "sequence": "SNGS-10004",
+  "video_id": "10004",
+  "expected_detection_rows": 3176,
+  "expected_image_rows": 255,
+  "expected_tracks": 49,
+  "pipeline": [],
+  "approval": "G10_STEP3_INTERFACE_RUN1_CPU_APPROVED=YES",
+  "heartbeat_seconds": 30,
+  "timeout_seconds": 5400,
+  "execution": {
+    "cpu_only": true,
+    "step3_modules": false,
+    "evaluation": false,
+    "visualization": false,
+    "training": false,
+    "retry": false,
+    "overwrite": false
+  }
+}

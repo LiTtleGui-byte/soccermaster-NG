@@ -1,0 +1,8 @@
+SUPER_CONFIG_PATH: ./configs/default.yaml
+
+SCHEDULER_MILESTONES: [15, 25]
+
+DATASETS_TO_HEADS:
+  SoccerNetGSR_Detection: [SoccerNetGSR_Detection, LinesDetection, KeypointsDetection, CameraRegression]
+
+LINES_HEAD_TYPE: default

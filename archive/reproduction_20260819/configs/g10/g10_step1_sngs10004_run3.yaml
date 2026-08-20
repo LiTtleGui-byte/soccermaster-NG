@@ -1,0 +1,74 @@
+# Isolated G10-B TrackLab Step 1 run3 config.
+# Model/data semantics match run1; only the immutable run identity changes.
+defaults:
+  - dataset: soccernet_gs
+  - eval: gs_hota
+  - engine: offline
+  - state: save
+  - visualization: gamestate
+  - modules/bbox_detector: yolov8_person
+  - modules/reid: prtreid
+  - modules/track: bpbreid_strong_sort
+  - _self_
+
+pipeline:
+  - bbox_detector
+  - reid
+  - track
+
+experiment_name: "g10"
+experiment_subname: "sngs10004_step1_run3"
+
+home_dir: "/home/tianlin"
+project_dir: "/home/tianlin/SoccerMaster"
+data_dir: "/remote-home/haolinyang/datasets/SN-GSR-2024"
+model_dir: "/remote-home/haolinyang/sports/soccernet/sn-gamestate/pretrained_models"
+
+num_cores: 4
+use_wandb: false
+use_rich: false
+
+modules:
+  bbox_detector:
+    batch_size: 16
+    cfg:
+      path_to_checkpoint: "/remote-home/haolinyang/sports/soccernet/sn-gamestate/pretrained_models/yolo/yolo_v8x6_person_lr_default_best.pt"
+  reid:
+    batch_size: 16
+  track:
+    batch_size: 16
+
+test_tracking: true
+eval_tracking: false
+print_config: true
+
+dataset:
+  nvid: -1
+  nframes: 255
+  eval_set: "sn500"
+  dataset_path: "/mnt/nas/haolinyang/sports/Soccer-Backbone/datasets/SN-GSR-2024/SoccerNetGS"
+  annotation_path: "/mnt/nas/haolinyang/sports/Soccer-Backbone/datasets/SN-GSR-2024/SoccerNetGS"
+  vids_dict:
+    sn500:
+      - "SNGS-10004"
+
+eval:
+  cfg:
+    metrics:
+      - "HOTA"
+
+state:
+  save_file: "states/sn-gamestate.pklz"
+  load_file: null
+  compression: 0
+
+visualization: null
+
+hydra:
+  output_subdir: "configs"
+  job:
+    chdir: true
+  run:
+    dir: "/home/tianlin/SoccerMaster/.runtime/g10/sngs10004_step1/run3"
+  sweep:
+    dir: "/home/tianlin/SoccerMaster/.runtime/g10/sngs10004_step1/multirun3"

@@ -1,0 +1,29 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Video Fact Record",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["dataset_index", "match_id", "primary_event", "action", "result", "actor_role", "target_role", "review_confidence"],
+  "properties": {
+    "dataset_index": {"type": "integer", "minimum": 0},
+    "match_id": {"type": "string", "minLength": 1},
+    "primary_event": {"$ref": "#/$defs/fact_slot"},
+    "action": {"$ref": "#/$defs/fact_slot"},
+    "result": {"$ref": "#/$defs/fact_slot"},
+    "actor_role": {"$ref": "#/$defs/fact_slot"},
+    "target_role": {"$ref": "#/$defs/fact_slot"},
+    "review_confidence": {"enum": ["high", "medium", "low"]},
+    "evidence_note": {"type": "string"}
+  },
+  "$defs": {
+    "fact_slot": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["observability", "value"],
+      "properties": {
+        "observability": {"enum": ["clear", "partial", "not_observable"]},
+        "value": {"type": ["string", "null"]}
+      }
+    }
+  }
+}

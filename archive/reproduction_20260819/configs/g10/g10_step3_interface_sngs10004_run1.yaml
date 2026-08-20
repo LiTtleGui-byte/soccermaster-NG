@@ -1,0 +1,59 @@
+# Isolated load/save interface smoke for the fixed SNGS-10004 Refiner archive.
+# This deliberately runs no Step-3 transformation module. Its only future purpose
+# is to prove that TrackLab can load the new Refiner state and save it locally.
+defaults:
+  - dataset: soccernet_gs
+  - eval: gs_hota
+  - engine: offline
+  - state: save
+  - visualization: gamestate
+  - _self_
+
+pipeline: []
+
+experiment_name: "g10"
+experiment_subname: "sngs10004_step3_interface_run1"
+
+home_dir: "/home/tianlin"
+project_dir: "/home/tianlin/SoccerMaster"
+data_dir: "/remote-home/haolinyang/datasets/SN-GSR-2024"
+model_dir: "/remote-home/haolinyang/sports/soccernet/sn-gamestate/pretrained_models"
+
+num_cores: 4
+use_wandb: false
+use_rich: false
+
+test_tracking: true
+eval_tracking: false
+print_config: true
+
+dataset:
+  nvid: -1
+  nframes: 255
+  eval_set: "sn500"
+  dataset_path: "/mnt/nas/haolinyang/sports/Soccer-Backbone/datasets/SN-GSR-2024/SoccerNetGS"
+  annotation_path: "/mnt/nas/haolinyang/sports/Soccer-Backbone/datasets/SN-GSR-2024/SoccerNetGS"
+  vids_dict:
+    sn500:
+      - "SNGS-10004"
+
+eval:
+  cfg:
+    metrics:
+      - "HOTA"
+
+state:
+  load_file: "/home/tianlin/SoccerMaster/.runtime/g10/sngs10004_refiner_probe/run2/output/refined_sn-gamestate.pklz"
+  save_file: "states/sn-gamestate.pklz"
+  compression: 0
+
+visualization: null
+
+hydra:
+  output_subdir: "configs"
+  job:
+    chdir: true
+  run:
+    dir: "/home/tianlin/SoccerMaster/.runtime/g10/sngs10004_step3_interface/run1"
+  sweep:
+    dir: "/home/tianlin/SoccerMaster/.runtime/g10/sngs10004_step3_interface/multirun1"

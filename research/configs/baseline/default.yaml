@@ -1,0 +1,265 @@
+SUPER_CONFIG_PATH:          # super (father) config path
+
+# Seed:
+SEED: 42
+DEBUG_START_ITERATION: 0
+
+# System Settings:
+NUM_WORKERS: 16
+DEVICE: cuda
+
+# Outputs settings:
+OUTPUTS_DIR:                 # outputs directory
+USE_WANDB: False             # use wandb or not
+USE_TENSORBOARD: True        # use tensorboard logging
+TENSORBOARD_LOG_DIR:         # tensorboard log directory (if None, will use OUTPUTS_DIR/logs)
+TENSORBOARD_FLUSH_SECS: 30   # how often to flush tensorboard logs
+LOG_PARAMS_GRADS: False      # whether to log parameter and gradient statistics
+EXP_OWNER: 1020134037-shanghai-jiao-tong-university
+EXP_PROJECT: SoccerVisualBackbone
+EXP_GROUP: SoccerVisualBackbone
+EXP_NAME: Default
+EVAL_PER_EPOCH: 1
+SAVE_CHECKPOINT_PER_EPOCH: 5
+MULTI_LAST_CHECKPOINTS: 0
+
+# Resume training settings:
+RESUME_TRAINING: False              # whether to automatically resume from the latest checkpoint in OUTPUTS_DIR
+RESUME_FROM_CHECKPOINT_DIR:         # specific checkpoint directory to resume from (takes precedence over RESUME_TRAINING)
+RESUME_TENSORBOARD_CONTINUOUS: True # whether to continue tensorboard logging when resuming (recommended: True)
+
+# Training strategies:
+USE_GRADIENT_CHECKPOINTING: False
+BATCH_SIZE: 12
+PREFETCH_FACTOR: 2
+LR: 1.0e-4
+# Different learning rates for different components:
+LR_BACKBONE: 1.0e-4
+LR_BACKBONE_TEMPORAL: 1.0e-4
+LR_TEXT_ENCODER: 5.0e-5
+LR_SOCCERNET_GSR_REID: 1.0e-3
+LR_SOCCERNET_GSR_DETECTION: 1.0e-3
+LR_LINES_DETECTION: 1.0e-2
+LR_KEYPOINTS_DETECTION: 1.0e-3
+LR_CAMERA_REGRESSION: 1.0e-3
+LR_VIDEO_CAPTION: 1.0e-3
+LR_CAPTION_CLASSIFICATION: 1.0e-3
+# LR_BACKBONE_NAMES: [backbone.0]
+# LR_BACKBONE_SCALE: 0.1
+# LR_LINEAR_PROJ_NAMES: [reference_points, sampling_offsets]
+# LR_LINEAR_PROJ_SCALE: 0.05
+# LR_DICTIONARY_NAMES: [word_to_embed, embed_to_word]
+# LR_DICTIONARY_SCALE: 1.0
+LR_WARMUP_EPOCHS: 1
+WEIGHT_DECAY: 0.0005
+EXCLUDE_TEMPORAL_EMBEDDING_WEIGHT_DECAY: True  # 是否排除temporal_embedding的weight decay
+USE_CLIP_GRAD_NORM: True          # 是否使用梯度裁剪，默认启用
+MAX_CLIP_NORM: 0.1
+EPOCHS: 30
+ACCUMULATE_STEPS: 1
+USE_ACCELERATE_CLIP_NORM: True
+LOGGING_INTERVAL: 20
+# Learning rate scheduler settings:
+SCHEDULER_TYPE: MultiStepLR  # 'MultiStepLR' or 'CosineAnnealingLR'
+# MultiStepLR settings:
+SCHEDULER_MILESTONES: [9, 15]  # learning rate decay milestones
+SCHEDULER_GAMMA: 0.1          # learning rate decay factor
+# CosineAnnealingLR settings:
+SCHEDULER_MIN_LR: 1.0e-8      # minimum learning rate for CosineAnnealingLR
+
+# Dataset settings:
+DATA_ROOT: ./datasets/
+# TASKS: [SoccerNetGSR_ReID, SoccerNetGSR_Detection, VideoCaption]
+# DATASETS: [SoccerNetGSR_ReID, SoccerNetGSR_Detection, VideoCaption]
+DATASETS_TO_HEADS:
+  SoccerNetGSR_ReID: [SoccerNetGSR_ReID]
+  SoccerNetGSR_Detection: [SoccerNetGSR_Detection, LinesDetection, KeypointsDetection, CameraRegression]
+  # VideoCaption: [VideoCaption]
+
+DATASET_SPLITS: train
+
+SoccerNetGSR_SUB_DIR: SN-GSR-2024
+SoccerNetGSR_DATA_SPLITS: train
+
+# Data augmentation settings:
+# 1. image sizes:
+AUG_RESIZE_SCALES: [512]
+KEEP_ASPECT_RATIO: False
+AUG_MAX_SIZE: 512
+AUG_RANDOM_RESIZE: [512]
+# 2. random shift:
+AUG_MAX_SHIFT_RATIO: 0.06
+# 3. bounding box overflow:
+AUG_OVERFLOW_BBOX: False
+# 4. color jitter:
+AUG_BRIGHTNESS: 0.4
+AUG_CONTRAST: 0.4
+AUG_SATURATION: 0.4
+AUG_HUE: 0.2
+AUG_COLOR_JITTER_V2: True
+# 5. lr ambiguity fix:
+USE_LR_AMBIGUITY_FIX: True
+# 6. additional augmentations:
+AUG_ENABLE_TRAINING_AUGMENTATION: True  # enable augmentation only during training
+AUG_RANDOM_HORIZONTAL_FLIP: True       # enable random horizontal flip
+AUG_HORIZONTAL_FLIP_PROB: 0.5          # probability of horizontal flip
+AUG_GAUSSIAN_NOISE: True               # enable gaussian noise
+AUG_GAUSSIAN_NOISE_STD: 0.02           # standard deviation for gaussian noise
+AUG_GAUSSIAN_NOISE_PROB: 0.3           # probability of applying gaussian noise
+AUG_GAUSSIAN_BLUR: True                # enable gaussian blur
+AUG_GAUSSIAN_BLUR_KERNEL_SIZE_RANGE: [3, 7]  # kernel size range for gaussian blur
+AUG_GAUSSIAN_BLUR_SIGMA_RANGE: [0.1, 2.0]    # sigma range for gaussian blur
+AUG_GAUSSIAN_BLUR_PROB: 0.2            # probability of applying gaussian blur
+AUG_ENABLE_RANDOM_CROP: True           # enable random crop (applied after ToTensor, before RandomResize)
+AUG_RANDOM_CROP_SIZE_RATIO_RANGE: [0.6, 1.0]  # range of crop size as ratio of original image
+AUG_RANDOM_CROP_PROB: 1.0              # probability of applying random crop
+# 7. random affine transformation:
+AUG_ENABLE_RANDOM_AFFINE: True         # enable random affine transformation (applied after ToTensor, before RandomCrop)
+AUG_AFFINE_DEGREES: 10                  # range of degrees for rotation (-degrees, +degrees)
+AUG_AFFINE_TRANSLATE: [0.1, 0.1]        # tuple of maximum absolute fraction for horizontal and vertical translations
+AUG_AFFINE_SCALE: [0.9, 1.1]           # scaling factor interval (min_scale, max_scale)
+AUG_AFFINE_SHEAR: 5                     # range of degrees for shearing (-shear, +shear)
+AUG_AFFINE_PROB: 0.5                   # probability of applying random affine transformation
+# 8. random perspective transformation:
+AUG_ENABLE_RANDOM_PERSPECTIVE: True    # enable random perspective transformation (applied after RandomAffine)
+AUG_PERSPECTIVE_DISTORTION_SCALE: 0.3   # range of perspective distortion (0.0 to 1.0)
+AUG_PERSPECTIVE_PROB: 0.5               # probability of applying random perspective transformation
+# 9. mean and std:
+# imagenet
+# AUG_MEAN: [0.485, 0.456, 0.406]
+# AUG_STD: [0.229, 0.224, 0.225]
+# siglip
+AUG_MEAN: [0.5, 0.5, 0.5]
+AUG_STD: [0.5, 0.5, 0.5]
+
+# BACKBONE:
+MODEL_ARCH: multitask
+BACKBONE_TYPE: image
+# SIGLIP_BACKBONE_TYPE: 选择使用哪种SiglipBackbone实现
+# - 'standard': 使用 models/siglip2.py 中的标准SiglipBackbone (默认)
+# - 'unisoccer': 使用 models/siglip2_unisoccer.py 中的UniSoccerBackbone
+# - 'unisoccer_part_temporal': 使用 models/siglip2_unisoccer_part_temporal.py 中的部分层Temporal Attention
+SIGLIP_BACKBONE_TYPE: standard  
+NUM_FRAMES: 30
+TEMPORAL_START_LAYER: 8  # 从第几层开始使用Temporal Attention（仅对unisoccer_part_temporal有效）
+CKPT_PATH: ./pretrained_models/google/siglip2-base-patch16-512
+LOAD_CHECKPOINTS: False
+CKPT_TYPE: hf
+LOAD_HEADS: True
+STAGE_1_CKPT_DIR: ./pretrained_models/google/siglip2-base-patch16-512
+TEXT_ENCODER_CKPT_PATH: ./pretrained_models/google/siglip2-base-patch16-512
+BACKBONE_HIDDEN_DIM: 768
+YOLO_MODEL_PATH: ./pretrained_models/yolo/yolo_v8x6_person_lr_default_best.pt
+YOLO_IMGSZ: 512
+YOLO_USE_RECT: False
+FREEZE_VISION_ENCODER: False
+FREEZE_TEXT_ENCODER: True  # 是否冻结文本编码器，默认为True不训练
+BACKBONE_USE_TEMPORAL_GATE: True  # 是否使用temporal embedding gate机制
+
+# DETR HEAD:
+NUM_CLASSES: 1 # person
+DETR_DETECT_BALL: False # whether to also detect ball (if True, NUM_CLASSES will be automatically set to 2)
+DETECT_BALL_ONLY: False # whether to only detect ball and exclude person (if True, only ball will be detected)
+USE_EXTRA_DATA: False
+EXTRA_DATA_PATH: 
+EXTRA_DATA_ONLY: False
+USE_EXTRA_DATA_AMOUNT: -1 # -1: use all extra data, >=0: use first N extra data
+DETR_ENABLE_ROLE_CLASSIFICATION: True # whether to enable role classification head
+DETR_ENABLE_JN_CLASSIFICATION: True # whether to enable jersey number classification heads (jn_holistic, digit_head, digit_tail)
+DILATION: False
+DETR_NUM_QUERIES: 300
+DETR_NUM_FEATURE_LEVELS: 1
+DETR_AUX_LOSS: True
+DETR_WITH_BOX_REFINE: True
+DETR_TWO_STAGE: False
+DETR_HIDDEN_DIM: 256
+DETR_MASKS: False
+DETR_POSITION_EMBEDDING: sine
+DETR_NUM_HEADS: 1
+DETR_ENC_LAYERS: 0
+DETR_DEC_LAYERS: 1
+DETR_DIM_FEEDFORWARD: 1024
+DETR_DROPOUT: 0.0
+DETR_DEC_N_POINTS: 4
+DETR_ENC_N_POINTS: 4
+DETR_CLS_LOSS_COEF: 2.0
+DETR_BBOX_LOSS_COEF: 5.0
+DETR_GIOU_LOSS_COEF: 2.0
+DETR_ROLE_LOSS_COEF: 2.0
+DETR_JN_LOSS_COEF: 1.0
+DETR_DIGIT_HEAD_LOSS_COEF: 1.0
+DETR_DIGIT_TAIL_LOSS_COEF: 1.0
+DETR_FOCAL_ALPHA: 0.25
+DETR_SET_COST_CLASS: 2.0
+DETR_SET_COST_BBOX: 5.0
+DETR_SET_COST_GIOU: 2.0
+ENABLE_SOFTMAX_FOCAL_LOSS: False  # 是否启用softmax focal loss，默认使用sigmoid focal loss
+CAMERA_T_LOSS_WEIGHT: 1.0
+CAMERA_R_LOSS_WEIGHT: 5.0
+CAMERA_FL_LOSS_WEIGHT: 1.0
+GSR_KEYPOINTS_LOSS_WEIGHT: 1.0
+GSR_LINES_LOSS_WEIGHT: 1.0
+DETR_CRITERION_BATCH_LEN: 300
+NUM_KEYPOINTS: 58
+NUM_LINES: 24
+DETECTION_DATA_TYPE: image
+EVAL_SCORE_THRESHOLD: 0.5
+
+# Local features selection for different heads (when using unisoccer_part_temporal):
+# Options: 'early' (temporal_start_layer features), 'late' (last layer features), 'both' (concatenate both)
+DETR_LOCAL_FEATURES_TYPE: none          # For SoccerNetGSR_Detection head
+LINES_LOCAL_FEATURES_TYPE: none         # For LinesDetection head  
+KEYPOINTS_LOCAL_FEATURES_TYPE: none     # For KeypointsDetection head
+
+# Lines Head settings:
+LINES_HEAD_TYPE: default  # 'default' for LinesHead, 'dpt' for DPTLinesHead
+DPT_SELECTED_LAYERS: [2, 5, 8, 11]  # 当使用DPT时，选择的SigLIP hidden_states层索引 (0-11)
+
+# SoccerNetGSR_ReID settings:
+SOCCER_NET_GSR_REID_OUTPUT_REID_DIM: 256
+SOCCER_NET_GSR_REID_NUM_PIDS: 1343 # hack implementation
+SOCCER_NET_GSR_REID_ROLE_FOCAL_LOSS_WEIGHT: 1.0
+SOCCER_NET_GSR_REID_PID_FOCAL_LOSS_WEIGHT: 0.1
+SOCCER_NET_GSR_REID_PID_TRIPLET_LOSS_WEIGHT: 1.0
+SOCCER_NET_GSR_REID_TEAM_TRIPLET_LOSS_WEIGHT: 1.0
+SOCCER_NET_GSR_REID_JN_HOISTIC_FOCAL_LOSS_WEIGHT: 1.0
+SOCCER_NET_GSR_REID_DIGIT_HEAD_FOCAL_LOSS_WEIGHT: 1.0
+SOCCER_NET_GSR_REID_DIGIT_TAIL_FOCAL_LOSS_WEIGHT: 1.0
+SOCCER_NET_GSR_REID_MARGIN: 0.3
+SOCCER_NET_GSR_REID_BATCH_SIZE: 32
+SOCCER_NET_GSR_REID_NUM_INSTANCES: 4
+
+# VideoCaption settings:
+VIDEO_CAPTION_LOSS_TYPE: siglip_loss
+VIDEO_CAPTION_SIGLIP_LOSS_WEIGHT: 1.0
+VIDEO_CAPTION_INFONCE_LOSS_WEIGHT: 1.0
+VIDEO_CAPTION_DATA_ROOT: ./datasets/VideoCaption/
+VIDEO_CAPTION_BATCH_SIZE: 4
+VIDEO_CAPTION_TEST_BATCH_SIZE: 5
+VIDEO_CAPTION_NUM_WORKERS: 4
+VIDEO_CAPTION_DATASETS: ['SoccerReplay-1988', 'MatchTime']
+VIDEO_CAPTION_SAMPLE: 'middle'
+VIDEO_CAPTION_FIX_START: null
+VIDEO_CAPTION_MAX_NUM_FRAMES: -1
+VIDEO_CAPTION_TRIMMED30: False
+# VIDEO_CAPTION_KEYWORDS: ['corner', 'goal', 'injury', 'own goal', 'penalty', 'penalty missed', 'red card', 'second yellow card', 'substitution', 'start of game(half)', 'end of game(half)', 'yellow card', 'throw in', 'free kick', 'saved by goal-keeper', 'shot off target', 'clearance', "lead to corner", 'off-side', 'var', 'foul with no card', 'statistics and summary', 'ball possession', 'ball out of play']
+VIDEO_CAPTION_TEXT_KEY: 'comments_text_anonymized'
+DISTRIBUTED_GATHER: True
+
+# CAPTION_CLASSIFICATION_LOSS_WEIGHT: 1.0
+# CAPTION_CLASSIFICATION_LABEL_SMOOTHING: 0.0
+# CAPTION_CLASSIFICATION_DROPOUT_RATE: 0.1
+# CAPTION_CLASSIFICATION_USE_ATTN_POOL: False
+# CAPTION_CLASSIFICATION_USE_TRANSFORMERS: False
+# CAPTION_CLASSIFICATION_NUM_TRANSFORMER_ENCODER: 2
+# CAPTION_CLASSIFICATION_USE_MLP: True
+# CAPTION_CLASSIFICATION_USE_LAYER_NORM: False
+
+CAPTION_CLASSIFICATION_LOSS_WEIGHT: 1.0
+CAPTION_CLASSIFICATION_LABEL_SMOOTHING: 0.0
+CAPTION_CLASSIFICATION_DROPOUT_RATE: 0.0
+CAPTION_CLASSIFICATION_USE_ATTN_POOL: False
+CAPTION_CLASSIFICATION_USE_TRANSFORMERS: True
+CAPTION_CLASSIFICATION_NUM_TRANSFORMER_ENCODER: 2
+CAPTION_CLASSIFICATION_USE_MLP: False
+CAPTION_CLASSIFICATION_USE_LAYER_NORM: True

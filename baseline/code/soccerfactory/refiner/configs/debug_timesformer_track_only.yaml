@@ -1,0 +1,29 @@
+# SoccerTrackerTransformer Configuration
+
+# Import base configuration
+imports:
+  - base.yaml
+
+# Override specific values
+experiment_name: "debug_timesformer_100clip_track_only"
+
+model:
+  type: SoccerTrackerTransformerTimeSformer
+  max_affinity_frame_distance: 25  # More restrictive for large clip size (100 frames)
+
+data:
+  dataset_type: "SoccerSequenceDataset"  # Just override the dataset type
+  precompute_track_masks: true
+  
+training:
+  batch_size: 1
+  num_workers: 8
+
+  # Only specify the tasks that differ from base.yaml
+  tasks:
+    track: true
+    role: false
+    team: false
+    jersey: false
+    coord: false
+    missing: false 

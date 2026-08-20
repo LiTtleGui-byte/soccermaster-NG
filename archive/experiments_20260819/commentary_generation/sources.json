@@ -1,0 +1,63 @@
+{
+  "schema_version": 1,
+  "integration_status": "minimal_inference_sources_vendored",
+  "policy": "Never add either remote source root to PYTHONPATH. Vendor the reviewed files locally and convert imports to package-relative imports before execution.",
+  "sources": [
+    {
+      "role": "generation_model",
+      "source": "/remote-home/haolinyang/sports/dirty_code/UniSoccer/model/matchvoice_model_all_blocks.py",
+      "target": "runtime/model/matchvoice_model_all_blocks.py",
+      "vendored": true,
+      "size": 18744,
+      "sha256": "a1c04104ba174b3fce2a4ae44e7e6ff73f6deef770d2cf40e91bb9878654b356"
+    },
+    {
+      "role": "qformer",
+      "source": "/remote-home/haolinyang/sports/dirty_code/UniSoccer/model/matchvoice_Qformer.py",
+      "target": "runtime/model/matchvoice_Qformer.py",
+      "vendored": true,
+      "size": 48552,
+      "sha256": "3c60d7995806f6c700ef74abcf29fc494752d22489eeff68956d9582a3fdc6e6"
+    },
+    {
+      "role": "visual_encoder",
+      "source": "/remote-home/haolinyang/sports/dirty_code/UniSoccer/model/MatchVision_part_temporal.py",
+      "target": "runtime/model/MatchVision_part_temporal.py",
+      "vendored": true,
+      "size": 7304,
+      "sha256": "88abbcf18f96604ac8d1deaecf5d1f9c0a22bbb3aa39d269a38a432cbec1f030"
+    },
+    {
+      "role": "dataset",
+      "source": "/remote-home/haolinyang/sports/UniSoccer/dataset/MatchVision_commentary_new_benchmark_from_npy.py",
+      "target": "runtime/dataset/commentary.py",
+      "vendored": true,
+      "size": 4945,
+      "sha256": "a088f5168f7bb7477c5f5c940eaca0a9a8897c22413e83f6ce2eb8a07073ccd5"
+    },
+    {
+      "role": "video_decode",
+      "source": "/remote-home/haolinyang/sports/UniSoccer/dataset/video_utils_siglip.py",
+      "target": "runtime/dataset/video_utils_siglip.py",
+      "vendored": true,
+      "size": 3760,
+      "sha256": "b90fc94106c8b86212e7da0c9f4bc4a9dedb76dfcfd020ac1796e144d6ac7454"
+    },
+    {
+      "role": "optimizer_reference_training_only",
+      "source": "/remote-home/haolinyang/sports/UniSoccer/optimizer/optimizer_utls.py",
+      "target": "runtime/optimizer/optimizer_utils.py",
+      "vendored": false,
+      "size": 22550,
+      "sha256": "9bd48d8a52dfa47314001f14ed562cab8cb3ca51f62da625fe09cb151f73837a"
+    },
+    {
+      "role": "metrics_reference_evaluation_only",
+      "source": "/remote-home/haolinyang/sports/UniSoccer/utils/score_helper.py",
+      "target": "runtime/metrics/score_helper.py",
+      "vendored": false,
+      "size": 1882,
+      "sha256": "d4ae37f3c43b30812b9b7a93a6fd4cbbb5db88cd6b43460a5e75219e5dfe658e"
+    }
+  ]
+}

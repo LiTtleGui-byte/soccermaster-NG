@@ -1,0 +1,38 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Candidate Grounding Review",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["dataset_index", "match_id", "blinded_candidate_id", "core_event_error", "slots", "unsupported_claims", "fluency"],
+  "properties": {
+    "dataset_index": {"type": "integer", "minimum": 0},
+    "match_id": {"type": "string", "minLength": 1},
+    "blinded_candidate_id": {"type": "string", "minLength": 1},
+    "core_event_error": {"type": ["boolean", "null"]},
+    "slots": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["action", "result", "actor_role", "target_role"],
+      "properties": {
+        "action": {"$ref": "#/$defs/slot_review"},
+        "result": {"$ref": "#/$defs/slot_review"},
+        "actor_role": {"$ref": "#/$defs/slot_review"},
+        "target_role": {"$ref": "#/$defs/slot_review"}
+      }
+    },
+    "unsupported_claims": {"type": "array", "items": {"type": "string"}},
+    "fluency": {"enum": ["acceptable", "degraded", "unrateable"]},
+    "review_confidence": {"enum": ["high", "medium", "low"]}
+  },
+  "$defs": {
+    "slot_review": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["verdict"],
+      "properties": {
+        "verdict": {"enum": ["supported", "unsupported", "omitted", "not_observable"]},
+        "claim": {"type": ["string", "null"]}
+      }
+    }
+  }
+}

@@ -1,0 +1,60 @@
+{
+  "schema_version": 1,
+  "status": "authorized_once_smoke_coexistence_revision",
+  "execution_authorized": true,
+  "host": "gpu200",
+  "poll_seconds": 1800,
+  "state_dir": "/home/tianlin/SoccerMaster/.runtime/commentary_gpu_autorun_20260817",
+  "output_root": "/home/tianlin/SoccerMaster/reports/commentary_autorun_3256_20260817_run1",
+  "python": "/home/tianlin/SoccerMaster/.local_envs/SoccerMaster-repro/bin/python",
+  "worker": "/home/tianlin/SoccerMaster/experiments/commentary_generation/cache_layers_shard_gpu.py",
+  "merger": "/home/tianlin/SoccerMaster/experiments/commentary_generation/merge_layer_cache_shards_cpu.py",
+  "environment": {
+    "PYTHONDONTWRITEBYTECODE": "1",
+    "PYTHONPATH": "/home/tianlin/SoccerMaster/models/deformable_detr/ops/build/lib.linux-x86_64-cpython-310:/home/tianlin/SoccerMaster",
+    "LD_LIBRARY_PATH": "/home/tianlin/SoccerMaster/.local_envs/SoccerMaster-repro/lib/python3.10/site-packages/torch/lib:/home/tianlin/SoccerMaster/.local_envs/SoccerMaster-repro/lib",
+    "SOCCERMASTER_COMMENTARY_ASSET_ROOT": "/mnt/nas/tianlin/SoccerMasterAssets/commentary_generation_epoch11_20260817",
+    "HF_HUB_OFFLINE": "1",
+    "TRANSFORMERS_OFFLINE": "1",
+    "HF_DATASETS_OFFLINE": "1",
+    "TOKENIZERS_PARALLELISM": "false",
+    "OMP_NUM_THREADS": "1",
+    "MKL_NUM_THREADS": "1"
+  },
+  "availability": {
+    "smoke": {
+      "required_gpu_indices": [1],
+      "minimum_free_mib": 30000,
+      "maximum_utilization_percent": 5,
+      "allowed_compute_pids": [3375814],
+      "confirmation_delay_seconds": 60
+    },
+    "full_eight_shards": {
+      "required_gpu_indices": [0, 1, 2, 3, 4, 5, 6, 7],
+      "minimum_free_mib": 60000,
+      "maximum_utilization_percent": 5,
+      "allowed_compute_pids": [],
+      "confirmation_delay_seconds": 60
+    }
+  },
+  "automatic_scope": [
+    "one_sample_smoke_inference",
+    "eight_shard_full_development_cache_and_baseline_generation",
+    "cpu_merge_and_review_gate"
+  ],
+  "smoke_timeout_seconds": 3600,
+  "shard_start_stagger_seconds": 45,
+  "shard_group_timeout_seconds": 43200,
+  "merge_timeout_seconds": 1800,
+  "failure_policy": "stop_without_retry_and_preserve_logs",
+  "review_gate": "stop_after_3256_layer_cache_and_baseline_generation",
+  "explicitly_forbidden": [
+    "training",
+    "backward",
+    "optimizer_or_scheduler",
+    "checkpoint_write_or_overwrite",
+    "automatic_retry",
+    "oracle_intervention",
+    "holdout_evaluation"
+  ]
+}

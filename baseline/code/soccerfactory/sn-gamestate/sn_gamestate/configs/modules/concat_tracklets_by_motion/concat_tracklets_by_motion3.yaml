@@ -1,0 +1,7 @@
+_target_: sn_gamestate.concat_tracklets_by_motion.concat_tracklets_by_motion_m3_api.ConcatTrackletsByMotion3
+
+image_width: 1920
+image_height: 1080
+margin: 30
+max_frames: 50
+max_dist: 10

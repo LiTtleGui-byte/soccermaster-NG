@@ -1,0 +1,11 @@
+SUPER_CONFIG_PATH: ./configs/default.yaml
+
+DATASETS_TO_HEADS:
+  SoccerNetGSR_Detection: [SoccerNetGSR_Detection, LinesDetection, KeypointsDetection, CameraRegression]
+  # SoccerNetGSR_ReID: [SoccerNetGSR_ReID]
+
+
+LOAD_CHECKPOINTS: True
+STAGE_1_CKPT_DIR: ./outputs/image_512_wo_reid/epoch_14
+LINES_HEAD_TYPE: default
+SAVE_CHECKPOINT_PER_EPOCH: 1

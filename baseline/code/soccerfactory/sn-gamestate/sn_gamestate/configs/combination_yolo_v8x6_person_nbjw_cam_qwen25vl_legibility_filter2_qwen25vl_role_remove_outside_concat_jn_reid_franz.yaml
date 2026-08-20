@@ -1,0 +1,129 @@
+# TrackLab SoccerNet config
+
+# The defaults list contains the files that will be used
+# to create the final config file. This item *must* be
+# the first element in the file.
+# Detailed configs for each default component below are located in "sn-gamestate/sn-gamestate/configs" and "tracklab/tracklab/configs"
+# Define here which implementation (yolov8, oc_sort, ..) to use for each generic (detection, tracking, ...) component.
+defaults:
+  - dataset: soccernet_gs
+  - eval: gs_hota
+  - engine: offline
+  - state: save  # Dump tracking results to a .pcklz file to save computation time on the next run. Have a look at TrackLab tutorials for more details.
+  - visualization: gamestate  # Save tracking results as a .mp4 video in the run directory specified below (sn-gamestate/outputs/...)
+  - modules/bbox_detector: yolov8_person
+  - modules/reid: prtreid
+  - modules/track: bpbreid_strong_sort
+  - modules/legibility: legibility
+  - modules/jersey_number_detect: qwen2_5vl_ocr_batch
+  - modules/team: kmeans_embeddings
+  - modules/team_side: mean_position
+  - modules/role: qwen2_5vl_role_batch
+  - modules/tracklet_agg: voting_role_jn_filter2
+  - modules/pitch: nbjw_calib
+  - modules/calibration: nbjw_calib_decouped
+  - modules/apply_camera_params: nbjw_calib_apply_params
+  - modules/concat_tracklets_by_jn: concat_tracklets_by_jn
+  - modules/concat_tracklets_by_reid: concat_tracklets_by_reid
+  - modules/remove_outside: remove_outside
+  - _self_
+
+# Pipeline definition :
+# - Defines the order in which the modules will be called
+# - If loading a tracking state from disk, remove modules whose outputs are already provided in the loaded state
+# Use 'pipeline: []' for an empty pipeline (e.g. when loading all tracking results from a saved .pklz tracker state)
+pipeline:
+  - bbox_detector
+  - reid
+  - track
+  - pitch
+  - calibration
+  - apply_camera_params
+  - legibility
+  - jersey_number_detect
+  - role
+  - remove_outside
+  - tracklet_agg
+  - concat_tracklets_by_jn
+  - concat_tracklets_by_reid
+  - tracklet_agg
+  - team
+  - team_side
+
+
+# Experiment name
+experiment_name: "combination"
+experiment_subname: "yolo_v8x6_person_nbjw_cam_qwen25vl_legibility_filter2_qwen25vl_role_remove_outside_concat_jn_reid_franz"
+
+# Path definitions
+home_dir: "${oc.env:HOME}"
+data_dir: "${project_dir}/datasets/SN-GSR-2024"
+model_dir: "${project_dir}/pretrained_models"
+
+# Machine configuration
+num_cores: 32
+use_wandb: False
+use_rich: True
+
+modules: # Allows module-specific batch_size and other configuration
+  bbox_detector: {batch_size: 16, cfg: {path_to_checkpoint: "${model_dir}/yolo/yolo_v8x6_person_lr_default_best.pt"}}
+  pose_bottomup: {batch_size: 16}
+  reid: {batch_size: 16}
+  track: {batch_size: 16}
+  pitch: {batch_size: 1}
+  calibration: {batch_size: 1}
+  apply_camera_params: {batch_size: 1, use_h: False, use_linalg: False}
+  legibility: {batch_size: 16}
+  jersey_number_detect: {batch_size: 8, cfg: {save_jersey_number_full_detection: True, use_legibility_filter: True}}
+  role: {batch_size: 4, cfg: {downsample_factor: 4}}
+  concat_tracklets_by_reid: {threshold: 0.1}
+
+# Flags
+test_tracking: True
+eval_tracking: True
+print_config: False
+
+# Dataset
+dataset:
+  nvid: -1  # For a quick first inference, only the first video is processed. Use "-1" to process all the videos.
+#  nframes: -1 # For testing on only a few frames, set to a positive number. Will disable evaluation !
+  eval_set: "franz"  # Tracking is performed on the SoccerNet validation set. Choose from {"train", "valid", "test", "challenge"}.
+  dataset_path: ${data_dir}/SoccerNetGS  # The SoccerNet game state dataset is located under the data path (defined above) in the 'SoccerNetGS' folder
+  vids_dict: # Use one key per split (valid, test, etc)
+    franz: []
+
+# Eval
+eval:
+  cfg:
+    metrics:
+      # - "CLEAR"
+      - "HOTA"
+      # - "Identity"
+      # - "YOLOmAP"
+      # - "AttributesACC"
+      # - "PitchDistance"
+      # - "RolesACC"
+
+# Tracker state (save computation time by dumping tracking results on disk for later re-use)
+state:
+  save_file: "states/sn-gamestate.pklz"  # 'null' to disable saving. This is the save path for the tracker_state object that contains all modules outputs (bboxes, reid embeddings, jersey numbers, roles, teams, etc)
+  load_file: null  # 'null' to disable loading. Load a file that was saved with the 'state.save_file' option above. Don't forget to remove from the pipeline all modules that should not be run again, but loaded from the saved tracker state.
+
+# Visualization
+visualization:
+  cfg:
+    save_videos: True  # Save a .mp4 video on disk with the game state reconstruction output (see 'tracklab/tracklab/configs/visualization' for more options)
+
+# configure Hydra to use the current working directory
+# and set up the output directory according to experiment_name
+project_dir: "${hydra:runtime.cwd}"
+hydra:
+  output_subdir: "configs"
+  job:
+    chdir: True
+  run:
+    # dir: "outputs/${experiment_name}/${now:%Y-%m-%d}/${now:%H-%M-%S}"
+    dir: "outputs/${experiment_name}/${experiment_subname}"
+  sweep:
+    # dir: "multirun_outputs/${experiment_name}/${now:%Y-%m-%d}/${now:%H-%M-%S}"
+    dir: "multirun_outputs/${experiment_name}/${experiment_subname}"

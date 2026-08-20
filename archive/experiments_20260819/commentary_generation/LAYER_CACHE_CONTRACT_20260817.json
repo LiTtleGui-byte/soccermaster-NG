@@ -1,0 +1,22 @@
+{
+  "status": "static_contract_not_run",
+  "identity_keys": ["dataset_index", "match_id", "video_path", "frame_indices", "preprocess_id", "checkpoint_id"],
+  "layers": [
+    {"name": "visual_frame_global", "expected_rank_per_sample": 2, "expected_trailing_dimension": 1024, "storage_scope": "full_development_candidate"},
+    {"name": "visual_local_optional", "expected_rank_per_sample": 3, "expected_trailing_dimension": 1024, "storage_scope": "event_balanced_grouped_subset_only"},
+    {"name": "temporal_output", "expected_rank_per_sample": 2, "expected_trailing_dimension": 1024, "storage_scope": "full_development_candidate"},
+    {"name": "qformer_input", "expected_rank_per_sample": 2, "expected_trailing_dimension": 1024, "storage_scope": "full_development_candidate"},
+    {"name": "qformer_output", "expected_shape_per_sample": [32, 768], "storage_scope": "full_development_candidate"},
+    {"name": "projector_output", "expected_shape_per_sample": [32, 4096], "storage_scope": "full_development_candidate"},
+    {"name": "decoder_diagnostics", "required_values": ["first_token_logits", "fact_token_nll", "generated_token_ids"], "storage_scope": "full_development_candidate"}
+  ],
+  "rules": [
+    "all layers for a sample use identical frame indices and preprocessing",
+    "cache rows align by dataset_index rather than file order",
+    "every tensor is finite and has an explicit dtype and semantic name",
+    "remote input assets remain read-only",
+    "local patch tensors are not expanded to the full development set without a separate storage budget",
+    "a new output directory is required for every run"
+  ],
+  "execution_authorized": false
+}

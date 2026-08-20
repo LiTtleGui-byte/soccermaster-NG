@@ -1,0 +1,24 @@
+{
+  "status": "static_contract_not_run",
+  "ranking_rule": "Only interface-matched interventions enter the causal bottleneck ranking.",
+  "common_controls": [
+    "same clips and match-grouped split",
+    "same frame indices and preprocessing",
+    "same downstream checkpoint",
+    "same supervision count and optimization budget",
+    "same training and decode seeds",
+    "same tokenizer, restricted vocabulary, BOS, EOS, PAD, and maximum tokens",
+    "one replaced module per primary comparison"
+  ],
+  "diagnostics": [
+    {"name": "structured_fact_prompt", "role": "decoder language upper bound only", "rankable": false},
+    {"name": "layer_linear_probe", "role": "information screening only", "rankable": false},
+    {"name": "interface_matched_module_replacement", "role": "paired causal rescue", "rankable": true}
+  ],
+  "tie_policy": [
+    "run one preregistered top-two combined intervention when confidence intervals overlap",
+    "report interaction when the combination adds material improvement",
+    "otherwise improve the lower-cost and smaller-change module"
+  ],
+  "execution_authorized": false
+}

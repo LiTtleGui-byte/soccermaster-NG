@@ -1,0 +1,74 @@
+{
+  "schema_version": 1,
+  "gate": "G10-B",
+  "stage": "refiner_input_contract_audit_run5",
+  "description": "CPU-only read-only audit of the run5 TrackLab Step-1 archive against the preserved Refiner inference input contract.",
+  "python": "/remote-home/haolinyang/anaconda3/envs/tracklab2/bin/python",
+  "input_archive": {
+    "path": "/home/tianlin/SoccerMaster/.runtime/g10/sngs10004_step1/run5/states/sn-gamestate.pklz",
+    "bytes": 38796789,
+    "sha256": "42fc47a85232b91e9ece142d025733ed961e612b9a35179b3e1a56755ca5a7fb",
+    "members_exact": ["10004.pkl", "10004_image.pkl", "summary.json"]
+  },
+  "metadata": {
+    "path": "/home/tianlin/SoccerMaster/reproduction/manifests/g10_sngs10004_refiner_metadata.json",
+    "bytes": 137,
+    "sha256": "88968116d6e574532ffab4472ea5e630793259407544d539dd7599072c67677e",
+    "split": "sn500",
+    "record": {"id": 3, "name": "SNGS-10004", "n_frames": 255}
+  },
+  "refiner_source_revision": "d4a06f77aebcb45eea1e54b47991dc80ee0f239a",
+  "refiner_sources": {
+    "inference": {
+      "path": "/remote-home/haolinyang/sports/soccernet/Refiner/inference.py",
+      "bytes": 58697,
+      "sha256": "32835e195f9f89ecbba6b6b59f10327f95d7bff5e0b0d0b947991c8977301b76"
+    },
+    "dataset_utils": {
+      "path": "/remote-home/haolinyang/sports/soccernet/Refiner/dataset/dataset_utils.py",
+      "bytes": 19492,
+      "sha256": "78710f0283f9a77e00f50928f913a838bf4fa0e2f91d7eae4eb86c1069ead61a"
+    },
+    "inference_config": {
+      "path": "/remote-home/haolinyang/sports/soccernet/Refiner/configs/train_timesformer_100clip_coord_only_not_0init_l2_xyflip.yaml",
+      "bytes": 647,
+      "sha256": "413e0b67e4b89fa78ca783164cb060e99e6cbff76297c19e8ff8d1463d7aa58b"
+    },
+    "base_config": {
+      "path": "/remote-home/haolinyang/sports/soccernet/Refiner/configs/base.yaml",
+      "bytes": 5209,
+      "sha256": "551c7d083a7704e0fc4cef7dc7612bf90e17b1e894798fb1663271744bb06896"
+    }
+  },
+  "contract": {
+    "video_id": "10004",
+    "required_frames": 255,
+    "required_detection_rows": 3176,
+    "required_unique_track_ids": 49,
+    "refiner_detection_columns": ["embeddings", "bbox_ltwh", "bbox_pitch", "role", "team", "jersey_number", "track_id"],
+    "refiner_image_columns": ["id", "parameters"],
+    "expected_missing_detection_columns": ["bbox_pitch", "jersey_number", "role", "team"],
+    "expected_missing_image_columns": ["parameters"],
+    "embedding_shape": [1, 256],
+    "default_max_frames": 750,
+    "default_max_detections_per_frame": 30,
+    "expected_compatibility": false
+  },
+  "outputs": {
+    "report_dir": "/home/tianlin/SoccerMaster/reports/g10/20260814_refiner_input_contract_audit",
+    "result": "/home/tianlin/SoccerMaster/reports/g10/20260814_refiner_input_contract_audit/result.json",
+    "log": "/home/tianlin/SoccerMaster/reports/g10/20260814_refiner_input_contract_audit/run.log"
+  },
+  "execution": {
+    "timeout_seconds": 120,
+    "heartbeat": "not_required_for_expected_subsecond_cpu_audit",
+    "cuda_visible_devices": "",
+    "pythonpath": "",
+    "ld_library_path": "",
+    "dtype": "not_applicable_no_model_or_tensor_inference",
+    "seed": "not_applicable_deterministic_full_archive_read",
+    "sampling": "all_rows_and_all_255_frames",
+    "fallbacks": "none"
+  },
+  "forbidden": ["import_refiner", "import_torch", "model_load", "forward", "gpu", "evaluation", "training", "write_input_archive", "run_step3", "run_conversion"]
+}

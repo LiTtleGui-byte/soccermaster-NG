@@ -1,0 +1,129 @@
+{
+  "schema_version": 1,
+  "gate": "G10-B",
+  "stage": "refiner_255_probe_run1_prepared",
+  "description": "CPU-only static preparation of one isolated 255-frame Refiner probe. This manifest does not authorize GPU execution.",
+  "python": "/remote-home/haolinyang/anaconda3/envs/tracklab2/bin/python",
+  "references": {
+    "contract_audit_manifest": {
+      "path": "/home/tianlin/SoccerMaster/reproduction/manifests/g10_prerefiner_enriched_contract_audit_run2.json",
+      "bytes": 4829,
+      "sha256": "e28e6ef39ad96dfaa4604e503dc0459df2ec5cbcf5d17ba137940771184259a0"
+    },
+    "contract_audit_result": {
+      "path": "/home/tianlin/SoccerMaster/reports/g10/20260814_prerefiner_enriched_contract_audit_run2/result.json",
+      "bytes": 17706,
+      "sha256": "fa7c1baf0c4215c3421babe54530d51fb039e417ad2ef55ae6f915250ee3d6a6"
+    },
+    "contract_audit_entry": {
+      "path": "/home/tianlin/SoccerMaster/reproduction/gates/g10_prerefiner_enriched_contract_audit.py",
+      "bytes": 31321,
+      "sha256": "6d736b113a644c35f5856a00c895e7ff02de61342c1045923fa5a219653ac724"
+    }
+  },
+  "input_archive": {
+    "path": "/home/tianlin/SoccerMaster/.runtime/g10/sngs10004_prerefiner_enrichment/run2/states/sn-gamestate.pklz",
+    "bytes": 39016979,
+    "sha256": "3b1512e2987ecb86874b1e18e7f6451228652b72a57ed28ec867f4d4995ad606",
+    "immutable": true,
+    "members_exact": ["10004.pkl", "10004_image.pkl", "summary.json"]
+  },
+  "metadata": {
+    "path": "/home/tianlin/SoccerMaster/reproduction/manifests/g10_sngs10004_refiner_metadata.json",
+    "bytes": 137,
+    "sha256": "88968116d6e574532ffab4472ea5e630793259407544d539dd7599072c67677e",
+    "split": "sn500",
+    "record": {"id": 3, "name": "SNGS-10004", "n_frames": 255}
+  },
+  "refiner": {
+    "root": "/remote-home/haolinyang/sports/soccernet/Refiner",
+    "revision": "d4a06f77aebcb45eea1e54b47991dc80ee0f239a",
+    "entry": "/remote-home/haolinyang/sports/soccernet/Refiner/inference.py",
+    "sources": {
+      "inference": {"path": "/remote-home/haolinyang/sports/soccernet/Refiner/inference.py", "bytes": 58697, "sha256": "32835e195f9f89ecbba6b6b59f10327f95d7bff5e0b0d0b947991c8977301b76"},
+      "dataset_utils": {"path": "/remote-home/haolinyang/sports/soccernet/Refiner/dataset/dataset_utils.py", "bytes": 19492, "sha256": "78710f0283f9a77e00f50928f913a838bf4fa0e2f91d7eae4eb86c1069ead61a"},
+      "inference_config": {"path": "/remote-home/haolinyang/sports/soccernet/Refiner/configs/train_timesformer_100clip_coord_only_not_0init_l2_xyflip.yaml", "bytes": 647, "sha256": "413e0b67e4b89fa78ca783164cb060e99e6cbff76297c19e8ff8d1463d7aa58b"},
+      "base_config": {"path": "/remote-home/haolinyang/sports/soccernet/Refiner/configs/base.yaml", "bytes": 5209, "sha256": "551c7d083a7704e0fc4cef7dc7612bf90e17b1e894798fb1663271744bb06896"}
+    },
+    "checkpoint": {
+      "path": "/remote-home/haolinyang/sports/soccernet/Refiner/outputs/train_timesformer_100clip_coord_only_not_0init_l2_xyflip_seed42_20250328_224427/best_model.pth",
+      "bytes": 323985486,
+      "mtime": "2025-03-28 22:13:11.160361441 -0400",
+      "sha256": "d8e383e93e209e4ac3aa8fb97d8b209fe10b183f622cbae40d9124160238fe5a"
+    },
+    "read_only_attestation": {
+      "host_alias": "GPU202-tianlin",
+      "host": "gpu202",
+      "filesystem": "gpfsdata type gpfs",
+      "checked_utc_date": "2026-08-17",
+      "revision_and_all_source_config_hashes_matched": true,
+      "checkpoint_stat_and_sha256_matched": true,
+      "torch_or_refiner_imported": false,
+      "checkpoint_deserialized": false,
+      "gpu_used": false
+    }
+  },
+  "config": {
+    "baseline": "/home/tianlin/SoccerMaster/reproduction/configs/g10/g10_refiner_sngs10004_baseline_override.json",
+    "target": "/home/tianlin/SoccerMaster/reproduction/configs/g10/g10_refiner_sngs10004_255_probe_run1.json",
+    "allowed_leaf_difference": "data.max_frames",
+    "baseline_value": null,
+    "resolved_base_value": 750,
+    "target_value": 255,
+    "only_semantic_change": "Resolve the pinned upstream inference configuration with data.max_frames=255 instead of 750. The absolute import names the same pinned base.yaml asset."
+  },
+  "side_effect_contract": {
+    "upstream_creates_output_directory": true,
+    "upstream_deletes_existing_output_archive": true,
+    "upstream_writes_temp_pickles_in_cwd": true,
+    "upstream_loads_model_and_selects_device": true,
+    "mitigation": "Use a new workspace-only run root, a new output directory, and a new current working directory; refuse every pre-existing target; omit all visualization flags.",
+    "expected_temp_files": ["temp_10004.pkl", "temp_10004_image.pkl"]
+  },
+  "runtime": {
+    "host_requirement": "A host containing this workspace with /remote-home mounted; GPU200 is intended after its mount is restored.",
+    "work_dir": "/home/tianlin/SoccerMaster/.runtime/g10/sngs10004_refiner_probe/run1/work",
+    "output_dir": "/home/tianlin/SoccerMaster/.runtime/g10/sngs10004_refiner_probe/run1/output",
+    "expected_output": "/home/tianlin/SoccerMaster/.runtime/g10/sngs10004_refiner_probe/run1/output/refined_sn-gamestate.pklz",
+    "report_dir": "/home/tianlin/SoccerMaster/reports/g10/20260817_refiner_probe_run1",
+    "log": "/home/tianlin/SoccerMaster/reports/g10/20260817_refiner_probe_run1/run.log",
+    "result": "/home/tianlin/SoccerMaster/reports/g10/20260817_refiner_probe_run1/result.json",
+    "heartbeat_seconds": 30,
+    "timeout_seconds": 14400,
+    "termination_grace_seconds": 120,
+    "visualization": false,
+    "evaluation": false,
+    "training": false,
+    "fallbacks": [],
+    "retry": "forbidden; inspect the first failure and require a new run id and new approval"
+  },
+  "cuda_guard": {
+    "approval_environment": "G10_REFINER_PROBE_RUN1_GPU_APPROVED=YES",
+    "cuda_visible_devices": "exactly_one_numeric_device",
+    "cuda_available": true,
+    "visible_device_count": 1,
+    "logical_device_index": 0,
+    "expected_device_name": "NVIDIA H800",
+    "minimum_total_memory_bytes": 80000000000,
+    "minimum_free_memory_bytes": 70000000000,
+    "fresh_nvidia_smi_and_explicit_user_approval_required": true,
+    "current_gpu_authorization": false
+  },
+  "preflight_outputs": {
+    "report_dir": "/home/tianlin/SoccerMaster/reports/g10/20260817_refiner_probe_run1_preflight",
+    "result": "/home/tianlin/SoccerMaster/reports/g10/20260817_refiner_probe_run1_preflight/result.json",
+    "log": "/home/tianlin/SoccerMaster/reports/g10/20260817_refiner_probe_run1_preflight/run.log"
+  },
+  "future_command_arguments": [
+    "--config", "/home/tianlin/SoccerMaster/reproduction/configs/g10/g10_refiner_sngs10004_255_probe_run1.json",
+    "--checkpoint", "/remote-home/haolinyang/sports/soccernet/Refiner/outputs/train_timesformer_100clip_coord_only_not_0init_l2_xyflip_seed42_20250328_224427/best_model.pth",
+    "--input_pklz", "/home/tianlin/SoccerMaster/.runtime/g10/sngs10004_prerefiner_enrichment/run2/states/sn-gamestate.pklz",
+    "--output_dir", "/home/tianlin/SoccerMaster/.runtime/g10/sngs10004_refiner_probe/run1/output",
+    "--metadata_path", "/home/tianlin/SoccerMaster/reproduction/manifests/g10_sngs10004_refiner_metadata.json",
+    "--split", "sn500"
+  ],
+  "forbidden_during_preflight": [
+    "import_torch", "import_refiner", "deserialize_checkpoint", "nvidia_smi", "gpu", "model_load", "forward",
+    "step3", "conversion", "evaluation", "visualization", "training"
+  ]
+}

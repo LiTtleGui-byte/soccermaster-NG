@@ -1,0 +1,9 @@
+# Model-only override for local/controlled assets.
+SUPER_CONFIG_PATH: /home/tianlin/SoccerMaster/configs/pretrain_large_512_multitask_aug_consine_part_temporal_early_freeze_text_lr_5e-5_cap_cls_weight_1_extra_7000_high_resolution.yaml
+CKPT_PATH: /mnt/nas/tianlin/SoccerMasterAssets/commentary_generation_epoch11_20260817/models/siglip2-large-patch16-512
+TEXT_ENCODER_CKPT_PATH: /mnt/nas/tianlin/SoccerMasterAssets/commentary_generation_epoch11_20260817/models/siglip2-large-patch16-512
+STAGE_1_CKPT_DIR: /home/tianlin/SoccerMaster/.local_assets/checkpoints/soccermaster_epoch19
+LOAD_CHECKPOINTS: true
+LOAD_HEADS: true
+CKPT_TYPE: soccer_master
+

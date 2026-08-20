@@ -1,8 +1,8 @@
-from setuptools import setup
+from setuptools import find_packages, setup
 
 setup(
-    name="soccerbackbone",  # pip安装时的名称
-    version="0.1",
-    packages=[""],          # 空字符串表示当前目录是包根目录
-    package_dir={"": "."},  # 将空包名映射到当前目录
+    name="soccermaster-research",
+    version="0.2.0",
+    packages=find_packages(where="research/src"),
+    package_dir={"": "research/src"},
 )

@@ -1,0 +1,39 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Scored Grounding Record",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["dataset_index", "match_id", "condition", "core_event_error", "slots", "unsupported_claim_count", "claim_count", "fluency_degraded"],
+  "properties": {
+    "dataset_index": {"type": "integer", "minimum": 0},
+    "match_id": {"type": "string", "minLength": 1},
+    "condition": {"type": "string", "minLength": 1},
+    "core_event_error": {"type": ["integer", "null"], "enum": [0, 1, null]},
+    "slots": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["action", "result", "actor_role", "target_role"],
+      "properties": {
+        "action": {"$ref": "#/$defs/counts"},
+        "result": {"$ref": "#/$defs/counts"},
+        "actor_role": {"$ref": "#/$defs/counts"},
+        "target_role": {"$ref": "#/$defs/counts"}
+      }
+    },
+    "unsupported_claim_count": {"type": "integer", "minimum": 0},
+    "claim_count": {"type": "integer", "minimum": 0},
+    "fluency_degraded": {"type": ["integer", "null"], "enum": [0, 1, null]}
+  },
+  "$defs": {
+    "counts": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["tp", "fp", "fn"],
+      "properties": {
+        "tp": {"type": "integer", "minimum": 0},
+        "fp": {"type": "integer", "minimum": 0},
+        "fn": {"type": "integer", "minimum": 0}
+      }
+    }
+  }
+}

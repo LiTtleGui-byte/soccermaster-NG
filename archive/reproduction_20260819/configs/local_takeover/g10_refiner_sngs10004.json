@@ -1,0 +1,30 @@
+{
+  "imports": [
+    "/home/tianlin/SoccerMaster/vendor/soccerfactory/refiner/configs/base.yaml"
+  ],
+  "experiment_name": "train_timesformer_100clip_coord_only_not_0init_l2_xyflip",
+  "model": {
+    "type": "SoccerTrackerTransformerTimeSformer",
+    "zero_init_for_residual": false,
+    "coord_loss_type": "l2"
+  },
+  "data": {
+    "dataset_type": "SoccerSequenceCachedDataset",
+    "max_frames": 255,
+    "max_clip_frames": 100,
+    "flip_x_prob": 0.5,
+    "flip_y_prob": 0.5
+  },
+  "training": {
+    "num_workers": 8,
+    "tasks": {
+      "track": false,
+      "role": false,
+      "team": false,
+      "jersey": false,
+      "coord": true,
+      "missing": false
+    }
+  }
+}
+

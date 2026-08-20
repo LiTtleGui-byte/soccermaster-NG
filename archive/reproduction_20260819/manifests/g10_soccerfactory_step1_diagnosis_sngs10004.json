@@ -1,0 +1,69 @@
+{
+  "schema_version": 1,
+  "gate": "G10-B",
+  "stage": "tracklab_step1_startup_diagnosis",
+  "description": "CPU-only staged diagnosis of TrackLab import, Hydra composition, and fixed single-sequence dataset instantiation after Step 1 run1 timed out.",
+  "base_step1_manifest": {
+    "path": "/home/tianlin/SoccerMaster/reproduction/manifests/g10_soccerfactory_step1_sngs10004.json",
+    "sha256": "20cfb0917948041f9f51d267e91f465d9e64be21e886fd9148f88fc41c9d63ee"
+  },
+  "python": "/remote-home/haolinyang/anaconda3/envs/tracklab2/bin/python",
+  "config": {
+    "directory": "/home/tianlin/SoccerMaster/reproduction/configs/g10",
+    "name": "g10_step1_sngs10004",
+    "path": "/home/tianlin/SoccerMaster/reproduction/configs/g10/g10_step1_sngs10004.yaml"
+  },
+  "sample": {
+    "sequence": "SNGS-10004",
+    "video_id": "10004",
+    "split": "sn500",
+    "required_image_rows": 255,
+    "dataset_root": "/mnt/nas/haolinyang/sports/Soccer-Backbone/datasets/SN-GSR-2024/SoccerNetGS"
+  },
+  "source_files": {
+    "tracklab_main": "/remote-home/haolinyang/sports/soccernet/tracklab/tracklab/main.py",
+    "soccernet_dataset": "/remote-home/haolinyang/sports/soccernet/tracklab/tracklab/wrappers/datasets/soccernet/soccernet_game_state.py"
+  },
+  "diagnostic_adapter": {
+    "host_logical_cpus_observed_before_run": 224,
+    "upstream_pool_call": "multiprocessing.Pool() without an explicit process count",
+    "dataset_pool_workers": 4,
+    "scope": "worker_process_monkeypatch_only",
+    "reason": "Prevent a one-video read-only diagnosis from spawning approximately 224 processes; this does not modify upstream files or claim unchanged production concurrency."
+  },
+  "timeouts_seconds": {
+    "worker_boot": 60,
+    "import_tracklab_main": 1800,
+    "hydra_compose": 300,
+    "instantiate_dataset": 1200,
+    "termination_grace": 60,
+    "overall": 3450
+  },
+  "heartbeat_seconds": 30,
+  "outputs": {
+    "report_dir": "/home/tianlin/SoccerMaster/reports/g10/20260813_step1_startup_diagnosis_run1",
+    "events": "/home/tianlin/SoccerMaster/reports/g10/20260813_step1_startup_diagnosis_run1/events.jsonl",
+    "log": "/home/tianlin/SoccerMaster/reports/g10/20260813_step1_startup_diagnosis_run1/run.log",
+    "result": "/home/tianlin/SoccerMaster/reports/g10/20260813_step1_startup_diagnosis_run1/result.json"
+  },
+  "success": {
+    "required_phases": [
+      "import_tracklab_main",
+      "hydra_compose",
+      "instantiate_dataset"
+    ],
+    "required_dataset_sets": [
+      "sn500"
+    ],
+    "required_video_rows": 1,
+    "required_image_rows": 255
+  },
+  "prohibitions": [
+    "CUDA_VISIBLE_DEVICES must be empty",
+    "do not call tracklab.main.main",
+    "do not instantiate evaluator",
+    "do not instantiate bbox_detector, reid, or track modules",
+    "do not read model weights",
+    "do not run inference, evaluation, visualization, or training"
+  ]
+}

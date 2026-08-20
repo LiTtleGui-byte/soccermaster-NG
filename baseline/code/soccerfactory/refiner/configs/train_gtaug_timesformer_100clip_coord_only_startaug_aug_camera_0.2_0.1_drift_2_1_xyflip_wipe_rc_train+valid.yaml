@@ -1,0 +1,48 @@
+# SoccerTrackerTransformer Configuration with Camera Augmentation
+
+# Import gtaug base configuration
+imports:
+  - gtaug_base.yaml
+
+# Override specific values
+experiment_name: "train_gtaug_timesformer_100clip_coord_only_startaug_aug_camera_0.2_0.1_drift_2_1_xyflip_wipe_rc_train+valid"
+
+data:
+  train_split: "train+valid"
+  val_split: "test"
+  augment_coords: true
+  augment_coords_mode: "camera+drift"
+  rotation_std: 0.2  # Increased rotation noise
+  translation_std: 0.1  # Increased translation noise
+  camera_drift_prob: 0.03  # Probability of applying drift per frame
+  drift_rotation_std: 2.0  # Standard deviation for rotation in drift mode
+  drift_translation_std: 1.0  # Standard deviation for translation in drift mode
+  flip_x_prob: 0.5
+  flip_y_prob: 0.5
+  use_all_frames_as_start: true
+  # Wipe mode configuration
+  wipe_mode: "random+continuous"
+  wipe_random_prob: 0.03
+  wipe_continuous_prob: 0.05
+
+training:
+  num_workers: 8
+  output_dir: "./outputs_gtaug"
+
+  # Only specify the tasks that differ from base.yaml
+  tasks:
+    track: false
+    role: false
+    team: false
+    jersey: false
+    coord: true
+    missing: false 
+
+  # Loss weights configuration
+  loss_weights:
+    track: 1.0     # Track association loss weight
+    role: 0.2      # Role classification loss weight
+    team: 0.2      # Team classification loss weight
+    jersey: 0.3    # Jersey number prediction loss weight
+    coord: 0.5     # Coordinate refinement loss weight
+    missing: 0.3   # Missing detections prediction loss weight

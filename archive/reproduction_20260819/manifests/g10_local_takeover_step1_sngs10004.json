@@ -1,0 +1,77 @@
+{
+  "schema_version": 1,
+  "stage": "tracklab_step1_local_takeover_prepared",
+  "python": "/home/tianlin/SoccerMaster/.local_envs/SoccerMaster-repro/bin/python",
+  "source_files": {
+    "tracklab_main": "/home/tianlin/SoccerMaster/vendor/soccerfactory/tracklab/tracklab/main.py",
+    "worker": "/home/tianlin/SoccerMaster/reproduction/gates/g10_soccerfactory_step1_run2_worker.py"
+  },
+  "config": {
+    "directory": "/home/tianlin/SoccerMaster/reproduction/configs/local_takeover",
+    "name": "g10_step1_sngs10004",
+    "path": "/home/tianlin/SoccerMaster/reproduction/configs/local_takeover/g10_step1_sngs10004.yaml",
+    "pipeline": ["bbox_detector", "reid", "track"]
+  },
+  "sample": {
+    "sequence": "SNGS-10004",
+    "video_id": "10004",
+    "split": "sn500",
+    "frame_count": 255,
+    "frame_root": "/home/tianlin/SoccerMaster/.local_assets/data/SN-GSR-2024/SoccerNetGS/sn500/SNGS-10004/img1",
+    "frame_total_bytes": 122481437,
+    "first_frame": {"name": "000001.jpg", "bytes": 489530},
+    "last_frame": {"name": "000255.jpg", "bytes": 465314}
+  },
+  "models": {
+    "bbox_detector": {
+      "target": "sn_gamestate.detect_multiple.yolov8_person_api.YOLOv8_Person",
+      "weight_reads": [
+        {"path": "/home/tianlin/SoccerMaster/.local_assets/models/soccerfactory/pretrained_models/yolo/yolo_v8x6_person_lr_default_best.pt", "bytes": 195209883}
+      ]
+    },
+    "reid": {
+      "target": "sn_gamestate.reid.prtreid_api.PRTReId",
+      "weight_reads": [
+        {"path": "/home/tianlin/SoccerMaster/.local_assets/models/soccerfactory/pretrained_models/reid/prtreid-soccernet-baseline.pth.tar", "bytes": 396287605},
+        {"path": "/home/tianlin/SoccerMaster/.local_assets/models/soccerfactory/pretrained_models/reid/hrnetv2_w32_imagenet_pretrained.pth", "bytes": 165587602}
+      ]
+    },
+    "track": {"target": "tracklab.wrappers.BPBReIDStrongSORT", "weight_reads": []},
+    "evaluator": {"target": "tracklab.wrappers.TrackEvalEvaluator", "weight_reads": []}
+  },
+  "adapters": {
+    "dataset_pool_workers": 4,
+    "suppress_mim_home_cache_creation": true,
+    "suppressed_path_exact": "/home/tianlin/.cache/mim",
+    "local_cache_dir": "/home/tianlin/SoccerMaster/.runtime/local_takeover/g10/sngs10004_step1_cache",
+    "engine_null_callback_filter": {
+      "enabled": true,
+      "copy_before_filter": true,
+      "deletion_mode": "omegaconf_open_dict",
+      "require_struct_before": true,
+      "require_struct_restored": true,
+      "expected_original_keys": ["ignored_regions", "progress", "vis"],
+      "expected_null_keys": ["vis"],
+      "expected_remaining_keys": ["ignored_regions", "progress"]
+    }
+  },
+  "cuda_guard": {
+    "cuda_available": true,
+    "visible_device_count": 1,
+    "logical_device_index": 0,
+    "expected_device_name": "NVIDIA H800",
+    "minimum_total_memory_bytes": 80000000000,
+    "minimum_free_memory_bytes": 70000000000
+  },
+  "approval": {
+    "required_environment": "G10_LOCAL_STEP1_GPU_APPROVED=YES"
+  },
+  "outputs": {
+    "hydra_run_dir": "/home/tianlin/SoccerMaster/.runtime/local_takeover/g10/sngs10004_step1",
+    "state_archive": "/home/tianlin/SoccerMaster/.runtime/local_takeover/g10/sngs10004_step1/states/sn-gamestate.pklz",
+    "report_dir": "/home/tianlin/SoccerMaster/reports/local_takeover/20260819_soccerfactory_step1_sngs10004",
+    "events": "/home/tianlin/SoccerMaster/reports/local_takeover/20260819_soccerfactory_step1_sngs10004/events.jsonl",
+    "log": "/home/tianlin/SoccerMaster/reports/local_takeover/20260819_soccerfactory_step1_sngs10004/run.log",
+    "result": "/home/tianlin/SoccerMaster/reports/local_takeover/20260819_soccerfactory_step1_sngs10004/result.json"
+  }
+}

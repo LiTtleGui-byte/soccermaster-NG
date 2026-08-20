@@ -1,0 +1,13 @@
+SUPER_CONFIG_PATH: ./configs/default.yaml
+NUM_WORKERS: 4
+BATCH_SIZE: 2
+BACKBONE_TYPE: video
+NUM_FRAMES: 30
+VIDEO_CAPTION_BATCH_SIZE: 2
+VIDEO_CAPTION_NUM_WORKERS: 8
+USE_GRADIENT_CHECKPOINTING: False
+
+# TASKS: [VideoCaption, ]
+# DATASETS: [VideoCaption, ]
+TASKS: [SoccerNetGSR_Detection, VideoCaption]
+DATASETS: [SoccerNetGSR_Detection, VideoCaption]

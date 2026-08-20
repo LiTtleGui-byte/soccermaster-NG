@@ -1,0 +1,53 @@
+{
+  "schema_version": 1,
+  "gate": "G10-B",
+  "stage": "refiner_255_probe_run2_prepared",
+  "description": "Second isolated 255-frame Refiner probe identity. It inherits the pinned run1 data/model contract, resolves Git HEAD without changing safe.directory configuration, and records early runtime-asset failures.",
+  "base_manifest": {
+    "path": "/home/tianlin/SoccerMaster/reproduction/manifests/g10_refiner_probe_run1_sngs10004.json",
+    "bytes": 7379,
+    "sha256": "a0dea675c85b58637605c9f21eab682daac3b6a568f34cc929f85503afb139db"
+  },
+  "runtime": {
+    "host_requirement": "A host containing this workspace with the read-only /remote-home Refiner assets mounted.",
+    "work_dir": "/home/tianlin/SoccerMaster/.runtime/g10/sngs10004_refiner_probe/run2/work",
+    "output_dir": "/home/tianlin/SoccerMaster/.runtime/g10/sngs10004_refiner_probe/run2/output",
+    "expected_output": "/home/tianlin/SoccerMaster/.runtime/g10/sngs10004_refiner_probe/run2/output/refined_sn-gamestate.pklz",
+    "report_dir": "/home/tianlin/SoccerMaster/reports/g10/20260818_refiner_probe_run2",
+    "log": "/home/tianlin/SoccerMaster/reports/g10/20260818_refiner_probe_run2/run.log",
+    "result": "/home/tianlin/SoccerMaster/reports/g10/20260818_refiner_probe_run2/result.json",
+    "heartbeat_seconds": 30,
+    "timeout_seconds": 14400,
+    "termination_grace_seconds": 120,
+    "visualization": false,
+    "evaluation": false,
+    "training": false,
+    "fallbacks": [],
+    "retry": "forbidden; inspect the first failure and require a new run id and new approval"
+  },
+  "cuda_guard": {
+    "approval_environment": "G10_REFINER_PROBE_RUN2_GPU_APPROVED=YES",
+    "cuda_visible_devices": "exactly_one_numeric_device",
+    "cuda_available": true,
+    "visible_device_count": 1,
+    "logical_device_index": 0,
+    "expected_device_name": "NVIDIA H800",
+    "minimum_total_memory_bytes": 80000000000,
+    "minimum_free_memory_bytes": 70000000000,
+    "fresh_nvidia_smi_and_explicit_user_approval_required": true,
+    "current_gpu_authorization": false
+  },
+  "preflight_outputs": {
+    "report_dir": "/home/tianlin/SoccerMaster/reports/g10/20260818_refiner_probe_run2_preflight",
+    "result": "/home/tianlin/SoccerMaster/reports/g10/20260818_refiner_probe_run2_preflight/result.json",
+    "log": "/home/tianlin/SoccerMaster/reports/g10/20260818_refiner_probe_run2_preflight/run.log"
+  },
+  "future_command_arguments": [
+    "--config", "/home/tianlin/SoccerMaster/reproduction/configs/g10/g10_refiner_sngs10004_255_probe_run1.json",
+    "--checkpoint", "/remote-home/haolinyang/sports/soccernet/Refiner/outputs/train_timesformer_100clip_coord_only_not_0init_l2_xyflip_seed42_20250328_224427/best_model.pth",
+    "--input_pklz", "/home/tianlin/SoccerMaster/.runtime/g10/sngs10004_prerefiner_enrichment/run2/states/sn-gamestate.pklz",
+    "--output_dir", "/home/tianlin/SoccerMaster/.runtime/g10/sngs10004_refiner_probe/run2/output",
+    "--metadata_path", "/home/tianlin/SoccerMaster/reproduction/manifests/g10_sngs10004_refiner_metadata.json",
+    "--split", "sn500"
+  ]
+}

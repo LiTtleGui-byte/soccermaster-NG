@@ -1,0 +1,3 @@
+_target_: sn_gamestate.concat_tracklets_by_reid.concat_tracklets_by_reid_api.ConcatTrackletsByReid
+
+threshold: 0.05

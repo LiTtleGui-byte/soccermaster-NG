@@ -1,0 +1,36 @@
+# SoccerTrackerTransformer Configuration with Camera Augmentation
+
+# Import gtaug base configuration
+imports:
+  - gtaug_base.yaml
+
+# Override specific values
+experiment_name: "train_gtaug_timesformer_100clip_coord_only_aug_camera_0.2_0.1"
+
+data:
+  augment_coords: true
+  augment_coords_mode: "camera"
+  rotation_std: 0.2  # Increased rotation noise
+  translation_std: 0.1  # Increased translation noise
+
+training:
+  num_workers: 8
+  output_dir: "./outputs_gtaug"
+
+  # Only specify the tasks that differ from base.yaml
+  tasks:
+    track: false
+    role: false
+    team: false
+    jersey: false
+    coord: true
+    missing: false 
+
+  # Loss weights configuration
+  loss_weights:
+    track: 1.0     # Track association loss weight
+    role: 0.2      # Role classification loss weight
+    team: 0.2      # Team classification loss weight
+    jersey: 0.3    # Jersey number prediction loss weight
+    coord: 0.5     # Coordinate refinement loss weight
+    missing: 0.3   # Missing detections prediction loss weight

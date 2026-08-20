@@ -1,0 +1,26 @@
+# SoccerTrackerTransformer Configuration
+
+# Import base configuration
+imports:
+  - base.yaml
+
+# Override specific values
+experiment_name: "train_timesformer_12layers_coord_only"
+
+model:
+  type: SoccerTrackerTransformerTimeSformer
+  num_layers: 12
+
+data:
+  dataset_type: "SoccerSequenceCachedDataset"  # Just override the dataset type
+
+training:
+
+  # Only specify the tasks that differ from base.yaml
+  tasks:
+    track: false
+    role: false
+    team: false
+    jersey: false
+    coord: true
+    missing: false 

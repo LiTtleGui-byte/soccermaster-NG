@@ -1,0 +1,110 @@
+{
+  "schema_version": 1,
+  "status": "static_design_only",
+  "execution_authorized": false,
+  "experiment_id": "commentary_qformer_oracle_steering_pilot_48_20260818",
+  "purpose": "Test whether adding locked video-fact information at the native Q-Former output interface can causally rescue commentary generation.",
+  "scope": "development causal-rescue pilot; not a final causal bottleneck ranking and not a holdout evaluation",
+  "inputs": {
+    "stage1_manifest": "/home/tianlin/SoccerMaster/reports/commentary_autorun_3256_20260817_run1/manifest.json",
+    "stage2_layer_result": "/home/tianlin/SoccerMaster/reports/commentary_stage2_layer_probe_48_20260818/result.json",
+    "attribute_probe_result": "/home/tianlin/SoccerMaster/reports/commentary_attribute_probe_pilot_48_20260818/probe_results_match_grouped.json",
+    "blind_manifest": "/home/tianlin/SoccerMaster/reports/commentary_attribute_probe_pilot_48_20260818/blind_manifest.json",
+    "video_only_labels": "/home/tianlin/SoccerMaster/reports/commentary_attribute_probe_pilot_48_20260818/video_only_labels.json",
+    "oracle_contract": "/home/tianlin/SoccerMaster/experiments/commentary_generation/ORACLE_INTERVENTION_CONTRACT_20260817.json"
+  },
+  "locked_packet": {
+    "sample_count": 48,
+    "unique_match_count": 36,
+    "split": "four-fold GroupKFold by match_id",
+    "label_source": "Codex video-only development labels; not independent human gold"
+  },
+  "interface": {
+    "source": "cached qformer_output",
+    "shape_per_sample": [32, 768],
+    "downstream": "the historical llama_proj (768 to 4096), Llama checkpoint, restricted-token processor, BOS/EOS/PAD contract, and decoder are unchanged"
+  },
+  "steering": {
+    "estimator": "fold-local positive-minus-negative class centroids in the full 32x768 Q-Former output space",
+    "formula": "D_f,k=mean(Q_train|y_k=1)-mean(Q_train|y_k=0); R_i=mean_k((2*y_i,k-1)*D_f,k); Q'_i=Q_i+clip(alpha*R_i)",
+    "leakage_guard": "directions, centroids, scale statistics, and caps for a test clip use training matches only; the held-out video-only fact label supplies only the oracle sign",
+    "stable_tasks": [
+      "event:shot_attempt",
+      "event:possession_sequence",
+      "event:set_piece",
+      "action:shoot",
+      "action:cross",
+      "action:pass",
+      "action:dribble",
+      "action:save",
+      "result:saved",
+      "result:play_stopped",
+      "phase:stopped",
+      "phase:replay"
+    ],
+    "minimum_train_count_per_class_per_fold": 4,
+    "doses": [0.5, 1.0],
+    "total_residual_cap": "0.5 times the fold-local median Frobenius distance from the training-fold Q-Former centroid",
+    "task_combination": "mean of all eligible stable-task signed directions before dose and clipping",
+    "no_eligible_task_policy": "leave all four conditions identical and exclude the clip from intervention-effect denominators"
+  },
+  "conditions": [
+    "cached_qformer_baseline",
+    "norm_matched_cyclic_task_direction_control",
+    "oracle_residual_alpha_0.5",
+    "oracle_residual_alpha_1.0"
+  ],
+  "generation": {
+    "mode": "paired deterministic beam",
+    "max_new_tokens": 128,
+    "num_beams": 5,
+    "do_sample": false,
+    "min_length": 5,
+    "repetition_penalty": 1.0,
+    "length_penalty": 1,
+    "renormalize_logits": true,
+    "reason_for_not_matching_stage1_sampled_text": "paired deterministic decoding removes sampling noise; every condition in this pilot uses the same decoder contract"
+  },
+  "primary_review": {
+    "unit": "paired clip-level video-fact consistency review using the locked video-only labels, without reference commentary",
+    "fields": [
+      "central_fact_correct",
+      "fact_contradiction",
+      "unsupported_specificity",
+      "commentary_utility_1_to_5"
+    ],
+    "positive_rescue_rule": "at least 5 of 48 absolute additional central-fact-correct clips, improved:regressed at least 2:1, and the norm-matched control does not achieve the same gain",
+    "interpretation": "a positive result supports Q-Former-output information loss as a causal contributor; it does not prove Q-Former is the only bottleneck"
+  },
+  "rankability": {
+    "interface_matched": true,
+    "eligible_for_final_module_ranking": false,
+    "reason": "oracle labels and a centroid residual are an upper-bound rescue, not a supervision- and capacity-matched replacement module; final ranking needs comparable interventions and match-disjoint replication"
+  },
+  "trigger": {
+    "attribute_probe_must_exist_and_pass": true,
+    "minimum_attribute_completed_tasks": 12,
+    "minimum_best_attribute_macro_roc_auc": 0.75,
+    "maximum_qformer_input_to_output_delta": -0.02,
+    "minimum_projector_delta": -0.01,
+    "qformer_drop_must_be_twice_temporal_drop": true
+  },
+  "safety": {
+    "gpu_execution_in_this_config": false,
+    "training": false,
+    "backward": false,
+    "optimizer": false,
+    "scheduler": false,
+    "checkpoint_write_or_overwrite": false,
+    "automatic_retry": false,
+    "automatic_transition_after_generation": false,
+    "output_policy": "new isolated output paths and refuse overwrite"
+  },
+  "outputs_if_later_authorized": {
+    "root": "/home/tianlin/SoccerMaster/reports/commentary_qformer_oracle_steering_pilot_48_20260818",
+    "predictions": "predictions.jsonl",
+    "result": "result.json",
+    "review_packet": "paired_review_packet.json",
+    "terminal_state": "REVIEW_REQUIRED"
+  }
+}

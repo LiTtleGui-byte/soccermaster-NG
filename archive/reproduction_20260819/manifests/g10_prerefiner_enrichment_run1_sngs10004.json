@@ -1,0 +1,213 @@
+{
+  "schema_version": 1,
+  "gate": "G10-B",
+  "stage": "prerefiner_enrichment_run1_prepared",
+  "description": "Static preparation for a guarded single-GPU pre-Refiner enrichment of the immutable SNGS-10004 Step-1 run5 archive. This manifest does not authorize execution.",
+  "python": "/remote-home/haolinyang/anaconda3/envs/tracklab2/bin/python",
+  "references": {
+    "lineage_manifest": {"path": "/home/tianlin/SoccerMaster/reproduction/manifests/g10_prerefiner_lineage_audit.json", "sha256": "269a48d6aa001d14fffc3146c54af25b6f7a0723cd0997f5f9dcd38d16c277dd"},
+    "lineage_result": {"path": "/home/tianlin/SoccerMaster/reports/g10/20260814_prerefiner_lineage_audit/result.json", "sha256": "e32ee57dd1c391277dfc6badb5608cc4568bd60aa89c6fbf7d60158774473d8e"},
+    "step1_run5_config": {"path": "/home/tianlin/SoccerMaster/reproduction/configs/g10/g10_step1_sngs10004_run5.yaml", "sha256": "62547fbe73fec2573ee5e45008a12cb15ae8d5b8bceeea655a46ccf754249d91"},
+    "step1_run5_manifest": {"path": "/home/tianlin/SoccerMaster/reproduction/manifests/g10_soccerfactory_step1_run5_sngs10004.json", "sha256": "6b8d43e024745c36904cef7da540996e777f38415160052b25b600707a9aa476"}
+  },
+  "source_files": {
+    "tracklab_main": "/remote-home/haolinyang/sports/soccernet/tracklab/tracklab/main.py",
+    "launcher": "/home/tianlin/SoccerMaster/reproduction/gates/g10_prerefiner_enrichment.py",
+    "worker": "/home/tianlin/SoccerMaster/reproduction/gates/g10_prerefiner_enrichment_worker.py"
+  },
+  "config": {
+    "directory": "/home/tianlin/SoccerMaster/reproduction/configs/g10",
+    "name": "g10_prerefiner_enrichment_sngs10004_run1",
+    "path": "/home/tianlin/SoccerMaster/reproduction/configs/g10/g10_prerefiner_enrichment_sngs10004_run1.yaml",
+    "pipeline": ["pitch", "calibration", "apply_camera_params", "legibility", "jersey_number_detect", "tracklet_agg", "team", "team_side"]
+  },
+  "sample": {
+    "sequence": "SNGS-10004",
+    "video_id": "10004",
+    "split": "sn500",
+    "frame_count": 255,
+    "detection_rows": 3176,
+    "unique_track_ids": 49,
+    "frame_root": "/mnt/nas/haolinyang/sports/Soccer-Backbone/datasets/SN-GSR-2024/SoccerNetGS/sn500/SNGS-10004/img1",
+    "frame_total_bytes": 122481437,
+    "first_frame": {"name": "000001.jpg", "bytes": 489530},
+    "last_frame": {"name": "000255.jpg", "bytes": 465314}
+  },
+  "input_state": {
+    "path": "/home/tianlin/SoccerMaster/.runtime/g10/sngs10004_step1/run5/states/sn-gamestate.pklz",
+    "bytes": 38796789,
+    "sha256": "42fc47a85232b91e9ece142d025733ed961e612b9a35179b3e1a56755ca5a7fb",
+    "members_exact": ["10004.pkl", "10004_image.pkl", "summary.json"],
+    "required_detection_columns": ["image_id", "video_id", "bbox_ltwh", "bbox_conf", "embeddings", "visibility_scores", "role_detection", "role_confidence", "track_id"],
+    "required_image_columns": ["id", "frame", "video_id", "file_path"],
+    "immutable": true
+  },
+  "modules": {
+    "pitch": {
+      "target": "sn_gamestate.calibration.nbjw_calib.NBJW_Calib_Keypoints",
+      "weight_reads": [
+        {"path": "/remote-home/haolinyang/sports/soccernet/sn-gamestate/pretrained_models/calibration/SV_kp", "bytes": 264964645},
+        {"path": "/remote-home/haolinyang/sports/soccernet/sn-gamestate/pretrained_models/calibration/SV_lines", "bytes": 264857893}
+      ]
+    },
+    "calibration": {"target": "sn_gamestate.calibration.nbjw_calib.NBJW_Calib_Decouped", "weight_reads": []},
+    "apply_camera_params": {"target": "sn_gamestate.calibration.nbjw_calib.ApplyParameters", "weight_reads": []},
+    "legibility": {
+      "target": "sn_gamestate.legibility.legibility_api.Legibility",
+      "weight_reads": [
+        {"path": "/remote-home/haolinyang/sports/soccernet/sn-gamestate/pretrained_models/legibility/legibility_resnet34_soccer_20240215.pth", "bytes": 85289629}
+      ]
+    },
+    "jersey_number_detect": {
+      "target": "sn_gamestate.jersey.qwen2_5vl_ocr_api.QWEN2_5VL_OCR_BATCH",
+      "weight_reads": [],
+      "qwen_asset_key": "qwen2_5vl_7b"
+    },
+    "tracklet_agg": {"target": "sn_gamestate.tracklet_agg.majority_vote_filter_api.MajorityVoteTrackletFilter2", "weight_reads": []},
+    "team": {"target": "sn_gamestate.team.TrackletTeamClustering", "weight_reads": []},
+    "team_side": {"target": "sn_gamestate.team.TrackletTeamSideLabeling", "weight_reads": []},
+    "evaluator": {"target": "tracklab.wrappers.TrackEvalEvaluator", "weight_reads": []}
+  },
+  "qwen_assets": {
+    "qwen2_5vl_7b": {
+      "configured_path": "/remote-home/haolinyang/sports/soccernet/sn-gamestate/pretrained_models/jn/Qwen2.5-VL-7B-Instruct",
+      "link_target": "/remote-home/haolinyang/huggingface_models/Qwen/Qwen2.5-VL-7B-Instruct",
+      "logical_shard_bytes": 16584414560,
+      "shards": [
+        {"name": "model-00001-of-00005.safetensors", "bytes": 3900233256},
+        {"name": "model-00002-of-00005.safetensors", "bytes": 3864726320},
+        {"name": "model-00003-of-00005.safetensors", "bytes": 3864726424},
+        {"name": "model-00004-of-00005.safetensors", "bytes": 3864733680},
+        {"name": "model-00005-of-00005.safetensors", "bytes": 1089994880}
+      ]
+    }
+  },
+  "column_contract": {
+    "stages": [
+      {"module": "pitch", "requires_image": [], "requires_detection": [], "produces_image": ["keypoints", "lines"], "produces_detection": []},
+      {"module": "calibration", "requires_image": ["keypoints"], "requires_detection": [], "produces_image": ["parameters", "h"], "produces_detection": []},
+      {"module": "apply_camera_params", "requires_image": ["parameters", "h"], "requires_detection": ["bbox_ltwh"], "produces_image": [], "produces_detection": ["bbox_pitch"]},
+      {"module": "legibility", "requires_image": [], "requires_detection": ["bbox_ltwh"], "produces_image": [], "produces_detection": ["legibility_score"]},
+      {"module": "jersey_number_detect", "requires_image": [], "requires_detection": ["bbox_ltwh", "legibility_score"], "produces_image": [], "produces_detection": ["jersey_number_detection", "jersey_number_confidence", "jersey_number_full_detection"]},
+      {"module": "tracklet_agg", "requires_image": [], "requires_detection": ["jersey_number_detection", "jersey_number_confidence", "role_detection", "role_confidence", "track_id"], "produces_image": [], "produces_detection": ["jersey_number", "role"]},
+      {"module": "team", "requires_image": [], "requires_detection": ["track_id", "embeddings", "role"], "produces_image": [], "produces_detection": ["team_cluster"]},
+      {"module": "team_side", "requires_image": [], "requires_detection": ["track_id", "team_cluster", "bbox_pitch", "role"], "produces_image": [], "produces_detection": ["team"]}
+    ],
+    "refiner_required_detection_columns": ["embeddings", "bbox_ltwh", "bbox_pitch", "role", "team", "jersey_number", "track_id"],
+    "refiner_required_image_columns": ["id", "parameters"]
+  },
+  "adapters": {
+    "dataset_pool_workers": 4,
+    "suppress_mim_home_cache_creation": true,
+    "suppressed_path_exact": "/home/tianlin/.cache/mim",
+    "local_cache_dir": "/home/tianlin/SoccerMaster/.runtime/g10/sngs10004_prerefiner_enrichment/run1_cache",
+    "cache_environment": ["HF_HOME", "HUGGINGFACE_HUB_CACHE", "TRANSFORMERS_CACHE", "XDG_CACHE_HOME", "MPLCONFIGDIR"],
+    "legibility_resnet34_no_download": {
+      "enabled": true,
+      "scope": "instantiate_legibility_only",
+      "expected_call": "pretrained=True",
+      "replacement": "pretrained=False",
+      "semantic_guard": "Legibility.__init__ must immediately load the fixed task checkpoint with strict load_state_dict before returning."
+    },
+    "engine_null_callback_filter": {
+      "enabled": true,
+      "copy_before_filter": true,
+      "deletion_mode": "omegaconf_open_dict",
+      "require_struct_before": true,
+      "require_struct_restored": true,
+      "expected_original_keys": ["ignored_regions", "progress", "vis"],
+      "expected_null_keys": ["vis"],
+      "expected_remaining_keys": ["ignored_regions", "progress"],
+      "scope": "instantiate_engine_only"
+    },
+    "qwen_single_device_assertion": {
+      "enabled": true,
+      "expected_parameter_devices": ["cuda:0"],
+      "scope": "post_instantiate_jersey_number_detect"
+    }
+  },
+  "cuda_guard": {
+    "cuda_available": true,
+    "visible_device_count": 1,
+    "logical_device_index": 0,
+    "expected_device_name": "NVIDIA H800",
+    "minimum_total_memory_bytes": 80000000000,
+    "minimum_free_memory_bytes": 70000000000
+  },
+  "phases": [
+    "import_tracklab_main", "hydra_cli_compose", "init_environment", "instantiate_dataset", "instantiate_evaluator",
+    "instantiate_pitch", "instantiate_calibration", "instantiate_apply_camera_params", "instantiate_legibility",
+    "instantiate_jersey_number_detect", "instantiate_tracklet_agg", "instantiate_team", "instantiate_team_side",
+    "build_pipeline", "build_tracker_state", "instantiate_engine", "track_dataset", "evaluation_skipped"
+  ],
+  "timeouts_seconds": {
+    "worker_boot": 60,
+    "worker_transition": 300,
+    "import_tracklab_main": 1800,
+    "hydra_cli_compose": 300,
+    "init_environment": 300,
+    "instantiate_dataset": 1200,
+    "instantiate_evaluator": 600,
+    "instantiate_pitch": 1800,
+    "instantiate_calibration": 600,
+    "instantiate_apply_camera_params": 300,
+    "instantiate_legibility": 1200,
+    "instantiate_jersey_number_detect": 7200,
+    "instantiate_tracklet_agg": 300,
+    "instantiate_team": 300,
+    "instantiate_team_side": 300,
+    "build_pipeline": 300,
+    "build_tracker_state": 600,
+    "instantiate_engine": 600,
+    "track_dataset": 21600,
+    "evaluation_skipped": 60,
+    "termination_grace": 60,
+    "overall": 28800
+  },
+  "heartbeat_seconds": 30,
+  "approval": {
+    "required_environment": "G10_PREREFINER_ENRICHMENT_RUN1_GPU_APPROVED=YES",
+    "cuda_visible_devices": "exactly_one_numeric_device",
+    "fresh_nvidia_smi_and_user_approval_required_before_launch": true,
+    "host_execution_required": true,
+    "approval_scope": "one SNGS-10004 enrichment run only; no retry, Refiner, Step 3, conversion, evaluation, or training"
+  },
+  "execution_semantics": {
+    "dtype": "Qwen bfloat16; other modules use preserved source defaults",
+    "seed": "Qwen greedy decoding uses temperature=0/do_sample=false; KMeans uses random_state=0; no global seed is added",
+    "sampling": "all 255 ordered frames and all 3176 Step-1 detections",
+    "training": false,
+    "evaluation": false,
+    "visualization": false,
+    "wandb": false
+  },
+  "outputs": {
+    "hydra_run_dir": "/home/tianlin/SoccerMaster/.runtime/g10/sngs10004_prerefiner_enrichment/run1",
+    "state_archive": "/home/tianlin/SoccerMaster/.runtime/g10/sngs10004_prerefiner_enrichment/run1/states/sn-gamestate.pklz",
+    "preflight_report_dir": "/home/tianlin/SoccerMaster/reports/g10/20260814_prerefiner_enrichment_run1_preflight_retry1",
+    "preflight_result": "/home/tianlin/SoccerMaster/reports/g10/20260814_prerefiner_enrichment_run1_preflight_retry1/result.json",
+    "preflight_log": "/home/tianlin/SoccerMaster/reports/g10/20260814_prerefiner_enrichment_run1_preflight_retry1/run.log",
+    "report_dir": "/home/tianlin/SoccerMaster/reports/g10/20260814_prerefiner_enrichment_run1",
+    "events": "/home/tianlin/SoccerMaster/reports/g10/20260814_prerefiner_enrichment_run1/events.jsonl",
+    "log": "/home/tianlin/SoccerMaster/reports/g10/20260814_prerefiner_enrichment_run1/run.log",
+    "result": "/home/tianlin/SoccerMaster/reports/g10/20260814_prerefiner_enrichment_run1/result.json"
+  },
+  "success": {
+    "zip_members_exact": ["10004.pkl", "10004_image.pkl", "summary.json"],
+    "required_image_rows": 255,
+    "required_detection_rows": 3176,
+    "required_unique_track_ids": 49,
+    "required_detection_columns": ["image_id", "video_id", "bbox_ltwh", "bbox_conf", "embeddings", "track_id", "bbox_pitch", "role", "team", "jersey_number"],
+    "required_image_columns": ["id", "frame", "video_id", "file_path", "parameters"],
+    "input_archive_sha256_must_remain": "42fc47a85232b91e9ece142d025733ed961e612b9a35179b3e1a56755ca5a7fb"
+  },
+  "failure_policy": {
+    "fallbacks": "none beyond the declared dataset/cache/legibility/null-callback adapters and Qwen device assertion",
+    "overwrite": "forbidden",
+    "retry": "forbidden; a failure requires analysis, user review, a new run id, fresh nvidia-smi, and new approval",
+    "partial_outputs": "preserve for diagnosis",
+    "input_archive": "immutable and re-hashed after a future run",
+    "evaluation": "must remain skipped",
+    "training": "forbidden"
+  }
+}

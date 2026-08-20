@@ -14,12 +14,12 @@
 
 - 共享参考 Python：`/remote-home/haolinyang/anaconda3/envs/tracklab2/bin/python`。
 - 共享环境永久只读，不得安装、升级、删除或修改包。
-- 当前已验证的本地 Gate Python：`/home/tianlin/SoccerMaster/.local_envs/SoccerMaster-repro/bin/python`。
+- 当前已验证的本地 Gate Python：`/home/tianlin/SoccerMaster/.envs/SoccerMaster-repro/bin/python`；旧`.local_envs`仅为兼容链接。
 - 不依赖 `conda activate`；命令中直接使用 Python 绝对路径。
 - 使用本地环境时，必须显式记录 `PYTHONPATH` 和 `LD_LIBRARY_PATH`。
 - 不得通过 `PYTHONPATH` 混入其他 Conda 环境的 `site-packages`。
 - 实际 Gate 环境必须与 `REPRODUCTION_STATUS.md` 的当前状态一致；不一致时停止并报告。
-- `.local_envs/`、`.conda_pkgs/`、`.local_deps/` 和环境归档属于大型本地资产，不得提交。删除或清理前必须报告精确目标、大小和可恢复性并等待批准。
+- `.envs/`、兼容链接`.local_envs/.conda_pkgs/.local_deps`和环境归档属于大型本地资产，不得提交。删除或清理前必须报告精确目标、大小和可恢复性并等待批准。
 
 ## 3. 安全规则
 
@@ -42,15 +42,55 @@
 - 未经明确批准，不启动任何训练、backward、optimizer 或 scheduler。
 - Gate 失败后不得盲目自动重跑；只有事先约定的安全 fallback 才能使用。
 
+### 4.1 解说诊断条件式自动运行例外（一次性）
+
+- 2026-08-17，用户明确批准按
+  `archive/experiments_20260819/commentary_generation/GPU_AUTORUN_CONFIG_20260817.json` 的
+  当前内容，在 GPU200 上运行一次条件式自动任务。
+- 该例外只允许：每 30 分钟只读查询 GPU；按配置进行连续两次空闲确认后运行
+  一次单样本 inference-only smoke；smoke 通过后等待 8 张卡全部满足同一空闲
+  条件，再运行一次 8×407 条的 3,256 条开发集逐层缓存和基线生成；随后进行
+  CPU 合并并停在 `REVIEW_REQUIRED`。
+- 该例外禁止训练、backward、optimizer、scheduler、checkpoint 写入或覆盖、
+  自动重跑、oracle intervention 和 holdout evaluation；不得终止或改变其他用户
+  的进程。
+- 任一 worker 失败、超时、资产或输出契约不符时，停止本次任务拥有的 worker，
+  保留日志并结束，不自动修复或重跑。
+- 该例外只对 arm 文件中记录的精确配置 SHA-256 生效；任务完成、失败、人工
+  中止、配置改变或 arm 文件失配时立即失效，不授权任何后续 GPU 阶段。
+- 用户随后明确批准 smoke 的一次性共存修订：只允许物理 GPU1 在空闲显存大于
+  等于 30,000 MiB、利用率不超过 5% 时与既有 PID 3375814 共存运行一次
+  smoke。八卡阶段不继承该例外，仍要求 GPU0–7 没有其他 compute process，且
+  每张空闲显存至少 60,000 MiB。修订后的配置必须重新计算哈希并重新 arm。
+
+### 4.2 48条attribute probe条件式自动运行例外（一次性）
+
+- 2026-08-18，用户明确批准按
+  `archive/experiments_20260819/commentary_generation/ATTRIBUTE_GPU_AUTORUN_CONFIG_20260818.json`
+  的当前内容运行一次条件式任务：每30分钟只读查询GPU 0–7；任选一张连续两次
+  检查均为空闲显存至少70,000 MiB、利用率不超过5%且没有任何compute process
+  的H800，运行一次48条冻结backbone inference-only特征抽取；成功后运行一次
+  CPU match-grouped轻量probe并判定是否达到Q-Former阶段3准备条件。
+- 该例外禁止GPU共存、主模型训练、backward、optimizer/scheduler、checkpoint
+  写入或覆盖、自动重跑、worker失败后换卡、oracle intervention、阶段3 GPU执行
+  和holdout evaluation。任一GPU/CPU worker失败或输出契约不符时停止并保留日志。
+- 如果机器条件支持Q-Former为唯一优先候选，supervisor只能停在`stage3_ready`。
+  用户已表达继续阶段3首轮干预的意向，但当前尚无可执行的interface-matched
+  Q-Former干预launcher、固定manifest、输出契约和公平性断言；这些内容完成CPU
+  静态准备/预检前，不得把意向解释为运行任意新GPU命令。
+- 该例外只对arm文件记录的精确配置SHA-256生效；完成、失败、人工中止、配置
+  改变或arm失配时立即失效，不授权任何重跑或后续GPU阶段。
+
 ## 5. Gate 执行纪律
 
 - 执行、修改或判定 Gate 前，必须完整阅读 `docs/HARNESS.md`。
+- 只有会形成或改变正式 Gate 通过/失败结论的运行才使用完整 Harness。普通研究实验、故障定位、静态准备、文档工作和不改变 Gate 状态的预检按本节 A/B 级执行，不得为了套用模板而把它们包装成子 Gate。
 - 每次只推进一个 Gate；完成后报告并停止，不自动进入下一 Gate。
 - 只读分析和文档维护不算推进 Gate；运行验证、改变状态或形成通过/失败结论才算推进。
 - 不得为了成功而静默跳过资产、样本、任务头或断言，也不得擅自改变设备、精度、batch size、数据范围或 checkpoint。
 - 长时间命令必须包含 `timeout`、30 秒级心跳和明确退出码。
 - Gate 通过必须同时具备：可重复命令、退出码 0、机器断言、日志、输入资产记录和明确的未验证范围。
-- 所有本地输出只能写入工作区内事先说明的路径；运行证据优先放在 `reports/`。
+- 所有本地输出只能写入工作区内事先说明的路径；新运行统一放在`runs/`，历史证据位于`runs/reports_legacy_20260819/`。
 
 ### 5.1 验证强度必须与风险相称
 
@@ -136,25 +176,35 @@ A 级工作只需报告改了什么、输出在哪里以及一次必要检查的
 - `AGENTS.md`：长期规则和授权边界。
 - `docs/HARNESS.md`：Gate 执行模板、数据/checkpoint 契约和通过标准。
 - `REPRODUCTION_STATUS.md`：唯一当前状态账本。
-- `reproduction/README.md`：复现入口、Gate 脚本、manifest 和证据导航。
-- `reproduction/gates/`：本地 Gate 审计入口。
-- `reproduction/manifests/`：固定的小规模输入清单。
-- `experiments/`：后续改进与消融实验的登记和配置；不得与已验证复现基线混用。
-- `lab_notes/`：按 UTC 日期记录实际研究过程、失败、判断和写作素材；不能替代状态账本或原始证据。
-- `reports/`：原始日志、JSON 和可视证据。
+- `baseline/`：冻结的原始SoccerMaster/SoccerFactory代码、上游配置和官方checkpoint入口，不做研究修改。
+- `research/src/soccermaster/`：当前可修改的正式研究代码。
+- `research/reproduction/`：后续复现入口；历史Gate脚本和manifest冻结在`archive/reproduction_20260819/`。
+- `research/experiments/`：后续改进与消融实验；不得与已验证复现基线混用。
+- `research_log.md`：当前研究迭代的简洁账本，记录假设、失败、原因判断、修改、结果变化和去留决定。
+- `docs/research/lab_notes/`：按UTC日期记录实际研究过程、失败、判断和写作素材；不能替代状态账本或原始证据。
+- `runs/`：日志、JSON、图片、训练输出和导出产物；历史`reports/outputs/exports`按子目录归档。
+- `assets/`：数据和checkpoint的唯一规范物理位置；`.local_assets`只作为旧路径兼容链接。
 - `.runtime/`：可重建的临时数据视图和运行时链接，Git 永久忽略。
 - `docs/future_improvements/`：尚未验证的研究假设；不得作为当前基线事实。
 
 ### 8.1 每日实验日志
 
-- 完成重要实验、环境迁移、资产审计或形成新的研究判断后，在结束本轮前更新当天的 `lab_notes/YYYY-MM/YYYY-MM-DD.md`。
+- 完成重要实验、环境迁移、资产审计或形成新的研究判断后，在结束本轮前更新当天的 `docs/research/lab_notes/YYYY-MM/YYYY-MM-DD.md`。
 - 普通文档修改、HTML 生成、小修复和重复检查无需单独写入每日日志，除非它们改变了研究结论或暴露了会影响结果可信度的问题。
 - 日志文件名使用 UTC 日期；正文中的运行时间应保留原始时区或明确标出 UTC。
 - 只把实际执行过的操作写成完成；计划、建议和尚未执行的命令必须明确标为待办。
-- 日志应链接 `reports/` 中的原始证据，不复制整段终端输出，不记录密码、token、私钥或其他秘密。
+- 日志应链接`runs/`中的原始证据，不复制整段终端输出，不记录密码、token、私钥或其他秘密。
 - 日志优先记录问题、实验设计、结果和解释；默认不记录 AST、链接扫描、`git diff --check`、普通文件哈希等过程性检查。
 - 日志中的研究判断继续区分已确认、推断、未知和风险；不得用日志把未通过的 Gate 改写成通过。
 - “后续计划与候选方向”允许记录多个并列想法，仅作为工作备忘，不构成 GPU、训练、复制、安装或下一 Gate 的执行授权。
+
+### 8.2 研究迭代工作方式
+
+- 先阅读回答当前问题所必需的代码和论文，形成简短、可证伪的研究计划，然后尽快进入实现和实验；不长时间停留在文档规划。
+- 优先产出能快速验证想法的最小代码、定量结果和必要可视化，用实验结果决定继续、修改或放弃。
+- 普通研究迭代只做保证数值可信所必需的 sanity checks；不把主要精力投入单元测试覆盖率、哈希、格式化、CI 或与当前风险无关的异常输入防御。
+- 持续维护根目录 `research_log.md`，每项实验简洁记录：实验假设、失败现象、原因判断、修改内容、结果变化、是否保留。
+- 本节不改变原始目录只读、GPU/训练逐次授权、Gate 顺序和安全边界。
 
 ## 9. Gate 顺序
 

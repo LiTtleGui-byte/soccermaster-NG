@@ -1,0 +1,25 @@
+{
+  "schema_version": 1,
+  "gate": "G10-C",
+  "stage": "current_pipeline_dataloader_smoke",
+  "sequence": "SNGS-10004",
+  "training_pkl": "/home/tianlin/SoccerMaster/.runtime/g10/sngs10004_current_pipeline_conversion/run1/SNGS-10004.pkl",
+  "source_images": "/mnt/nas/haolinyang/sports/Soccer-Backbone/datasets/SN-GSR-2024/SoccerNetGS/sn500/SNGS-10004/img1",
+  "config": "/home/tianlin/SoccerMaster/configs/pretrain_large_512_multitask_aug_consine_part_temporal_early_freeze_text_lr_5e-5_cap_cls_weight_1_extra_7000_high_resolution.yaml",
+  "data_view": "/home/tianlin/SoccerMaster/.runtime/g10/sngs10004_dataloader_smoke/run1/data_view",
+  "result_json": "/home/tianlin/SoccerMaster/reports/g10/20260819_current_pipeline_dataloader_smoke/result.json",
+  "expected": {
+    "dataset_samples": 8,
+    "batch_size": 1,
+    "frames_per_sample": 30,
+    "channels": 3,
+    "image_size": 512
+  },
+  "non_goals": [
+    "model forward",
+    "loss, backward, optimizer, scheduler, or training",
+    "GPU use",
+    "label accuracy",
+    "random training augmentation"
+  ]
+}

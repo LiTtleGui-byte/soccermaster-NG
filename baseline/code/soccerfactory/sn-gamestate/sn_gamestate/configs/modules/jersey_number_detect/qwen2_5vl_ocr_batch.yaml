@@ -1,0 +1,7 @@
+_target_: sn_gamestate.jersey.qwen2_5vl_ocr_api.QWEN2_5VL_OCR_BATCH
+batch_size: 32
+cfg:
+  model_path: "${model_dir}/jn/Qwen2.5-VL-7B-Instruct"
+  save_jersey_number_full_detection: False
+  use_legibility_filter: False
+  legibility_filter_threshold: 0.5

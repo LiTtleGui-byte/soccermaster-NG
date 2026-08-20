@@ -1,0 +1,18 @@
+SUPER_CONFIG_PATH: ./configs/default.yaml
+
+DATASETS_TO_HEADS:
+  SoccerNetGSR_Detection: [SoccerNetGSR_Detection, LinesDetection, KeypointsDetection, CameraRegression]
+
+BATCH_SIZE: 12
+NUM_WORKERS: 12
+
+AUG_RESIZE_SCALES: [256]
+AUG_MAX_SIZE: 256
+AUG_RANDOM_RESIZE: [256]
+
+BACKBONE_TYPE: image
+CKPT_PATH: ./pretrained_models/google/siglip2-large-patch16-256
+TEXT_ENCODER_CKPT_PATH: ./pretrained_models/google/siglip2-large-patch16-256
+BACKBONE_HIDDEN_DIM: 1024
+
+LINES_HEAD_TYPE: default

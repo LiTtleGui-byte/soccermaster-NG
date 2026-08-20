@@ -1,0 +1,10 @@
+{
+  "version": "g10-single-sequence-v1",
+  "sn500": [
+    {
+      "id": 3,
+      "name": "SNGS-10004",
+      "n_frames": 255
+    }
+  ]
+}

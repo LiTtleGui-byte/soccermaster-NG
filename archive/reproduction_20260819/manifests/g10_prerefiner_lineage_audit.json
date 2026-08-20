@@ -1,0 +1,134 @@
+{
+  "schema_version": 1,
+  "gate": "G10-B",
+  "stage": "prerefiner_lineage_audit",
+  "description": "CPU-only static trace of the preserved combination pipeline that produced historical Refiner inputs.",
+  "python": "/remote-home/haolinyang/anaconda3/envs/tracklab2/bin/python",
+  "upstream_revisions": {
+    "sn_gamestate": "bda5ef3f37b66d7d16c22dba234745c05c629ac9",
+    "tracklab": "8987e8525709b5d37751ba60f135760fc91792ad",
+    "refiner": "d4a06f77aebcb45eea1e54b47991dc80ee0f239a"
+  },
+  "small_sources": {
+    "combination_train": {"path": "/remote-home/haolinyang/sports/soccernet/sn-gamestate/sn_gamestate/configs/combination_yolo_v8x6_person_nbjw_cam_qwen25vl_legibility_filter2_trainset.yaml", "bytes": 4731, "sha256": "a4e2fb8f0d6f7fe149d88b1b59f0cc215017f9b0041dd1f2a12c300691bdad7b"},
+    "combination_valid": {"path": "/remote-home/haolinyang/sports/soccernet/sn-gamestate/sn_gamestate/configs/combination_yolo_v8x6_person_nbjw_cam_qwen25vl_legibility_filter2_validset.yaml", "bytes": 4731, "sha256": "d8daa5c25510c725ea9edbffca7386099f46eb44407ecec283b379221ae70780"},
+    "combination_test": {"path": "/remote-home/haolinyang/sports/soccernet/sn-gamestate/sn_gamestate/configs/combination_yolo_v8x6_person_nbjw_cam_qwen25vl_legibility_filter2_testset.yaml", "bytes": 4728, "sha256": "5766cbfb9c400045380651d63619e939b8ebd7695a734ab151a77fb0c74f4772"},
+    "bbox_cfg": {"path": "/remote-home/haolinyang/sports/soccernet/sn-gamestate/sn_gamestate/configs/modules/bbox_detector/yolov8_person.yaml", "sha256": "2f92daeb6c9658ea84446baef196e9209d9caaf9b01b983ae058c50c130d65de"},
+    "reid_cfg": {"path": "/remote-home/haolinyang/sports/soccernet/sn-gamestate/sn_gamestate/configs/modules/reid/prtreid.yaml", "sha256": "7b131cb6fac1753be373a80f8b45e6e5733d4682bcd843d66131e8a06bc0a8a6"},
+    "track_cfg": {"path": "/remote-home/haolinyang/sports/soccernet/tracklab/tracklab/configs/modules/track/bpbreid_strong_sort.yaml", "sha256": "1229271e961246c82bfd00b39a1b3847120153d88b19a2c4d540e92deeb3b472"},
+    "pitch_cfg": {"path": "/remote-home/haolinyang/sports/soccernet/sn-gamestate/sn_gamestate/configs/modules/pitch/nbjw_calib.yaml", "sha256": "732618d7596a0a656c3e6b4ad2e5cd31159d3ab7f8ca94b2a693da65f5d81b9a"},
+    "calibration_cfg": {"path": "/remote-home/haolinyang/sports/soccernet/sn-gamestate/sn_gamestate/configs/modules/calibration/nbjw_calib_decouped.yaml", "sha256": "8caf3ab4d694fe4920e9ffa51fdbf31bb0dfd2df2fee9de24aec640fb3139ef6"},
+    "apply_cfg": {"path": "/remote-home/haolinyang/sports/soccernet/sn-gamestate/sn_gamestate/configs/modules/apply_camera_params/nbjw_calib_apply_params.yaml", "sha256": "a48c8aee0dfb0adcde0c44d76c31e14354be26aefbc8b81cb0f3afd667adf404"},
+    "legibility_cfg": {"path": "/remote-home/haolinyang/sports/soccernet/sn-gamestate/sn_gamestate/configs/modules/legibility/legibility.yaml", "sha256": "f4a69b0333978dc5f396047eb9ae120e61eb70093e8e8a027089adde4a016c8b"},
+    "jersey_cfg": {"path": "/remote-home/haolinyang/sports/soccernet/sn-gamestate/sn_gamestate/configs/modules/jersey_number_detect/qwen2_5vl_ocr_batch.yaml", "sha256": "cd1848b2641766819c177677583b8b32a2eab59894a2da2389561d99ac5713d9"},
+    "aggregate_cfg": {"path": "/remote-home/haolinyang/sports/soccernet/sn-gamestate/sn_gamestate/configs/modules/tracklet_agg/voting_role_jn_filter2.yaml", "sha256": "a5b8c26422ea152bc1fd62af49c949d24865e73fb5fb3b9812ea84884b0c0c2c"},
+    "team_cfg": {"path": "/remote-home/haolinyang/sports/soccernet/sn-gamestate/sn_gamestate/configs/modules/team/kmeans_embeddings.yaml", "sha256": "019405639fa47e9acd4af92193e80521f1aab98a486486071f8ccee80de9523f"},
+    "team_side_cfg": {"path": "/remote-home/haolinyang/sports/soccernet/sn-gamestate/sn_gamestate/configs/modules/team_side/mean_position.yaml", "sha256": "ae043dd01fda76cf7b7c5380f24f65168eb703b5f4fc3635b939799b7c46ad21"},
+    "bbox_source": {"path": "/remote-home/haolinyang/sports/soccernet/sn-gamestate/sn_gamestate/detect_multiple/yolov8_person_api.py", "sha256": "64f33b7821a1a29a0274ae4df1fb4a13f80026c26bc1cd0b7d01e5776d8f198b"},
+    "reid_source": {"path": "/remote-home/haolinyang/sports/soccernet/sn-gamestate/sn_gamestate/reid/prtreid_api.py", "bytes": 18598, "sha256": "d1a6a8dde9285aba02eb5d4169dbef50491038077b297c29b7897ff501ad05c7"},
+    "track_source": {"path": "/remote-home/haolinyang/sports/soccernet/tracklab/tracklab/wrappers/track/bpbreid_strong_sort_api.py", "sha256": "00cd34ecc0a2fc0e013e5ac01c90f459d1617c540c25c997a6e5ae63f7c605ed"},
+    "calibration_source": {"path": "/remote-home/haolinyang/sports/soccernet/sn-gamestate/sn_gamestate/calibration/nbjw_calib.py", "bytes": 40486, "sha256": "1e46ff9eb03b094ed70a2a6bcbea71efec19b93d614caed24b4a6cb5e0799399"},
+    "legibility_source": {"path": "/remote-home/haolinyang/sports/soccernet/sn-gamestate/sn_gamestate/legibility/legibility_api.py", "bytes": 3975, "sha256": "099a23e2cc49ad232d6310f2150a6268d58f6310c0a44cc1d3476096ddcc88ff"},
+    "jersey_source": {"path": "/remote-home/haolinyang/sports/soccernet/sn-gamestate/sn_gamestate/jersey/qwen2_5vl_ocr_api.py", "bytes": 11499, "sha256": "ae8da8f3c3f5e79a8493f97ebc02712abdb5d6a7736113f5d362dff4e6caf20c"},
+    "aggregate_source": {"path": "/remote-home/haolinyang/sports/soccernet/sn-gamestate/sn_gamestate/tracklet_agg/majority_vote_filter_api.py", "bytes": 9411, "sha256": "0f9ea1f7561b01a009f854ef9fb561dab2d149d46013bc33b24fafa31495af04"},
+    "team_source": {"path": "/remote-home/haolinyang/sports/soccernet/sn-gamestate/sn_gamestate/team/tracklet_team_clustering_api.py", "bytes": 2157, "sha256": "0118042a1a47c9f1fb1bb3a080c4344ac4f77b9ea6437b7adb6a92bc30132141"},
+    "team_side_source": {"path": "/remote-home/haolinyang/sports/soccernet/sn-gamestate/sn_gamestate/team/tracklet_team_side_labeling_api.py", "bytes": 3947, "sha256": "989e27591127ee3b004ba3364ebf7d374f295e0cf7d1135bf56544284283cd4e"},
+    "tracklab_main": {"path": "/remote-home/haolinyang/sports/soccernet/tracklab/tracklab/main.py", "sha256": "7d24b76b112a934cd94d8734c3d844eac237a14fc827fd752ef2047b96090551"},
+    "tracker_state_source": {"path": "/remote-home/haolinyang/sports/soccernet/tracklab/tracklab/datastruct/tracker_state.py", "sha256": "8fe953bc2af12d66a2bbc638f32eab4307b40dc0037c8f1e0eae72e1efc56cef"},
+    "trackeval_source": {"path": "/remote-home/haolinyang/sports/soccernet/tracklab/tracklab/wrappers/eval/trackeval_evaluator.py", "sha256": "15148dc5d7229d6c7d71455e648d98a063c83025196c69bfa918a98f85724caa"},
+    "refiner_base": {"path": "/remote-home/haolinyang/sports/soccernet/Refiner/configs/base.yaml", "bytes": 5209, "sha256": "551c7d083a7704e0fc4cef7dc7612bf90e17b1e894798fb1663271744bb06896"},
+    "refiner_dataset_utils": {"path": "/remote-home/haolinyang/sports/soccernet/Refiner/dataset/dataset_utils.py", "bytes": 19492, "sha256": "78710f0283f9a77e00f50928f913a838bf4fa0e2f91d7eae4eb86c1069ead61a"}
+  },
+  "weight_assets": {
+    "yolo_person": {"path": "/remote-home/haolinyang/sports/soccernet/sn-gamestate/pretrained_models/yolo/yolo_v8x6_person_lr_default_best.pt", "bytes": 195209883},
+    "prtreid_baseline": {"path": "/remote-home/haolinyang/sports/soccernet/sn-gamestate/pretrained_models/reid/prtreid-soccernet-baseline.pth.tar", "bytes": 396287605},
+    "prtreid_hrnet32": {"path": "/remote-home/haolinyang/sports/soccernet/sn-gamestate/pretrained_models/reid/hrnetv2_w32_imagenet_pretrained.pth", "bytes": 165587602},
+    "calibration_keypoints": {"path": "/remote-home/haolinyang/sports/soccernet/sn-gamestate/pretrained_models/calibration/SV_kp", "bytes": 264964645},
+    "calibration_lines": {"path": "/remote-home/haolinyang/sports/soccernet/sn-gamestate/pretrained_models/calibration/SV_lines", "bytes": 264857893},
+    "legibility_resnet34": {"path": "/remote-home/haolinyang/sports/soccernet/sn-gamestate/pretrained_models/legibility/legibility_resnet34_soccer_20240215.pth", "bytes": 85289629}
+  },
+  "qwen_asset": {
+    "path": "/remote-home/haolinyang/sports/soccernet/sn-gamestate/pretrained_models/jn/Qwen2.5-VL-7B-Instruct",
+    "link_target": "/remote-home/haolinyang/huggingface_models/Qwen/Qwen2.5-VL-7B-Instruct",
+    "logical_shard_bytes": 16584414560,
+    "shards": [
+      {"name": "model-00001-of-00005.safetensors", "bytes": 3900233256},
+      {"name": "model-00002-of-00005.safetensors", "bytes": 3864726320},
+      {"name": "model-00003-of-00005.safetensors", "bytes": 3864726424},
+      {"name": "model-00004-of-00005.safetensors", "bytes": 3864733680},
+      {"name": "model-00005-of-00005.safetensors", "bytes": 1089994880}
+    ]
+  },
+  "historical_archives": {
+    "train": {"path": "/remote-home/haolinyang/sports/soccernet/sn-gamestate/outputs/combination/yolo_v8x6_person_nbjw_cam_qwen25vl_legibility_filter2_trainset/states/sn-gamestate.pklz", "bytes": 8879607505},
+    "valid": {"path": "/remote-home/haolinyang/sports/soccernet/sn-gamestate/outputs/combination/yolo_v8x6_person_nbjw_cam_qwen25vl_legibility_filter2_validset/states/sn-gamestate.pklz", "bytes": 8790525632},
+    "test": {"path": "/remote-home/haolinyang/sports/soccernet/sn-gamestate/outputs/combination/yolo_v8x6_person_nbjw_cam_qwen25vl_legibility_filter2_testset/states/sn-gamestate.pklz", "bytes": 6642151935}
+  },
+  "contract": {
+    "pipeline": ["bbox_detector", "reid", "track", "pitch", "calibration", "apply_camera_params", "legibility", "jersey_number_detect", "tracklet_agg", "team", "team_side"],
+    "module_configs": {
+      "bbox_detector": {"source_key": "bbox_cfg", "target": "sn_gamestate.detect_multiple.yolov8_person_api.YOLOv8_Person"},
+      "reid": {"source_key": "reid_cfg", "target": "sn_gamestate.reid.prtreid_api.PRTReId"},
+      "track": {"source_key": "track_cfg", "target": "tracklab.wrappers.BPBReIDStrongSORT"},
+      "pitch": {"source_key": "pitch_cfg", "target": "sn_gamestate.calibration.nbjw_calib.NBJW_Calib_Keypoints"},
+      "calibration": {"source_key": "calibration_cfg", "target": "sn_gamestate.calibration.nbjw_calib.NBJW_Calib_Decouped"},
+      "apply_camera_params": {"source_key": "apply_cfg", "target": "sn_gamestate.calibration.nbjw_calib.ApplyParameters"},
+      "legibility": {"source_key": "legibility_cfg", "target": "sn_gamestate.legibility.legibility_api.Legibility"},
+      "jersey_number_detect": {"source_key": "jersey_cfg", "target": "sn_gamestate.jersey.qwen2_5vl_ocr_api.QWEN2_5VL_OCR_BATCH"},
+      "tracklet_agg": {"source_key": "aggregate_cfg", "target": "sn_gamestate.tracklet_agg.majority_vote_filter_api.MajorityVoteTrackletFilter2"},
+      "team": {"source_key": "team_cfg", "target": "sn_gamestate.team.TrackletTeamClustering"},
+      "team_side": {"source_key": "team_side_cfg", "target": "sn_gamestate.team.TrackletTeamSideLabeling"}
+    },
+    "required_source_fragments": {
+      "bbox_source": ["input_columns = []", "\"bbox_ltwh\"", "YOLO(cfg.path_to_checkpoint)"],
+      "reid_source": ["output_columns = [\"embeddings\", \"visibility_scores\", \"body_masks\", \"role_detection\", \"role_confidence\"]", "download_file(", "role_detection"],
+      "track_source": ["\"track_id\"", "\"embeddings\"", "\"visibility_scores\""],
+      "calibration_source": ["class NBJW_Calib_Keypoints", "\"keypoints\", \"lines\"", "class NBJW_Calib_Decouped", "\"parameters\", \"h\"", "class ApplyParameters", "\"bbox_pitch\"", "download_file("],
+      "legibility_source": ["input_columns = [\"bbox_ltwh\"]", "output_columns = [\"legibility_score\"]", "models.resnet34(pretrained=True)"],
+      "jersey_source": ["output_columns = [\"jersey_number_detection\", \"jersey_number_confidence\"]", "self.input_columns.append(\"legibility_score\")", "Qwen2_5_VLForConditionalGeneration.from_pretrained", "device_map=\"auto\""],
+      "aggregate_source": ["class MajorityVoteTrackletFilter2", "self.output_columns.append(attribute)", "f\"{attribute}_detection\"", "f\"{attribute}_confidence\""],
+      "team_source": ["input_columns = [\"track_id\", \"embeddings\", \"role\"]", "output_columns = [\"team_cluster\"]", "KMeans(n_clusters=2, random_state=0)"],
+      "team_side_source": ["input_columns = [\"track_id\", \"team_cluster\", \"bbox_pitch\", \"role\"]", "output_columns = [\"team\"]"],
+      "tracklab_main": ["tracking_engine.track_dataset()", "evaluate(cfg, evaluator, tracker_state)", "wandb.init(cfg)"],
+      "tracker_state_source": ["mode=\"a\"", "summary.json", "pickle.dump"],
+      "trackeval_source": ["pred_save_path", "save_for_eval("],
+      "refiner_base": ["pipeline_exp_name: \"combination/yolo_v8x6_person_nbjw_cam_qwen25vl_legibility_filter2_trainset\"", "pipeline_exp_name_test: \"combination/yolo_v8x6_person_nbjw_cam_qwen25vl_legibility_filter2_testset\"", "pipeline_exp_name_valid: \"combination/yolo_v8x6_person_nbjw_cam_qwen25vl_legibility_filter2_validset\""],
+      "refiner_dataset_utils": ["frame_preds['embeddings']", "frame_preds['bbox_ltwh']", "frame_preds['bbox_pitch']", "frame_preds['role']", "frame_preds['team']", "frame_preds['jersey_number']", "frame_preds['track_id']", "frame_image_preds['parameters']"]
+    },
+    "field_lineage": {
+      "parameters": {"producer": "calibration/NBJW_Calib_Decouped", "table": "image", "inputs": ["keypoints"], "weights": []},
+      "bbox_pitch": {"producer": "apply_camera_params/ApplyParameters", "table": "detection", "inputs": ["bbox_ltwh", "image.parameters", "image.h"], "weights": []},
+      "role": {"producer": "tracklet_agg/MajorityVoteTrackletFilter2", "table": "detection", "inputs": ["role_detection", "role_confidence", "track_id"], "upstream_model": "reid/PRTReId"},
+      "jersey_number": {"producer": "tracklet_agg/MajorityVoteTrackletFilter2", "table": "detection", "inputs": ["jersey_number_detection", "jersey_number_confidence", "track_id"], "upstream_model": "jersey_number_detect/QWEN2_5VL_OCR_BATCH", "gate": "legibility_score >= 0.5"},
+      "team": {"producer": "team_side/TrackletTeamSideLabeling", "table": "detection", "inputs": ["team_cluster", "bbox_pitch", "role", "track_id"], "upstream_module": "team/TrackletTeamClustering", "upstream_team_inputs": ["embeddings", "role", "track_id"]}
+    },
+    "historical_archive_columns": {
+      "detection": ["image_id", "bbox_ltwh", "bbox_conf", "video_id", "category_id", "body_masks", "embeddings", "role_confidence", "role_detection", "visibility_scores", "age", "costs", "hits", "matched_with", "state", "time_since_update", "track_bbox_kf_ltwh", "track_bbox_pred_kf_ltwh", "track_id", "bbox_pitch", "legibility_score", "jersey_number_confidence", "jersey_number_detection", "jersey_number_full_detection", "jersey_number", "role", "team_cluster", "team", "ignored"],
+      "image": ["video_id", "frame", "file_path", "is_labeled", "id", "keypoints", "lines", "h", "parameters"]
+    },
+    "side_effects": [
+      "Hydra chdir/output creation under outputs/combination/<experiment_subname>.",
+      "TrackerState opens states/sn-gamestate.pklz in ZIP append mode and writes summary/per-video pickles.",
+      "eval_tracking=true writes prediction/evaluation artifacts and metric summaries/plots.",
+      "PRTReID and NBJW calibration code can download weights when expected files are absent; YOLO may also resolve/download a missing model.",
+      "Legibility constructs torchvision ResNet34 with pretrained=True before loading its task checkpoint, so a torchvision cache/download may be touched.",
+      "Qwen from_pretrained uses a local symlinked model but device_map=auto may allocate across all visible GPUs and Transformers/Hugging Face caches may be consulted.",
+      "TrackLab always calls its W&B wrapper; config sets use_wandb=false, but the wrapper path is still entered."
+    ]
+  },
+  "outputs": {
+    "report_dir": "/home/tianlin/SoccerMaster/reports/g10/20260814_prerefiner_lineage_audit",
+    "result": "/home/tianlin/SoccerMaster/reports/g10/20260814_prerefiner_lineage_audit/result.json",
+    "log": "/home/tianlin/SoccerMaster/reports/g10/20260814_prerefiner_lineage_audit/run.log"
+  },
+  "execution": {
+    "timeout_seconds": 120,
+    "heartbeat": "not_required_for_expected_subsecond_cpu_static_audit",
+    "required_environment": {"CUDA_VISIBLE_DEVICES": "", "PYTHONPATH": "", "LD_LIBRARY_PATH": "", "PYTHONDONTWRITEBYTECODE": "1"},
+    "dtype": "not_applicable_no_model_or_tensor_inference",
+    "seed": "not_applicable_deterministic_static_read",
+    "sampling": "all_three_configs_and_all_three_archive_summaries",
+    "fallbacks": "none"
+  },
+  "forbidden": ["import_torch", "import_upstream", "open_weight_contents", "model_load", "forward", "gpu", "evaluation", "training", "write_upstream", "write_run5_archive", "run_step3", "run_conversion"]
+}

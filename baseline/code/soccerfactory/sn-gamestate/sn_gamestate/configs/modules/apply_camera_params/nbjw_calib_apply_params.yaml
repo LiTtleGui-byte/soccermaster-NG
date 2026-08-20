@@ -1,0 +1,5 @@
+_target_: sn_gamestate.calibration.nbjw_calib.ApplyParameters
+batch_size: 256
+use_h: True
+use_linalg: False
+use_prev_homography: True

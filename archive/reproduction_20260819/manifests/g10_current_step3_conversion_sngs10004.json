@@ -1,0 +1,21 @@
+{
+  "schema_version": 1,
+  "gate": "G10-B",
+  "stage": "current_step3_to_training_pkl",
+  "sequence": "SNGS-10004",
+  "video_id": "10004",
+  "input_step3": "/home/tianlin/SoccerMaster/.runtime/g10/sngs10004_step3_no_reid/run1/states/sn-gamestate.pklz",
+  "output_pkl": "/home/tianlin/SoccerMaster/.runtime/g10/sngs10004_current_pipeline_conversion/run1/SNGS-10004.pkl",
+  "result_json": "/home/tianlin/SoccerMaster/reports/g10/20260819_current_step3_conversion/result.json",
+  "expected": {
+    "frames": 255,
+    "people": 3176,
+    "valid_camera_frames": 255
+  },
+  "non_goals": [
+    "label accuracy",
+    "comparison with the historical golden PKL",
+    "SoccerMaster DataLoader consumption",
+    "GPU inference or training"
+  ]
+}

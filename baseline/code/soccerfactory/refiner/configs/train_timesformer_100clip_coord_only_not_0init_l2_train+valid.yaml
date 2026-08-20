@@ -1,0 +1,31 @@
+# SoccerTrackerTransformer Configuration
+
+# Import base configuration
+imports:
+  - base.yaml
+
+# Override specific values
+experiment_name: "train_timesformer_100clip_coord_only_not_0init_l2_train+valid"
+
+model:
+  type: SoccerTrackerTransformerTimeSformer
+  zero_init_for_residual: false
+
+data:
+  dataset_type: "SoccerSequenceCachedDataset"  # Just override the dataset type
+  train_split: "train+valid"
+  val_split: "test"
+  max_clip_frames: 100
+  coord_loss_type: "l2"
+
+training:
+  num_workers: 8
+
+  # Only specify the tasks that differ from base.yaml
+  tasks:
+    track: false
+    role: false
+    team: false
+    jersey: false
+    coord: true
+    missing: false 

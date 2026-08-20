@@ -1,0 +1,20 @@
+# Canonical paths for the local/controlled takeover layout.
+workspace: /home/tianlin/SoccerMaster
+vendor_soccerfactory: /home/tianlin/SoccerMaster/vendor/soccerfactory
+local_asset_root: /home/tianlin/SoccerMaster/.local_assets
+
+soccermaster:
+  siglip2: /mnt/nas/tianlin/SoccerMasterAssets/commentary_generation_epoch11_20260817/models/siglip2-large-patch16-512
+  epoch_19: /home/tianlin/SoccerMaster/.local_assets/checkpoints/soccermaster_epoch19
+
+soccerfactory:
+  model_dir: /home/tianlin/SoccerMaster/.local_assets/models/soccerfactory/pretrained_models
+  refiner_checkpoint: /home/tianlin/SoccerMaster/.local_assets/models/soccerfactory/refiner/best_model.pth
+  dataset_root: /home/tianlin/SoccerMaster/.local_assets/data/SN-GSR-2024/SoccerNetGS
+  source_video: /home/tianlin/SoccerMaster/.local_assets/data/soccernet/raw/sngs10004/1_720p.mkv
+  camera_labels: /home/tianlin/SoccerMaster/.local_assets/data/soccernet/cameras/sngs10004/Labels-cameras.json
+
+commentary:
+  asset_root: /mnt/nas/tianlin/SoccerMasterAssets/commentary_generation_epoch11_20260817
+  environment_variable: SOCCERMASTER_COMMENTARY_ASSET_ROOT
+

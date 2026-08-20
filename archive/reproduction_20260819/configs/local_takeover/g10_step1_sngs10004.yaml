@@ -1,0 +1,64 @@
+defaults:
+  - dataset: soccernet_gs
+  - eval: gs_hota
+  - engine: offline
+  - state: save
+  - visualization: gamestate
+  - modules/bbox_detector: yolov8_person
+  - modules/reid: prtreid
+  - modules/track: bpbreid_strong_sort
+  - _self_
+
+pipeline: [bbox_detector, reid, track]
+experiment_name: g10_local
+experiment_subname: sngs10004_step1
+home_dir: /home/tianlin
+project_dir: /home/tianlin/SoccerMaster
+data_dir: /home/tianlin/SoccerMaster/.local_assets/data/SN-GSR-2024
+model_dir: /home/tianlin/SoccerMaster/.local_assets/models/soccerfactory/pretrained_models
+num_cores: 4
+use_wandb: false
+use_rich: false
+
+modules:
+  bbox_detector:
+    batch_size: 16
+    cfg:
+      path_to_checkpoint: /home/tianlin/SoccerMaster/.local_assets/models/soccerfactory/pretrained_models/yolo/yolo_v8x6_person_lr_default_best.pt
+  reid:
+    batch_size: 16
+  track:
+    batch_size: 16
+
+test_tracking: true
+eval_tracking: false
+print_config: true
+
+dataset:
+  nvid: -1
+  nframes: 255
+  eval_set: sn500
+  dataset_path: /home/tianlin/SoccerMaster/.local_assets/data/SN-GSR-2024/SoccerNetGS
+  annotation_path: /home/tianlin/SoccerMaster/.local_assets/data/SN-GSR-2024/SoccerNetGS
+  vids_dict:
+    sn500: [SNGS-10004]
+
+eval:
+  cfg:
+    metrics: [HOTA]
+
+state:
+  save_file: states/sn-gamestate.pklz
+  load_file: null
+  compression: 0
+
+visualization: null
+hydra:
+  searchpath:
+    - pkg://tracklab.configs
+    - pkg://sn_gamestate.configs
+  output_subdir: configs
+  job:
+    chdir: true
+  run:
+    dir: /home/tianlin/SoccerMaster/.runtime/local_takeover/g10/sngs10004_step1

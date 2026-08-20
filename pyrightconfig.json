@@ -1,0 +1,31 @@
+{
+  "include": [
+    "research/src",
+    "research/reproduction",
+    "research/experiments",
+    "research/tools",
+    "train.py",
+    "eval.py",
+    "setup.py"
+  ],
+  "exclude": [
+    "**/__pycache__",
+    "**/build",
+    ".envs",
+    ".runtime",
+    "archive",
+    "assets",
+    "baseline",
+    "runs"
+  ],
+  "executionEnvironments": [
+    {
+      "root": "research/src",
+      "extraPaths": [
+        "research/src",
+        "baseline/code/sn_calibration/src"
+      ]
+    }
+  ],
+  "typeCheckingMode": "off"
+}

@@ -1,0 +1,7 @@
+experiment_id: replace_me
+seed: 42
+baseline_checkpoint: /home/tianlin/SoccerMaster/assets/checkpoints/official/soccermaster/epoch_19
+run_root: /home/tianlin/SoccerMaster/runs/experiments
+change:
+  type: task
+  name: replace_me

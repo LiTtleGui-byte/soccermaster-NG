@@ -1,0 +1,8 @@
+_target_: sn_gamestate.role.internvl3_role_hf_api.InternVL3_ROLE_BATCH
+batch_size: 4
+
+cfg:
+  model_path: "${model_dir}/jn/InternVL3-8B-hf"
+  image_width: 1920
+  image_height: 1080
+  downsample_factor: 1

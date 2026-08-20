@@ -1,0 +1,98 @@
+{
+  "schema_version": 1,
+  "gate": "G10-B",
+  "stage": "compatibility_conversion_static_validation",
+  "description": "Fixed single-sequence SoccerFactory lineage and TrackLab-state-to-training-PKL compatibility validation.",
+  "sample": {
+    "sequence": "SNGS-10004",
+    "video_id": "10004",
+    "split": "sn500",
+    "frame_count": 255,
+    "selection_policy": "Smallest preserved sequence with an upstream debug config, historical Step-3 state, and final per-sequence training PKL.",
+    "source_game": {
+      "competition": "england_epl",
+      "season": "2016-2017",
+      "game": "2016-11-19 - 18-00 Southampton 0 - 0 Liverpool",
+      "half": 1,
+      "mapping_start": 14439,
+      "mapping_stop": 14645,
+      "mapping_sequence_id": 10004,
+      "raw_video": "/remote-home/haolinyang/public/sports/SoccerNet/dataset-720p/england_epl/2016-2017/2016-11-19 - 18-00 Southampton 0 - 0 Liverpool/1_720p.mkv",
+      "raw_video_bytes": 902528855,
+      "camera_labels": "/remote-home/haolinyang/public/sports/SoccerNet/dataset-cameras/england_epl/2016-2017/2016-11-19 - 18-00 Southampton 0 - 0 Liverpool/Labels-cameras.json",
+      "camera_labels_bytes": 105639
+    },
+    "clip_mapping": {
+      "path": "/remote-home/haolinyang/datasets/SN-GSR-2024/SoccerNetGS/sn_2_clip.json",
+      "bytes": 8322923,
+      "sha256": "e10a6d3c4f3ac906eed3a02190ee29d412c85d24dac7b829d39e340bde33bfc6"
+    },
+    "sequence_metadata": {
+      "path": "/remote-home/haolinyang/datasets/SN-GSR-2024/SoccerNetGS/sequences_info.json",
+      "bytes": 5224739,
+      "sha256": "69db0dd610e3389afe4b124f80d7d769adcf1b8e2d5b63c1ba61e358a391b11f",
+      "record": {
+        "id": 3,
+        "name": "SNGS-10004",
+        "n_frames": 255
+      }
+    },
+    "prepared_frames": {
+      "root": "/mnt/nas/haolinyang/sports/Soccer-Backbone/datasets/SN-GSR-2024/SoccerNetGS/sn500/SNGS-10004/img1",
+      "count": 255,
+      "total_bytes": 122481437,
+      "first": {
+        "name": "000001.jpg",
+        "bytes": 489530,
+        "sha256": "9bb632c6f979bd4aaf791f22461a6cd1fc7a835d4e00ef567efa729e79793ea5"
+      },
+      "last": {
+        "name": "000255.jpg",
+        "bytes": 465314,
+        "sha256": "c70c1975289501d0ad68106718df4cd72d22da5c5d7803066bdf8d45dd79500a"
+      }
+    }
+  },
+  "historical_step3": {
+    "path": "/remote-home/haolinyang/sports/soccernet/sn-gamestate/outputs/gsr/step_3_sn500_1000/states/sn-gamestate.pklz",
+    "bytes": 70829161760,
+    "members": {
+      "summary.json": 1031,
+      "10004.pkl": 48523957,
+      "10004_image.pkl": 637048
+    }
+  },
+  "golden_training_pkl": {
+    "path": "/remote-home/haolinyang/datasets/SN-GSR-2024/SoccerNetGS/extracted_info/SNGS-10004.pkl",
+    "bytes": 435540,
+    "sha256": "dcf138cadae5edd219092beffd265d821bce76542f12c4c64057e60fec94d135"
+  },
+  "source_revisions": {
+    "Soccer-Backbone": "1e0a124b416e",
+    "sn-gamestate": "bda5ef3f37b6",
+    "tracklab": "8987e8525709",
+    "Refiner": "d4a06f77aebc"
+  },
+  "conversion_contract": {
+    "frame_keys": "one_based_contiguous_1_to_255",
+    "frame_fields": ["people", "K", "R", "P", "valid_cam_params"],
+    "person_fields": ["id", "bbox_ltwh", "role", "legibility_score", "jersey_number"],
+    "person_id_source": "detection_dataframe_index",
+    "camera_extrinsic": "R_3x4 = [rotation_matrix | -rotation_matrix @ position_meters]",
+    "camera_projection": "P = K @ R_3x4",
+    "invalid_camera": "K_R_P_are_None_and_valid_cam_params_is_false"
+  },
+  "local_outputs": {
+    "converted_pkl": "/home/tianlin/SoccerMaster/.runtime/g10/sngs10004_static_conversion/SNGS-10004.pkl",
+    "result_json": "/home/tianlin/SoccerMaster/reports/g10/20260813_static_conversion/result.json"
+  },
+  "success": {
+    "required_frames": 255,
+    "required_people": 4260,
+    "required_valid_camera_frames": 255,
+    "maximum_semantic_mismatches": 0,
+    "camera_atol": 1e-10,
+    "camera_rtol": 0.0
+  },
+  "known_gap": "The preserved clip mapping spans 207 inclusive indices while the prepared sequence has 255 frames; the original raw-video-to-frame extraction/padding implementation is not present and is not validated here."
+}

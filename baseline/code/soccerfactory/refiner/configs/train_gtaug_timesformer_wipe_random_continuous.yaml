@@ -1,0 +1,47 @@
+# SoccerTrackerTransformer Configuration with Combined Wipe Augmentation
+
+# Import gtaug base configuration
+imports:
+  - gtaug_base.yaml
+
+# Override specific values
+experiment_name: "train_gtaug_timesformer_wipe_random_continuous"
+
+data:
+  train_split: "train+valid"
+  val_split: "test"
+  augment_coords: true
+  augment_coords_mode: "camera+drift"
+  rotation_std: 0.2
+  translation_std: 0.1
+  camera_drift_prob: 0.03
+  drift_rotation_std: 2.0
+  drift_translation_std: 1.0
+  flip_x_prob: 0.5
+  flip_y_prob: 0.5
+  use_all_frames_as_start: true
+  
+  # Wipe mode configuration
+  wipe_mode: "random+continuous"
+  wipe_random_prob: 0.03
+  wipe_continuous_prob: 0.05
+  
+training:
+  num_workers: 8
+  output_dir: "./outputs_gtaug"
+
+  tasks:
+    track: false
+    role: false
+    team: false
+    jersey: false
+    coord: true
+    missing: false 
+
+  loss_weights:
+    track: 1.0
+    role: 0.2
+    team: 0.2
+    jersey: 0.3
+    coord: 0.5
+    missing: 0.3 

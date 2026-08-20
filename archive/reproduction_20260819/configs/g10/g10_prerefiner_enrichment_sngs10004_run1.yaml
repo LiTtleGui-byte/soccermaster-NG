@@ -1,0 +1,98 @@
+# Isolated G10-B pre-Refiner enrichment config for fixed SNGS-10004.
+# It loads the immutable Step-1 run5 archive and writes a new archive.
+defaults:
+  - dataset: soccernet_gs
+  - eval: gs_hota
+  - engine: offline
+  - state: save
+  - visualization: gamestate
+  - modules/pitch: nbjw_calib
+  - modules/calibration: nbjw_calib_decouped
+  - modules/apply_camera_params: nbjw_calib_apply_params
+  - modules/legibility: legibility
+  - modules/jersey_number_detect: qwen2_5vl_ocr_batch
+  - modules/tracklet_agg: voting_role_jn_filter2
+  - modules/team: kmeans_embeddings
+  - modules/team_side: mean_position
+  - _self_
+
+pipeline:
+  - pitch
+  - calibration
+  - apply_camera_params
+  - legibility
+  - jersey_number_detect
+  - tracklet_agg
+  - team
+  - team_side
+
+experiment_name: "g10"
+experiment_subname: "sngs10004_prerefiner_enrichment_run1"
+
+home_dir: "/home/tianlin"
+project_dir: "/home/tianlin/SoccerMaster"
+data_dir: "/remote-home/haolinyang/datasets/SN-GSR-2024"
+model_dir: "/remote-home/haolinyang/sports/soccernet/sn-gamestate/pretrained_models"
+
+num_cores: 4
+use_wandb: false
+use_rich: false
+
+modules:
+  pitch:
+    batch_size: 1
+    checkpoint_kp: "/remote-home/haolinyang/sports/soccernet/sn-gamestate/pretrained_models/calibration/SV_kp"
+    checkpoint_l: "/remote-home/haolinyang/sports/soccernet/sn-gamestate/pretrained_models/calibration/SV_lines"
+  calibration:
+    batch_size: 1
+  apply_camera_params:
+    batch_size: 1
+    use_h: false
+    use_linalg: false
+    use_prev_homography: true
+  legibility:
+    batch_size: 16
+    cfg:
+      legibility_model_path: "/remote-home/haolinyang/sports/soccernet/sn-gamestate/pretrained_models/legibility/legibility_resnet34_soccer_20240215.pth"
+  jersey_number_detect:
+    batch_size: 64
+    cfg:
+      model_path: "/remote-home/haolinyang/sports/soccernet/sn-gamestate/pretrained_models/jn/Qwen2.5-VL-7B-Instruct"
+      save_jersey_number_full_detection: true
+      use_legibility_filter: true
+      legibility_filter_threshold: 0.5
+
+test_tracking: true
+eval_tracking: false
+print_config: true
+
+dataset:
+  nvid: -1
+  nframes: 255
+  eval_set: "sn500"
+  dataset_path: "/mnt/nas/haolinyang/sports/Soccer-Backbone/datasets/SN-GSR-2024/SoccerNetGS"
+  annotation_path: "/mnt/nas/haolinyang/sports/Soccer-Backbone/datasets/SN-GSR-2024/SoccerNetGS"
+  vids_dict:
+    sn500:
+      - "SNGS-10004"
+
+eval:
+  cfg:
+    metrics:
+      - "HOTA"
+
+state:
+  load_file: "/home/tianlin/SoccerMaster/.runtime/g10/sngs10004_step1/run5/states/sn-gamestate.pklz"
+  save_file: "states/sn-gamestate.pklz"
+  compression: 0
+
+visualization: null
+
+hydra:
+  output_subdir: "configs"
+  job:
+    chdir: true
+  run:
+    dir: "/home/tianlin/SoccerMaster/.runtime/g10/sngs10004_prerefiner_enrichment/run1"
+  sweep:
+    dir: "/home/tianlin/SoccerMaster/.runtime/g10/sngs10004_prerefiner_enrichment/multirun1"

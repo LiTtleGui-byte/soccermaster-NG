@@ -1,0 +1,26 @@
+# SoccerTrackerTransformer Configuration
+
+# Import base configuration
+imports:
+  - base.yaml
+
+# Override specific values
+experiment_name: "train_timesformer_150clip_coord_only"
+
+model:
+  type: SoccerTrackerTransformerTimeSformer
+
+data:
+  dataset_type: "SoccerSequenceCachedDataset"  # Just override the dataset type
+  max_clip_frames: 150
+
+training:
+
+  # Only specify the tasks that differ from base.yaml
+  tasks:
+    track: false
+    role: false
+    team: false
+    jersey: false
+    coord: true
+    missing: false 

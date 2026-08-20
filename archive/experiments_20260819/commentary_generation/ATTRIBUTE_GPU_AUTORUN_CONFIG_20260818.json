@@ -1,0 +1,67 @@
+{
+  "schema_version": 1,
+  "status": "authorized_once_any_idle_h800",
+  "execution_authorized": true,
+  "host": "gpu200",
+  "poll_seconds": 1800,
+  "state_dir": "/home/tianlin/SoccerMaster/.runtime/attribute_probe_gpu_autorun_20260818",
+  "python": "/home/tianlin/SoccerMaster/.local_envs/SoccerMaster-repro/bin/python",
+  "gpu_worker": "/home/tianlin/SoccerMaster/experiments/commentary_generation/extract_attribute_probe_features_gpu.py",
+  "cpu_probe": "/home/tianlin/SoccerMaster/experiments/commentary_generation/run_attribute_probe_cpu.py",
+  "environment": {
+    "PYTHONDONTWRITEBYTECODE": "1",
+    "PYTHONPATH": "/home/tianlin/SoccerMaster/models/deformable_detr/ops/build/lib.linux-x86_64-cpython-310:/home/tianlin/SoccerMaster",
+    "LD_LIBRARY_PATH": "/home/tianlin/SoccerMaster/.local_envs/SoccerMaster-repro/lib/python3.10/site-packages/torch/lib:/home/tianlin/SoccerMaster/.local_envs/SoccerMaster-repro/lib",
+    "HF_HUB_OFFLINE": "1",
+    "TRANSFORMERS_OFFLINE": "1",
+    "HF_DATASETS_OFFLINE": "1",
+    "HF_HUB_DISABLE_TELEMETRY": "1",
+    "TOKENIZERS_PARALLELISM": "false",
+    "OMP_NUM_THREADS": "1",
+    "MKL_NUM_THREADS": "1"
+  },
+  "availability": {
+    "candidate_gpu_indices": [0, 1, 2, 3, 4, 5, 6, 7],
+    "minimum_free_mib": 70000,
+    "maximum_utilization_percent": 5,
+    "allowed_compute_pids": [],
+    "confirmation_delay_seconds": 60,
+    "selection": "lowest_stable_eligible_physical_index"
+  },
+  "outputs": {
+    "features": "/home/tianlin/SoccerMaster/reports/commentary_attribute_probe_pilot_48_20260818/frozen_backbone_features.npz",
+    "partial": "/home/tianlin/SoccerMaster/reports/commentary_attribute_probe_pilot_48_20260818/frozen_backbone_features.npz.partial",
+    "gpu_summary": "/home/tianlin/SoccerMaster/reports/commentary_attribute_probe_pilot_48_20260818/feature_extraction_summary.json",
+    "cpu_result": "/home/tianlin/SoccerMaster/reports/commentary_attribute_probe_pilot_48_20260818/probe_results_match_grouped.json",
+    "stage2_layer_result": "/home/tianlin/SoccerMaster/reports/commentary_stage2_layer_probe_48_20260818/result.json"
+  },
+  "automatic_scope": [
+    "poll_all_eight_gpus_every_30_minutes",
+    "one_48_clip_frozen_attribute_feature_extraction_on_one_idle_h800",
+    "one_cpu_match_grouped_attribute_probe",
+    "stage3_qformer_readiness_evaluation_and_stop"
+  ],
+  "gpu_timeout_seconds": 3600,
+  "cpu_timeout_seconds": 600,
+  "failure_policy": "stop_without_retry_or_gpu_switch_after_worker_start",
+  "stage3_readiness": {
+    "minimum_attribute_completed_tasks": 12,
+    "minimum_best_attribute_macro_roc_auc": 0.75,
+    "maximum_qformer_input_to_output_delta": -0.02,
+    "minimum_projector_delta": -0.01,
+    "qformer_drop_must_be_twice_temporal_drop": true,
+    "stage3_execution_available": false,
+    "stop_reason": "No executable interface-matched Q-Former intervention launcher, fixed manifest, output contract, or fairness assertions exist yet."
+  },
+  "explicitly_forbidden": [
+    "main_model_training",
+    "backward",
+    "optimizer_or_scheduler_for_main_model",
+    "checkpoint_write_or_overwrite",
+    "automatic_retry",
+    "gpu_coexistence_with_any_compute_pid",
+    "stage3_gpu_execution",
+    "oracle_intervention",
+    "holdout_evaluation"
+  ]
+}

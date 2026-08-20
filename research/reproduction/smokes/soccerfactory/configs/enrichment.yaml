@@ -1,0 +1,83 @@
+defaults:
+  - dataset: soccernet_gs
+  - eval: gs_hota
+  - engine: offline
+  - state: save
+  - visualization: gamestate
+  - modules/pitch: nbjw_calib
+  - modules/calibration: nbjw_calib_decouped
+  - modules/apply_camera_params: nbjw_calib_apply_params
+  - modules/legibility: legibility
+  - modules/jersey_number_detect: qwen2_5vl_ocr_batch
+  - modules/tracklet_agg: voting_role_jn_filter2
+  - modules/team: kmeans_embeddings
+  - modules/team_side: mean_position
+  - _self_
+
+pipeline: [pitch, calibration, apply_camera_params, legibility, jersey_number_detect, tracklet_agg, team, team_side]
+experiment_name: g10_local
+experiment_subname: sngs10004_enrichment
+home_dir: /home/tianlin
+project_dir: /home/tianlin/SoccerMaster
+data_dir: /home/tianlin/SoccerMaster/assets/data/SN-GSR-2024
+model_dir: /home/tianlin/SoccerMaster/assets/checkpoints/official/soccerfactory/pretrained_models
+num_cores: 4
+use_wandb: false
+use_rich: false
+
+modules:
+  pitch:
+    batch_size: 1
+    checkpoint_kp: /home/tianlin/SoccerMaster/assets/checkpoints/official/soccerfactory/pretrained_models/calibration/SV_kp
+    checkpoint_l: /home/tianlin/SoccerMaster/assets/checkpoints/official/soccerfactory/pretrained_models/calibration/SV_lines
+  calibration:
+    batch_size: 1
+  apply_camera_params:
+    batch_size: 1
+    use_h: false
+    use_linalg: false
+    use_prev_homography: true
+  legibility:
+    batch_size: 16
+    cfg:
+      legibility_model_path: /home/tianlin/SoccerMaster/assets/checkpoints/official/soccerfactory/pretrained_models/legibility/legibility_resnet34_soccer_20240215.pth
+  jersey_number_detect:
+    batch_size: 64
+    cfg:
+      model_path: /home/tianlin/SoccerMaster/assets/checkpoints/official/soccerfactory/pretrained_models/jn/Qwen2.5-VL-7B-Instruct
+      save_jersey_number_full_detection: true
+      use_legibility_filter: true
+      legibility_filter_threshold: 0.5
+
+test_tracking: true
+eval_tracking: false
+print_config: true
+
+dataset:
+  nvid: -1
+  nframes: 255
+  eval_set: sn500
+  dataset_path: /home/tianlin/SoccerMaster/assets/data/SN-GSR-2024/SoccerNetGS
+  annotation_path: /home/tianlin/SoccerMaster/assets/data/SN-GSR-2024/SoccerNetGS
+  vids_dict:
+    sn500: [SNGS-10004]
+
+eval:
+  cfg:
+    metrics: [HOTA]
+
+state:
+  load_file: /home/tianlin/SoccerMaster/.runtime/path_smoke_20260819/soccerfactory/sngs10004_step1/states/sn-gamestate.pklz
+  save_file: states/sn-gamestate.pklz
+  compression: 0
+
+visualization: null
+hydra:
+  searchpath:
+    - pkg://tracklab.configs
+    - pkg://sn_gamestate.configs
+  output_subdir: configs
+  job:
+    chdir: true
+  run:
+    dir: /home/tianlin/SoccerMaster/.runtime/path_smoke_20260819/soccerfactory/sngs10004_enrichment

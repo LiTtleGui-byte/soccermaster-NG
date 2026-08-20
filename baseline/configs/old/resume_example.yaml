@@ -1,0 +1,28 @@
+# Resume Training Example Configuration
+# This is an example showing how to configure resume training
+
+SUPER_CONFIG_PATH: ./configs/default.yaml
+
+# Example 1: Auto resume from latest checkpoint in outputs directory
+RESUME_TRAINING: True              # Automatically find and resume from latest checkpoint
+OUTPUTS_DIR: ./outputs/my_experiment  # Will look for checkpoints in this directory
+
+# Example 2: Resume from specific checkpoint directory (uncomment to use)
+# RESUME_FROM_CHECKPOINT_DIR: ./outputs/my_experiment/epoch_10  # Resume from specific epoch
+
+# TensorBoard settings for resume training
+USE_TENSORBOARD: True              # Enable TensorBoard logging
+TENSORBOARD_FLUSH_SECS: 30         # Flush TensorBoard logs every 30 seconds
+RESUME_TENSORBOARD_CONTINUOUS: True # Continue TensorBoard logging when resuming
+
+# Other training settings
+EPOCHS: 30
+BATCH_SIZE: 8
+SAVE_CHECKPOINT_PER_EPOCH: 5
+
+# Dataset settings
+DATASETS_TO_HEADS:
+  SoccerNetGSR_ReID: [SoccerNetGSR_ReID]
+  SoccerNetGSR_Detection: [SoccerNetGSR_Detection, LinesDetection, KeypointsDetection, CameraRegression]
+
+EXP_NAME: ResumeTrainingExample 

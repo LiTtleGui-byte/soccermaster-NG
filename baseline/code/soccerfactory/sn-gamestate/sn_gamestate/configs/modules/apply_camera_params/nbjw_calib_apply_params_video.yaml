@@ -1,0 +1,7 @@
+_target_: sn_gamestate.calibration.nbjw_calib.ApplyParametersVideo
+use_h: True
+use_linalg: False
+interp_mode: 'use_prev'
+use_sg_filter: True
+sg_window: 50
+sg_polyorder: 2

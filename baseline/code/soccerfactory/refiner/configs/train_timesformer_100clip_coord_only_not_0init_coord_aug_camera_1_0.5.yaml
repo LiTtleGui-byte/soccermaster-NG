@@ -1,0 +1,33 @@
+# SoccerTrackerTransformer Configuration
+
+# Import base configuration
+imports:
+  - base.yaml
+
+# Override specific values
+experiment_name: "train_timesformer_100clip_coord_only_not_0init_coord_aug_camera_1_0.5"
+
+model:
+  type: SoccerTrackerTransformerTimeSformer
+  zero_init_for_residual: false
+
+data:
+  dataset_type: "SoccerSequenceCachedDataset"  # Just override the dataset type
+  max_clip_frames: 100
+
+  augment_coords: true  # Whether to apply Gaussian noise to coordinates
+  augment_coords_mode: "camera"  # Available options: "individual", "frame"
+  rotation_std: 1
+  translation_std: 0.5
+
+training:
+  num_workers: 16
+
+  # Only specify the tasks that differ from base.yaml
+  tasks:
+    track: false
+    role: false
+    team: false
+    jersey: false
+    coord: true
+    missing: false 

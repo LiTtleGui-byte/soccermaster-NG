@@ -1,0 +1,137 @@
+{
+  "schema_version": 1,
+  "gate": "G10-B",
+  "stage": "tracklab_step1_preflight",
+  "description": "Isolated, single-sequence TrackLab detection-ReID-tracking protocol. Static preflight does not import or launch TrackLab.",
+  "base_manifest": {
+    "path": "/home/tianlin/SoccerMaster/reproduction/manifests/g10_soccerfactory_sngs10004.json",
+    "sha256": "f184da599e291b22acdae9b1e8e31487dd9684d5df3c49dad8ffe853befec449"
+  },
+  "sample": {
+    "sequence": "SNGS-10004",
+    "video_id": "10004",
+    "split": "sn500",
+    "frame_count": 255,
+    "frame_root": "/mnt/nas/haolinyang/sports/Soccer-Backbone/datasets/SN-GSR-2024/SoccerNetGS/sn500/SNGS-10004/img1",
+    "frame_total_bytes": 122481437,
+    "first_frame": {
+      "name": "000001.jpg",
+      "bytes": 489530,
+      "sha256": "9bb632c6f979bd4aaf791f22461a6cd1fc7a835d4e00ef567efa729e79793ea5"
+    },
+    "last_frame": {
+      "name": "000255.jpg",
+      "bytes": 465314,
+      "sha256": "c70c1975289501d0ad68106718df4cd72d22da5c5d7803066bdf8d45dd79500a"
+    }
+  },
+  "python": "/remote-home/haolinyang/anaconda3/envs/tracklab2/bin/python",
+  "config": {
+    "path": "/home/tianlin/SoccerMaster/reproduction/configs/g10/g10_step1_sngs10004.yaml",
+    "name": "g10_step1_sngs10004",
+    "source_reference": "/remote-home/haolinyang/sports/soccernet/sn-gamestate/sn_gamestate/configs/debug_gsr_step_1.yaml",
+    "source_reference_bytes": 5116,
+    "pipeline": [
+      "bbox_detector",
+      "reid",
+      "track"
+    ]
+  },
+  "source_revisions": {
+    "sn-gamestate": "bda5ef3f37b6",
+    "tracklab": "8987e8525709"
+  },
+  "source_contract_files": [
+    "/remote-home/haolinyang/sports/soccernet/tracklab/tracklab/main.py",
+    "/remote-home/haolinyang/sports/soccernet/tracklab/tracklab/datastruct/tracker_state.py",
+    "/remote-home/haolinyang/sports/soccernet/tracklab/tracklab/configs/dataset/soccernet_gs.yaml",
+    "/remote-home/haolinyang/sports/soccernet/tracklab/tracklab/configs/engine/offline.yaml",
+    "/remote-home/haolinyang/sports/soccernet/tracklab/tracklab/configs/state/save.yaml",
+    "/remote-home/haolinyang/sports/soccernet/tracklab/tracklab/configs/modules/track/bpbreid_strong_sort.yaml",
+    "/remote-home/haolinyang/sports/soccernet/sn-gamestate/sn_gamestate/configs/eval/gs_hota.yaml",
+    "/remote-home/haolinyang/sports/soccernet/sn-gamestate/sn_gamestate/configs/visualization/gamestate.yaml",
+    "/remote-home/haolinyang/sports/soccernet/sn-gamestate/sn_gamestate/configs/modules/bbox_detector/yolov8_person.yaml",
+    "/remote-home/haolinyang/sports/soccernet/sn-gamestate/sn_gamestate/configs/modules/reid/prtreid.yaml"
+  ],
+  "models": {
+    "yolo_person": {
+      "path": "/remote-home/haolinyang/sports/soccernet/sn-gamestate/pretrained_models/yolo/yolo_v8x6_person_lr_default_best.pt",
+      "bytes": 195209883
+    },
+    "prtreid": {
+      "path": "/remote-home/haolinyang/sports/soccernet/sn-gamestate/pretrained_models/reid/prtreid-soccernet-baseline.pth.tar",
+      "bytes": 396287605
+    },
+    "hrnet_backbone": {
+      "path": "/remote-home/haolinyang/sports/soccernet/sn-gamestate/pretrained_models/reid/hrnetv2_w32_imagenet_pretrained.pth",
+      "bytes": 165587602
+    }
+  },
+  "launcher": {
+    "command": [
+      "/remote-home/haolinyang/anaconda3/envs/tracklab2/bin/python",
+      "-m",
+      "tracklab.main",
+      "--config-dir",
+      "/home/tianlin/SoccerMaster/reproduction/configs/g10",
+      "--config-name",
+      "g10_step1_sngs10004"
+    ],
+    "working_directory": "/home/tianlin/SoccerMaster",
+    "timeout_seconds": 3600,
+    "heartbeat_seconds": 30,
+    "required_approval_environment": "G10_STEP1_GPU_APPROVED=YES",
+    "required_cuda_visible_devices": "exactly_one_numeric_device"
+  },
+  "local_outputs": {
+    "hydra_run_dir": "/home/tianlin/SoccerMaster/.runtime/g10/sngs10004_step1/run1",
+    "state_archive": "/home/tianlin/SoccerMaster/.runtime/g10/sngs10004_step1/run1/states/sn-gamestate.pklz",
+    "preflight_result": "/home/tianlin/SoccerMaster/reports/g10/20260813_step1_preflight/result.json",
+    "preflight_log": "/home/tianlin/SoccerMaster/reports/g10/20260813_step1_preflight/run.log",
+    "run_report_dir": "/home/tianlin/SoccerMaster/reports/g10/20260813_step1_run1",
+    "run_result": "/home/tianlin/SoccerMaster/reports/g10/20260813_step1_run1/result.json",
+    "run_log": "/home/tianlin/SoccerMaster/reports/g10/20260813_step1_run1/run.log"
+  },
+  "success": {
+    "zip_members_exact": [
+      "10004.pkl",
+      "10004_image.pkl",
+      "summary.json"
+    ],
+    "required_image_rows": 255,
+    "required_image_frames": "zero_based_contiguous_0_to_254",
+    "minimum_detection_rows": 1,
+    "required_detection_columns": [
+      "image_id",
+      "video_id",
+      "bbox_ltwh",
+      "bbox_conf",
+      "embeddings",
+      "visibility_scores",
+      "track_id"
+    ],
+    "required_image_columns": [
+      "id",
+      "frame",
+      "video_id",
+      "file_path"
+    ]
+  },
+  "failure_policy": {
+    "fallbacks": "none",
+    "overwrite": "forbidden",
+    "timeout": "terminate_process_group_then_kill_after_60_seconds",
+    "partial_outputs": "preserve_for_diagnosis_and_use_a_new_run_id_for_retry",
+    "nonzero_exit": "fail_without_retry"
+  },
+  "not_validated_by_preflight": [
+    "Hydra composition",
+    "TrackLab or model imports",
+    "GPU compatibility or capacity",
+    "model inference",
+    "state archive production",
+    "tracking quality",
+    "evaluation",
+    "training"
+  ]
+}

@@ -1,0 +1,58 @@
+{
+  "schema_version": 1,
+  "gate": "G10-C",
+  "stage": "raw_video_lineage_candidate",
+  "status": "candidate_only_not_reproduced",
+  "sequence": "SNGS-10004",
+  "split": "sn500",
+  "candidate_generator": {
+    "local_script": "/home/tianlin/SoccerMaster/scripts/segment_soccernet.py",
+    "remote_script": "/remote-home/haolinyang/sports/Soccer-Backbone/scripts/segment_soccernet.py",
+    "mapping_path": "/remote-home/haolinyang/datasets/SN-GSR-2024/SoccerNetGS/sn_2_clip.json",
+    "mapping_clip_id": 4,
+    "output_name_rule": "SNGS-{clip_id+10000:05d}",
+    "selection_rule": "Main camera center and real-time segments; discard about 10 frames at each boundary; split at max 750 frames",
+    "resize": [1920, 1080],
+    "frame_numbering": "one_based_contiguous_jpeg"
+  },
+  "source": {
+    "competition": "england_epl",
+    "season": "2014-2015",
+    "game": "2015-02-21 - 18-00 Chelsea 1 - 1 Burnley",
+    "half": 1,
+    "start_frame_inclusive": 2278,
+    "end_frame_inclusive": 2532,
+    "raw_video": "/remote-home/haolinyang/public/sports/SoccerNet/dataset-720p/england_epl/2014-2015/2015-02-21 - 18-00 Chelsea 1 - 1 Burnley/1_720p.mkv",
+    "raw_video_bytes": 979439471,
+    "camera_labels": "/remote-home/haolinyang/public/sports/SoccerNet/dataset-cameras/england_epl/2014-2015/2015-02-21 - 18-00 Chelsea 1 - 1 Burnley/Labels-cameras.json",
+    "camera_labels_bytes": 106194
+  },
+  "prepared_reference": {
+    "root": "/mnt/nas/haolinyang/sports/Soccer-Backbone/datasets/SN-GSR-2024/SoccerNetGS/sn500/SNGS-10004/img1",
+    "frame_count": 255,
+    "total_bytes": 122481437,
+    "first_frame": "000001.jpg",
+    "last_frame": "000255.jpg"
+  },
+  "evidence": {
+    "report": "/home/tianlin/SoccerMaster/reports/g10/20260819_raw_frame_source_check/result.json",
+    "first_frame_mean_absolute_difference_vs_candidate": 0.8531915509259259,
+    "first_frame_mean_absolute_difference_vs_old_manifest_candidate": 37.840871752829216,
+    "interpretation": "The candidate mapping is strongly supported by a read-only first-frame comparison, but all-frame reproduction and output equivalence are not yet verified."
+  },
+  "old_manifest_conflict": {
+    "path": "/home/tianlin/SoccerMaster/reproduction/manifests/g10_soccerfactory_sngs10004.json",
+    "uses_mapping_clip_id": 10004,
+    "source_game": "2016-11-19 - 18-00 Southampton 0 - 0 Liverpool",
+    "start_frame_inclusive": 14439,
+    "end_frame_inclusive": 14645,
+    "span_inclusive": 207
+  },
+  "not_validated": [
+    "all 255 prepared frames against sequential raw-video decoding",
+    "exact JPEG byte reproduction",
+    "safe local-only output adaptation",
+    "any TrackLab, Refiner, Step 3, training, or GPU operation"
+  ],
+  "execution_authorization": "none"
+}

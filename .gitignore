@@ -14,10 +14,18 @@ venv/
 env/
 .conda/
 .conda_pkgs/
+.conda_pkgs
 .conda_pkgs:/
 .local_envs/
+.local_envs
 .local_deps/
+.local_deps
+.local_assets/
+.local_assets
 .runtime/
+/.envs/
+/assets/
+/runs/
 
 # Packaging and native-extension build products
 build/
@@ -71,6 +79,5 @@ models/bak/
 ehthumbs.db
 Thumbs.db
 
-# Existing root-level local experiments/configuration; promote only after review
+# Existing root-level local experiments; promote only after review
 /memory_demo.py
-/pyrightconfig.json

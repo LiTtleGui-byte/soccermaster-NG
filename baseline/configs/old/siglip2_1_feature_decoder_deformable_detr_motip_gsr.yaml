@@ -1,0 +1,38 @@
+SUPER_CONFIG_PATH: ./configs/r50_deformable_detr_motip_dancetrack.yaml
+
+DATASETS: [GSR]
+DATASET_SPLITS: [train]
+INFERENCE_DATASET: GSR
+INFERENCE_SPLIT: test
+
+SAMPLE_LENGTHS: [30, ]
+
+# Data augmentation settings:
+AUG_RESIZE_SCALES: [512,]
+KEEP_ASPECT_RATIO: False
+AUG_MAX_SIZE: 512
+
+# About DETR Framework:
+BACKBONE: siglip
+CKPT_PATH: ./pretrained_models/google/siglip2-base-patch16-512
+DETR_PRETRAIN: ./pretrains/siglip2_1_feature_decoder_deformable_detr_gsr.pth
+DETR_NUM_FEATURE_LEVELS: 1
+DETR_ENC_LAYERS: 0
+DETR_DEC_LAYERS: 1
+
+REL_PE_LENGTH: 30
+
+EPOCHS: 17
+SCHEDULER_MILESTONES: [8, 12, 16 ]
+
+MISS_TOLERANCE: 750          # tolerance for missing frames
+
+# Inference settings:
+INFERENCE_MAX_SHORTER: 512
+INFERENCE_MAX_LONGER: 512
+INFERENCE_KEEP_ASPECT_RATIO: False
+INFERENCE_MEAN: [0.5, 0.5, 0.5]
+INFERENCE_STD: [0.5, 0.5, 0.5]
+
+USE_WANDB: True
+USE_DECODER_CHECKPOINT: True

@@ -1,0 +1,176 @@
+{
+  "schema_version": 1,
+  "gate": "G10-B",
+  "stage": "prerefiner_dataset_diagnosis_run2_prepared",
+  "description": "CPU-only staged diagnosis prepared after pre-Refiner enrichment run1 timed out in instantiate_dataset. Preparation does not authorize or execute the future diagnosis.",
+  "python": "/remote-home/haolinyang/anaconda3/envs/tracklab2/bin/python",
+  "references": {
+    "run1_manifest": {
+      "path": "/home/tianlin/SoccerMaster/reproduction/manifests/g10_prerefiner_enrichment_run1_sngs10004.json",
+      "sha256": "7740784a6754f8c573d3c8900b5996afdd97ccf31fc258bd0b439844c9c80d5f"
+    },
+    "run1_config": {
+      "path": "/home/tianlin/SoccerMaster/reproduction/configs/g10/g10_prerefiner_enrichment_sngs10004_run1.yaml",
+      "sha256": "ce0792ac225436433c82c89ae657e54960f5eefe95d384c8d983da188aeed29e"
+    },
+    "run1_result": {
+      "path": "/home/tianlin/SoccerMaster/reports/g10/20260814_prerefiner_enrichment_run1/result.json",
+      "sha256": "67f1b0c402a712c27c02b8d3c0457de46db103581c3b3323b2c236c2704cd54d"
+    }
+  },
+  "config": {
+    "directory": "/home/tianlin/SoccerMaster/reproduction/configs/g10",
+    "name": "g10_prerefiner_enrichment_sngs10004_run1",
+    "path": "/home/tianlin/SoccerMaster/reproduction/configs/g10/g10_prerefiner_enrichment_sngs10004_run1.yaml",
+    "dataset_target": "tracklab.wrappers.SoccerNetGameState",
+    "pipeline": [
+      "pitch",
+      "calibration",
+      "apply_camera_params",
+      "legibility",
+      "jersey_number_detect",
+      "tracklet_agg",
+      "team",
+      "team_side"
+    ]
+  },
+  "source_files": {
+    "tracklab_main": {
+      "path": "/remote-home/haolinyang/sports/soccernet/tracklab/tracklab/main.py",
+      "sha256": "7d24b76b112a934cd94d8734c3d844eac237a14fc827fd752ef2047b96090551"
+    },
+    "soccernet_dataset": {
+      "path": "/remote-home/haolinyang/sports/soccernet/tracklab/tracklab/wrappers/datasets/soccernet/soccernet_game_state.py",
+      "sha256": "5a73da5325bca9ecc2f48e182e8e71d5cff201e44576a32d7d3913ed8a5fabd2"
+    },
+    "launcher": "/home/tianlin/SoccerMaster/reproduction/gates/g10_prerefiner_dataset_diagnosis.py",
+    "worker": "/home/tianlin/SoccerMaster/reproduction/gates/g10_prerefiner_dataset_diagnosis_worker.py"
+  },
+  "sample": {
+    "sequence": "SNGS-10004",
+    "video_id": "10004",
+    "split": "sn500",
+    "dataset_root": "/mnt/nas/haolinyang/sports/Soccer-Backbone/datasets/SN-GSR-2024/SoccerNetGS",
+    "split_root": "/mnt/nas/haolinyang/sports/Soccer-Backbone/datasets/SN-GSR-2024/SoccerNetGS/sn500",
+    "video_root": "/mnt/nas/haolinyang/sports/Soccer-Backbone/datasets/SN-GSR-2024/SoccerNetGS/sn500/SNGS-10004",
+    "frame_root": "/mnt/nas/haolinyang/sports/Soccer-Backbone/datasets/SN-GSR-2024/SoccerNetGS/sn500/SNGS-10004/img1",
+    "labels_gamestate_must_be_absent": true,
+    "frame_count": 255,
+    "frame_total_bytes": 122481437,
+    "first_frame": {
+      "name": "000001.jpg",
+      "bytes": 489530
+    },
+    "last_frame": {
+      "name": "000255.jpg",
+      "bytes": 465314
+    }
+  },
+  "diagnostic_adapter": {
+    "dataset_pool_workers": 4,
+    "pool_jobs": 1,
+    "pool_scope": "future diagnostic process only",
+    "suppress_mim_home_cache_creation": true,
+    "suppressed_path_exact": "/home/tianlin/.cache/mim",
+    "cache_environment": [
+      "HF_HOME",
+      "HUGGINGFACE_HUB_CACHE",
+      "TRANSFORMERS_CACHE",
+      "XDG_CACHE_HOME",
+      "MPLCONFIGDIR"
+    ],
+    "single_video_result_replay": {
+      "enabled": true,
+      "scope": "tracking_set_construct only",
+      "reason": "Reuse the already returned upstream video_dir_to_dfs result so TrackingSet aggregation is timed separately without a second NAS read."
+    },
+    "load_set_replay": {
+      "enabled": true,
+      "scope": "tracking_dataset_finalize only",
+      "reason": "Reuse the already constructed TrackingSet so TrackingDataset subsampling is timed separately without a third NAS read."
+    }
+  },
+  "phases": [
+    "import_tracklab_main",
+    "hydra_cli_compose",
+    "import_dataset_wrapper",
+    "dataset_root_scan",
+    "pool_create",
+    "single_video_worker",
+    "pool_close_join",
+    "tracking_set_construct",
+    "tracking_dataset_finalize",
+    "contract_assertions"
+  ],
+  "timeouts_seconds": {
+    "worker_boot": 60,
+    "worker_transition": 300,
+    "import_tracklab_main": 1800,
+    "hydra_cli_compose": 300,
+    "import_dataset_wrapper": 1800,
+    "dataset_root_scan": 300,
+    "pool_create": 300,
+    "single_video_worker": 1200,
+    "pool_close_join": 300,
+    "tracking_set_construct": 300,
+    "tracking_dataset_finalize": 300,
+    "contract_assertions": 60,
+    "termination_grace": 60,
+    "overall": 5100
+  },
+  "heartbeat_seconds": 30,
+  "approval": {
+    "required_environment": "G10_PREREFINER_DATASET_DIAGNOSIS_RUN2_CPU_APPROVED=YES",
+    "cuda_visible_devices": "must_be_explicitly_empty",
+    "approval_scope": "one future CPU-only staged dataset diagnosis; no enrichment retry or model execution"
+  },
+  "outputs": {
+    "preflight_report_dir": "/home/tianlin/SoccerMaster/reports/g10/20260814_prerefiner_dataset_diagnosis_run2_preflight_retry1",
+    "preflight_result": "/home/tianlin/SoccerMaster/reports/g10/20260814_prerefiner_dataset_diagnosis_run2_preflight_retry1/result.json",
+    "preflight_log": "/home/tianlin/SoccerMaster/reports/g10/20260814_prerefiner_dataset_diagnosis_run2_preflight_retry1/run.log",
+    "report_dir": "/home/tianlin/SoccerMaster/reports/g10/20260814_prerefiner_dataset_diagnosis_run2",
+    "events": "/home/tianlin/SoccerMaster/reports/g10/20260814_prerefiner_dataset_diagnosis_run2/events.jsonl",
+    "log": "/home/tianlin/SoccerMaster/reports/g10/20260814_prerefiner_dataset_diagnosis_run2/run.log",
+    "result": "/home/tianlin/SoccerMaster/reports/g10/20260814_prerefiner_dataset_diagnosis_run2/result.json",
+    "cache_dir": "/home/tianlin/SoccerMaster/.runtime/g10/sngs10004_prerefiner_dataset_diagnosis/run2_cache",
+    "hydra_run_dir": "/home/tianlin/SoccerMaster/.runtime/g10/sngs10004_prerefiner_dataset_diagnosis/run2",
+    "resolved_config": "/home/tianlin/SoccerMaster/.runtime/g10/sngs10004_prerefiner_dataset_diagnosis/run2/resolved_config.yaml"
+  },
+  "success": {
+    "required_phases": [
+      "import_tracklab_main",
+      "hydra_cli_compose",
+      "import_dataset_wrapper",
+      "dataset_root_scan",
+      "pool_create",
+      "single_video_worker",
+      "pool_close_join",
+      "tracking_set_construct",
+      "tracking_dataset_finalize",
+      "contract_assertions"
+    ],
+    "required_dataset_sets": [
+      "sn500"
+    ],
+    "required_video_rows": 1,
+    "required_image_rows": 255,
+    "required_frame_values": "0..254",
+    "detections_gt_must_be_none": true
+  },
+  "failure_policy": {
+    "fallbacks": "none beyond the declared local cache, exact OpenMIM suppression, four-worker Pool, and result replay adapters",
+    "overwrite": "forbidden",
+    "retry": "forbidden; preserve evidence and stop",
+    "phase_timeout": "terminate the whole future diagnostic process group and record the exact active phase"
+  },
+  "prohibitions": [
+    "do not run this future diagnosis without a new user continuation",
+    "CUDA_VISIBLE_DEVICES must be explicitly empty",
+    "do not change HOME",
+    "do not call tracklab.main.main",
+    "do not instantiate evaluator or any enrichment/model module",
+    "do not read model weights or the Step-1 state archive",
+    "do not run CUDA, inference, enrichment forward, evaluation, visualization, Refiner, Step 3, conversion, or training",
+    "do not reuse run1 or any existing report/cache/Hydra directory"
+  ]
+}

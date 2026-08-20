@@ -1,0 +1,4 @@
+_target_: sn_gamestate.multi_task.multi_task.MultiTask
+batch_size: 32
+config_path: ${model_dir}/../../../Soccer-Backbone/configs/gsr_multi_task.yaml
+STAGE_1_CKPT_DIR: ${model_dir}/../../../Soccer-Backbone/outputs/image_512_new/epoch_14

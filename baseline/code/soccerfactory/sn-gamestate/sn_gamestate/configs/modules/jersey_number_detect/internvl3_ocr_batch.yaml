@@ -1,0 +1,7 @@
+_target_: sn_gamestate.jersey.internvl3_ocr_api.InternVL3_OCR_BATCH
+batch_size: 32
+cfg:
+  model_path: "${model_dir}/jn/InternVL3-8B"
+  save_jersey_number_full_detection: False
+  use_legibility_filter: False
+  legibility_filter_threshold: 0.5

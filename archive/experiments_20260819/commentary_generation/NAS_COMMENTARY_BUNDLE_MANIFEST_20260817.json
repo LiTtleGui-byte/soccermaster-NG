@@ -1,0 +1,80 @@
+{
+  "schema_version": 1,
+  "manifest_state": "frozen_after_transfer_and_cpu_preflight",
+  "created_date": "2026-08-17",
+  "bundle_id": "commentary_generation_epoch11_20260817",
+  "bundle_root": "/mnt/nas/tianlin/SoccerMasterAssets/commentary_generation_epoch11_20260817",
+  "runtime_environment_variable": "SOCCERMASTER_COMMENTARY_ASSET_ROOT",
+  "source_host": "GPU202-tianlin",
+  "source_policy": "read_only_copy; no source mutation",
+  "inventory": {
+    "files": 117,
+    "bytes": 58218293029
+  },
+  "files": {
+    "metadata/MatchTime/classification_train.json": {
+      "bytes": 11318394,
+      "sha256": "0c4580786a3e6db7bcd38040190b7f19b80fc28e51eac6307ae94354759ddfa8",
+      "records": 24027
+    },
+    "metadata/MatchTime/classification_test.json": {
+      "bytes": 1541678,
+      "sha256": "d163ac7a6b7705d6c98a1ccbb1325a004fcdfc477380425548ab6a8274e4c870",
+      "records": 3256
+    },
+    "metadata/words_world/match_time.pkl": {
+      "bytes": 9092,
+      "sha256": "654f03e1d4678cd0c3e8ca587af027e4bc14489e94e90bd30ad856242dab2d94"
+    },
+    "checkpoints/visual_backbone_epoch_19/backbone.pt": {
+      "bytes": 1435281181,
+      "sha256": "fc64d2acbabb5c20a3e0bf996906954c81838d8495b7724a9862199c0af4c977"
+    },
+    "checkpoints/commentary_epoch_11/model_save_11.pth": {
+      "bytes": 17615455530,
+      "sha256": "e1ff7fef61a480576d52f4c2761ccedca16d8af3ccd6cdc39a83d36fc5a32317",
+      "epoch": 11,
+      "state_key_count": 953
+    }
+  },
+  "directories": {
+    "models/Meta-Llama-3-8B-Instruct": {
+      "files": 35,
+      "bytes": 32132574429,
+      "verification": "source-to-destination checksum rsync dry-run; zero files transferred"
+    },
+    "models/bert-base-uncased": {
+      "files": 49,
+      "bytes": 3454103935,
+      "verification": "source-to-destination checksum rsync dry-run; zero files transferred"
+    },
+    "models/siglip2-large-patch16-512": {
+      "files": 28,
+      "bytes": 3568008790,
+      "verification": "source-to-destination checksum rsync dry-run; zero files transferred"
+    }
+  },
+  "checkpoint_component_key_counts": {
+    "llama_model": 419,
+    "visual_encoder": 473,
+    "video_Qformer": 55,
+    "video_query_tokens": 1,
+    "ln_vision": 2,
+    "llama_proj": 2,
+    "video_frame_position_embedding": 1
+  },
+  "verification": {
+    "status": "passed",
+    "cpu_preflight_report": "reports/commentary_nas_bundle_preflight_20260817/result.json",
+    "checkpoint_load": "torch.load map_location=cpu weights_only=true mmap=true",
+    "gpu_query_executed_by_preflight": false,
+    "forward_executed": false,
+    "generate_executed": false,
+    "training_executed": false
+  },
+  "scope_exclusions": [
+    "video dataset, which remains under /mnt/nas2",
+    "future locked match holdout",
+    "GPU model execution"
+  ]
+}

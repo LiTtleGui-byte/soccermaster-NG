@@ -1,0 +1,49 @@
+# SoccerTrackerTransformer Ground Truth Augmentation Base Configuration
+
+# Import base configuration
+imports:
+  - base.yaml
+
+# Override specific values for GT augmentation
+experiment_name: "gtaug_base"
+
+model:
+  type: SoccerTrackerTransformerTimeSformer
+  zero_init_for_residual: false
+
+data:
+  dataset_type: "SoccerSequenceGTAugDataset"  # Override the dataset type
+  max_clip_frames: 100
+
+  # Data augmentation configuration
+  augment_coords: false  # Whether to apply coordinate augmentation
+  augment_coords_mode: "camera"  # Available options: "individual" "frame" (add noise to coords), "camera" (perturb camera params)
+  # For "individual" and "frame" mode:
+  augment_coords_sigma: 1.0  # Standard deviation of the coordinate noise (in meters)
+  # For "camera" mode:
+  rotation_std: 0.5  # Standard deviation of rotation angle noise (in degrees)
+  translation_std: 0.2  # Standard deviation of translation vector noise
+  flip_x_prob: 0.0
+  flip_y_prob: 0.0
+
+training:
+  num_workers: 8
+  output_dir: "./outputs_gtaug"
+
+  # Only specify the tasks that differ from base.yaml
+  tasks:
+    track: false
+    role: false
+    team: false
+    jersey: false
+    coord: true
+    missing: false 
+
+  # Loss weights configuration
+  loss_weights:
+    track: 1.0     # Track association loss weight
+    role: 0.2      # Role classification loss weight
+    team: 0.2      # Team classification loss weight
+    jersey: 0.3    # Jersey number prediction loss weight
+    coord: 0.5     # Coordinate refinement loss weight
+    missing: 0.3   # Missing detections prediction loss weight

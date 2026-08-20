@@ -1,0 +1,22 @@
+{
+  "schema_version": 1,
+  "gate": "G10-C",
+  "stage": "current_pipeline_dataloader_smoke",
+  "training_pkl": "/home/tianlin/SoccerMaster/.runtime/local_takeover/g10/sngs10004_training_pkl/SNGS-10004.pkl",
+  "source_images": "/home/tianlin/SoccerMaster/.local_assets/data/SN-GSR-2024/SoccerNetGS/sn500/SNGS-10004/img1",
+  "data_view": "/home/tianlin/SoccerMaster/.runtime/local_takeover/g10/sngs10004_dataloader_view",
+  "result_json": "/home/tianlin/SoccerMaster/reports/local_takeover/20260819_soccerfactory_dataloader_sngs10004/result.json",
+  "config": "/home/tianlin/SoccerMaster/configs/pretrain_large_512_multitask_aug_consine_part_temporal_early_freeze_text_lr_5e-5_cap_cls_weight_1_extra_7000_high_resolution.yaml",
+  "expected": {
+    "dataset_samples": 8,
+    "batch_size": 1,
+    "frames_per_sample": 30,
+    "channels": 3,
+    "image_size": 512
+  },
+  "non_goals": [
+    "model_forward",
+    "training",
+    "role_team_jersey_or_coordinate_accuracy"
+  ]
+}

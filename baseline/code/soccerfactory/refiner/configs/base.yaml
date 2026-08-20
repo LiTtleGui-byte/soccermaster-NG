@@ -1,0 +1,107 @@
+# SoccerTrackerTransformer Configuration
+
+base_config: &base_config
+  experiment_name: "soccer_tracker_transformer"
+
+  # Model configuration
+  model:
+    type: "SoccerTrackerTransformer"  # Available options: "SoccerTrackerTransformer", "SoccerTrackerTransformerV2", etc.
+    d_model: 512
+    nhead: 8
+    num_layers: 6
+    coord_regression_type: "residual"  # Available options: "direct", "residual"
+    zero_init_for_residual: false  # Initialize weights to zero for residual regression
+    zero_init_coord_head_on_resume: false  # Whether to zero initialize the coordinate refinement head when resuming training
+    coord_loss_type: "l1"  # Available options: "l1", "l2"
+    max_affinity_frame_distance: 25  # Maximum frame distance to compute affinity in track association
+    use_spatial_embed: true  # Whether to use spatial embeddings in the model
+
+  # Data configuration
+  data:
+    dataset_type: "SoccerSequenceCachedDataset"  # Available options: "SoccerSequenceDataset", "SoccerSequenceCachedDataset"
+    pipeline_outputs_root: "./pipeline_outputs"
+    pipeline_exp_name: "combination/yolo_v8x6_person_nbjw_cam_qwen25vl_legibility_filter2_trainset"
+    pipeline_exp_name_test: "combination/yolo_v8x6_person_nbjw_cam_qwen25vl_legibility_filter2_testset"
+    pipeline_exp_name_valid: "combination/yolo_v8x6_person_nbjw_cam_qwen25vl_legibility_filter2_validset"
+    # Splits configuration
+    train_split: "train"  # Options: "train", "valid", "train+valid"
+    val_split: "test"     # Options: "valid", "test"
+    gt_root: "./datasets/SN-GSR-2024/SoccerNetGS"
+    metadata_path: "./datasets/sequences_info.json"
+    max_frames: 750
+    max_clip_frames: 50
+    max_detections_per_frame: 30
+    simulate_missing: false
+    use_all_frames_as_start: false  # If true, use every frame as a potential clip start position
+    precompute_track_masks: false     # 是否在dataset的__getitem__中预计算轨迹关联掩码
+    
+    # Normalization configuration
+    normalize_bbox: false
+    normalize_coords: true
+    normalization_method: "minmax"  # Available options: "z_score", "minmax"
+    # Normalization statistics from preprocessing
+    bbox_mean: [941.4761962890625, 482.07666015625, 46.26276397705078, 100.48390197753906]
+    bbox_std: [492.4283447265625, 131.59347534179688, 17.402503967285156, 30.54072380065918]
+    coord_mean: [0.46683802296749616, 1.8855131691438625]
+    coord_std: [28.112001098421153, 15.308723932225625]
+    
+    # Data augmentation configuration
+    augment_coords: false  # Whether to apply coordinate augmentation
+    augment_coords_mode: "camera"  # Available options: "individual" "frame" (add noise to coords), "camera" (perturb camera params)
+    # For "individual" and "frame" mode:
+    augment_coords_sigma: 1.0  # Standard deviation of the coordinate noise (in meters)
+    # For "camera" mode:
+    rotation_std: 0.5  # Standard deviation of rotation angle noise (in degrees)
+    translation_std: 0.2  # Standard deviation of translation vector noise
+    flip_x_prob: 0.0
+    flip_y_prob: 0.0
+    # Track ID augmentation
+    random_augment_track_ids: false  # Whether to apply track ID augmentation
+    random_track_id_change_prob: 0.1  # Probability of changing a track ID
+    # Role augmentation
+    random_augment_roles: false
+    random_role_change_prob: 0.1
+    # Camera augmentation
+    camera_drift_prob: 0.0  # Probability of applying drift per frame
+    drift_rotation_std: 2.0  # Standard deviation for rotation in drift mode
+    drift_translation_std: 1.0  # Standard deviation for translation in drift mode
+    wipe_mode: "none"  # Available options: "none", "random", "continuous"
+    wipe_random_prob: 0.03  # Probability of wiping a random frame
+    wipe_continuous_prob: 0.05  # Probability of wiping a continuous frame
+
+  # Training configuration
+  training:
+    batch_size: 2
+    num_workers: 2
+    learning_rate: 1.0e-4
+    weight_decay: 1.0e-4
+    # Iteration-based training settings
+    max_iterations: 200000  # Total number of iterations to train for
+    log_interval: 2000       # Log training metrics every N iterations
+    tb_log_interval: 2000    # Log to tensorboard every N iterations
+    eval_interval: 2000     # Run evaluation every N iterations
+    checkpoint_interval: 2000  # Save checkpoint every N iterations
+    output_dir: "./outputs"
+    use_scheduler: true
+    random_seed: 42  # Random seed for reproducibility
+    
+    # Task enablement configuration
+    tasks:
+      track: false    # Track association
+      role: true     # Role classification (player, goalkeeper, referee)
+      team: true     # Team classification
+      jersey: false   # Jersey number prediction
+      coord: true    # Coordinate refinement
+      missing: true  # Missing detections prediction
+      
+    # Loss weights configuration
+    loss_weights:
+      track: 1.0     # Track association loss weight
+      role: 0.2      # Role classification loss weight
+      team: 0.2      # Team classification loss weight
+      jersey: 0.3    # Jersey number prediction loss weight
+      coord: 0.5     # Coordinate refinement loss weight
+      missing: 0.3   # Missing detections prediction loss weight
+
+# Apply the base configuration
+<<: *base_config 

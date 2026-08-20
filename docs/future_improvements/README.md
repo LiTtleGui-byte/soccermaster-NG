@@ -16,12 +16,13 @@
 
 | 优先级 | 方向 | 状态 | 进入条件 | 文档 |
 |---:|---|---|---|---|
+| P0 | 当前问题—证据—方案总图 | 持续更新 | 研究方向取舍前 | [current_problem_solution_map.md](current_problem_solution_map.md) |
 | P0 | 数据与训练正确性审计 | 待实现 | 立即；先于模型改进 | [data_training_correctness.md](data_training_correctness.md) |
 | P0 | 可复现环境、资产与 checkpoint 管理 | 待研究 | 基线运行脚本整理时 | [reproducibility_and_storage.md](reproducibility_and_storage.md) |
 | P1 | 保持长宽比的多分辨率视觉输入 | 待研究 | 完成 `512×512` 论文基线复现 | [native_aspect_ratio.md](native_aspect_ratio.md) |
 | P1 | 解说生成的视觉事实约束 | 待研究 | 完成解说基线复现 | [commentary_grounding.md](commentary_grounding.md) |
 | P1 | 检测、足球小目标与跨帧跟踪 | 待研究 | 完成人员检测基线复现 | [detection_and_tracking.md](detection_and_tracking.md) |
-| P2 | 多任务训练冲突与任务特征分配 | 待研究 | 各单任务基线可信后 | [multitask_training.md](multitask_training.md) |
+| P2 | 多任务训练冲突与任务特征分配 | 基线已功能性验证，改进尚未执行 | G8 功能性恢复通过后；不得视为 exact resume | [multitask_training.md](multitask_training.md) |
 | P0 | 统一评估与错误分析协议 | 待研究 | 与每项基线同步建立 | [evaluation_protocol.md](evaluation_protocol.md) |
 
 ## 推荐推进顺序

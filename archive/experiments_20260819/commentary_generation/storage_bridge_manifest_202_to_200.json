@@ -1,0 +1,226 @@
+{
+  "schema_version": 1,
+  "created_date": "2026-08-17",
+  "status": "nas_bundle_transferred_verified_cpu_preflight_passed",
+  "nas_status": "restored_readable_and_dedicated_asset_root_writable",
+  "nas_mount_observation": {
+    "video_target": "/mnt/nas2",
+    "asset_target": "/mnt/nas",
+    "asset_source": "admini@172.16.7.237:/share/CACHEDEV1_DATA/Public/",
+    "filesystem": "fuse.sshfs",
+    "vfs_options": "ro,nosuid,nodev,relatime",
+    "filesystem_options": "rw,user_id=0,group_id=0,allow_other",
+    "interpretation": "the host mount is writable; a host-level create/write/rename/delete probe passed at the dedicated asset root. The managed Codex namespace may still expose NAS writes only through an approved host command. SSHFS free-space output is not treated as authoritative physical NAS capacity."
+  },
+  "source_host": "gpu202",
+  "source_ssh_alias": "GPU202-tianlin",
+  "source_host_address": "172.16.11.202",
+  "source_ssh_port": 15654,
+  "source_proxy_jump": "bastion-DB13",
+  "destination_host": "gpu200",
+  "destination_host_address": "172.16.10.200",
+  "destination_staging_root": "/home/tianlin/commentary_assets_202_bridge_20260817",
+  "destination_asset_root": "/mnt/nas/tianlin/SoccerMasterAssets/commentary_generation_epoch11_20260817",
+  "copy_authorized": true,
+  "preserve_source": true,
+  "dedicated_identity": {
+    "private_key": "/home/tianlin/.ssh/id_ed25519_gpu200_gpu202_bridge",
+    "public_key": "/home/tianlin/.ssh/id_ed25519_gpu200_gpu202_bridge.pub",
+    "algorithm": "ssh-ed25519",
+    "fingerprint": "SHA256:T5sFuy2R8FOj4sG0DueQ9U4/4xlXb69fXWrDqOlMYcU",
+    "private_key_mode": "0600",
+    "public_key_mode": "0644",
+    "passphrase": false,
+    "used_by_hosts": ["bastion-DB13", "GPU202-tianlin"],
+    "bastion_authorized": true,
+    "gpu202_authorized": true
+  },
+  "network_preflight": {
+    "obsolete_direct_attempt": {
+      "endpoint": "172.16.10.202:22",
+      "ssh_status": "timed_out_before_remote_command",
+      "reason": "wrong endpoint; system hosts entry is not the user's cluster SSH route"
+    },
+    "configured_route": {
+      "target": "172.16.11.202:15654",
+      "proxy_jump": "202.120.39.165:58122",
+      "proxy_banner_status": "reachable",
+      "proxy_banner": "OpenSSH_7.6p1 Ubuntu-4ubuntu0.7",
+      "proxy_ed25519_fingerprint": "SHA256:/p460eWah5vDQdtccbtOAanO24ix08XIPlM9MJVz96M",
+      "host_key_trusted_locally": true,
+      "authentication_status": "passed",
+      "target_host_key_trusted_locally": true,
+      "target_authentication_status": "passed",
+      "target_reported_hostname": "gpu202",
+      "target_reported_user": "tianlin"
+    },
+    "local_identity_files_present": true,
+    "remote_read_performed": true,
+    "remote_write_performed": false,
+    "next_requirement": "none for CPU preflight; obtain separate authorization after nvidia-smi before any model GPU execution"
+  },
+  "measured_source_bytes": {
+    "llama_root": 32132599005,
+    "bert_root": 3454169471,
+    "siglip2_root": 3568025174,
+    "visual_backbone": 1435281181,
+    "generation_checkpoint": 17615455530,
+    "matchtime_train_annotations": 11318394,
+    "matchtime_test_annotations": 1541678,
+    "matchtime_word_world": 9092,
+    "total": 58218399525,
+    "total_gb_decimal": 58.218399525,
+    "total_with_25_percent_headroom_gb_decimal": 72.77299940625
+  },
+  "completed_transfers": {
+    "phase_0_metadata": {
+      "status": "passed",
+      "json_parse": "passed",
+      "files": {
+        "classification_train.json": "0c4580786a3e6db7bcd38040190b7f19b80fc28e51eac6307ae94354759ddfa8",
+        "classification_test.json": "d163ac7a6b7705d6c98a1ccbb1325a004fcdfc477380425548ab6a8274e4c870",
+        "match_time.pkl": "654f03e1d4678cd0c3e8ca587af027e4bc14489e94e90bd30ad856242dab2d94"
+      }
+    },
+    "phase_1_minimum_model_bundle": {
+      "status": "passed",
+      "transfer_method": "rsync -rt --partial --no-owner --no-group --no-perms",
+      "destination_files": 117,
+      "destination_bytes": 58218293029,
+      "large_file_sha256": {
+        "visual_backbone": "fc64d2acbabb5c20a3e0bf996906954c81838d8495b7724a9862199c0af4c977",
+        "generation_checkpoint": "e1ff7fef61a480576d52f4c2761ccedca16d8af3ccd6cdc39a83d36fc5a32317"
+      },
+      "directory_checksum_dry_run": {
+        "llama_root": "passed_zero_files_transferred",
+        "bert_root": "passed_zero_files_transferred",
+        "siglip2_root": "passed_zero_files_transferred"
+      }
+    },
+    "cpu_preflight": {
+      "status": "passed",
+      "report": "reports/commentary_nas_bundle_preflight_20260817/result.json",
+      "train_records": 24027,
+      "test_records": 3256,
+      "checkpoint_epoch": 11,
+      "checkpoint_state_keys": 953,
+      "cuda_visible_devices": "",
+      "gpu_query_executed": false,
+      "forward_executed": false,
+      "generate_executed": false,
+      "training_executed": false
+    }
+  },
+  "assets": [
+    {
+      "phase": 0,
+      "name": "matchtime_train_annotations",
+      "source": "/remote-home/haolinyang/sports/UniSoccer/train_data/video_clip_json/MatchTime/classification_train.json",
+      "relative_destination": "metadata/MatchTime/classification_train.json",
+      "kind": "file",
+      "recorded_bytes": 11318394
+    },
+    {
+      "phase": 0,
+      "name": "matchtime_test_annotations",
+      "source": "/remote-home/haolinyang/sports/UniSoccer/train_data/video_clip_json/MatchTime/classification_test.json",
+      "relative_destination": "metadata/MatchTime/classification_test.json",
+      "kind": "file",
+      "recorded_bytes": 1541678,
+      "recorded_sha256": "d163ac7a6b7705d6c98a1ccbb1325a004fcdfc477380425548ab6a8274e4c870"
+    },
+    {
+      "phase": 0,
+      "name": "matchtime_word_world",
+      "source": "/remote-home/haolinyang/sports/UniSoccer/words_world/match_time.pkl",
+      "relative_destination": "metadata/words_world/match_time.pkl",
+      "kind": "file",
+      "recorded_bytes": 9092,
+      "recorded_sha256": "654f03e1d4678cd0c3e8ca587af027e4bc14489e94e90bd30ad856242dab2d94"
+    },
+    {
+      "phase": 1,
+      "name": "llama_root",
+      "source": "/remote-home/share/huggingface/Meta-Llama-3-8B-Instruct",
+      "relative_destination": "models/Meta-Llama-3-8B-Instruct",
+      "kind": "directory",
+      "measure_source_bytes_before_copy": true
+    },
+    {
+      "phase": 1,
+      "name": "bert_root",
+      "source": "/remote-home/share/huggingface/bert-base-uncased",
+      "relative_destination": "models/bert-base-uncased",
+      "kind": "directory",
+      "measure_source_bytes_before_copy": true
+    },
+    {
+      "phase": 1,
+      "name": "siglip2_root",
+      "source": "/remote-home/haolinyang/sports/Soccer-Backbone/pretrained_models/google/siglip2-large-patch16-512",
+      "relative_destination": "models/siglip2-large-patch16-512",
+      "kind": "directory",
+      "measure_source_bytes_before_copy": true
+    },
+    {
+      "phase": 1,
+      "name": "visual_backbone",
+      "source": "/remote-home/haolinyang/sports/Soccer-Backbone/outputs/pretrain_large_512_multitask_aug_consine_part_temporal_early_freeze_text_lr_5e-5_cap_cls_weight_1_extra_7000/epoch_19/backbone.pt",
+      "relative_destination": "checkpoints/visual_backbone_epoch_19/backbone.pt",
+      "kind": "file",
+      "recorded_bytes": 1435281181,
+      "compute_source_and_destination_sha256": true
+    },
+    {
+      "phase": 1,
+      "name": "generation_checkpoint",
+      "source": "/remote-home/haolinyang/sports/dirty_code/UniSoccer/output/large_512_multitask_w_1_epoch_19_train_matchtime_eval_matchtime_half_lr_bf16/model_save_11.pth",
+      "relative_destination": "checkpoints/commentary_epoch_11/model_save_11.pth",
+      "kind": "file",
+      "recorded_bytes": 17615455530,
+      "compute_source_and_destination_sha256": true
+    },
+    {
+      "phase": 2,
+      "name": "one_development_video",
+      "source": "/mnt/nas2/homes/jiayuanrao/UniSoccer_training_videos/SoccerNetv2/MatchTime/SN-Caption-test-align/europe_uefa-champions-league_2016-2017/2016-11-23 - 22-45 Arsenal 2 - 2 Paris SG/1_32_39.mp4",
+      "source_root_expected": "/mnt/nas2/homes/jiayuanrao/UniSoccer_training_videos/SoccerNetv2/MatchTime/SN-Caption-test-align",
+      "relative_destination": null,
+      "kind": "file",
+      "select_from_fixed_200_manifest": true,
+      "requires_nas_access": true,
+      "transfer_required": false,
+      "read_only_ffprobe": {
+        "status": "passed",
+        "bytes": 4896229,
+        "codec": "h264",
+        "width": 398,
+        "height": 224,
+        "frame_rate": "25/1",
+        "frames": 750,
+        "duration_seconds": 30.022
+      }
+    },
+    {
+      "phase": 3,
+      "name": "balanced_development_subset",
+      "source": null,
+      "relative_destination": null,
+      "kind": "manifest_selected_files",
+      "requires_nas_access": true,
+      "copy_after_one_clip_validation": false,
+      "read_directly_from_restored_nas": true
+    },
+    {
+      "phase": 4,
+      "name": "locked_match_holdout",
+      "source": null,
+      "relative_destination": null,
+      "kind": "manifest_selected_files",
+      "requires_nas_access": true,
+      "requires_training_and_development_overlap_rejection": true,
+      "freeze_manifest_before_model_evaluation": true,
+      "read_directly_from_restored_nas": true
+    }
+  ]
+}

@@ -1,0 +1,19 @@
+{
+  "schema_version": 1,
+  "gate": "G10-B",
+  "stage": "current_step3_to_training_pkl",
+  "video_id": "10004",
+  "input_step3": "/home/tianlin/SoccerMaster/.runtime/local_takeover/g10/sngs10004_step3/states/sn-gamestate.pklz",
+  "output_pkl": "/home/tianlin/SoccerMaster/.runtime/local_takeover/g10/sngs10004_training_pkl/SNGS-10004.pkl",
+  "result_json": "/home/tianlin/SoccerMaster/reports/local_takeover/20260819_soccerfactory_conversion_sngs10004/result.json",
+  "expected": {
+    "frames": 255,
+    "people": 3390,
+    "valid_camera_frames": 255
+  },
+  "non_goals": [
+    "role_team_jersey_or_coordinate_accuracy",
+    "model_forward",
+    "training"
+  ]
+}

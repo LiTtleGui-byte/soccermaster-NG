@@ -1,0 +1,130 @@
+{
+  "schema_version": 1,
+  "status": "authorized_once_stage3_continuation",
+  "execution_authorized": true,
+  "experiment_id": "commentary_qformer_oracle_steering_pilot_48_20260818",
+  "host": "gpu200",
+  "python": "/home/tianlin/SoccerMaster/.local_envs/SoccerMaster-repro/bin/python",
+  "state_dir": "/home/tianlin/SoccerMaster/.runtime/qformer_stage3_continuation_20260818",
+  "source_watcher": {
+    "config": "/home/tianlin/SoccerMaster/experiments/commentary_generation/ATTRIBUTE_GPU_AUTORUN_CONFIG_20260818.json",
+    "config_sha256": "15d4b6a463f7368220b996c154528726c81e4907cc978dadf4b2099270617932",
+    "state": "/home/tianlin/SoccerMaster/.runtime/attribute_probe_gpu_autorun_20260818/state.json",
+    "required_phase": "stage3_ready",
+    "poll_seconds": 60
+  },
+  "paths": {
+    "cpu_preparer": "/home/tianlin/SoccerMaster/experiments/commentary_generation/prepare_qformer_oracle_steering_cpu.py",
+    "gpu_worker": "/home/tianlin/SoccerMaster/experiments/commentary_generation/run_qformer_oracle_steering_gpu.py",
+    "pilot_design_config": "/home/tianlin/SoccerMaster/experiments/commentary_generation/QFORMER_ORACLE_STEERING_PILOT_CONFIG_20260818.json",
+    "stage1_manifest": "/home/tianlin/SoccerMaster/reports/commentary_autorun_3256_20260817_run1/manifest.json",
+    "stage2_layer_result": "/home/tianlin/SoccerMaster/reports/commentary_stage2_layer_probe_48_20260818/result.json",
+    "attribute_probe_result": "/home/tianlin/SoccerMaster/reports/commentary_attribute_probe_pilot_48_20260818/probe_results_match_grouped.json",
+    "blind_manifest": "/home/tianlin/SoccerMaster/reports/commentary_attribute_probe_pilot_48_20260818/blind_manifest.json",
+    "video_only_labels": "/home/tianlin/SoccerMaster/reports/commentary_attribute_probe_pilot_48_20260818/video_only_labels.json",
+    "steering_artifact": "/home/tianlin/SoccerMaster/reports/commentary_qformer_oracle_steering_pilot_48_20260818/steering_inputs.safetensors",
+    "steering_partial": "/home/tianlin/SoccerMaster/reports/commentary_qformer_oracle_steering_pilot_48_20260818/steering_inputs.safetensors.partial",
+    "steering_manifest": "/home/tianlin/SoccerMaster/reports/commentary_qformer_oracle_steering_pilot_48_20260818/steering_manifest.json",
+    "predictions": "/home/tianlin/SoccerMaster/reports/commentary_qformer_oracle_steering_pilot_48_20260818/predictions.jsonl",
+    "predictions_partial": "/home/tianlin/SoccerMaster/reports/commentary_qformer_oracle_steering_pilot_48_20260818/predictions.jsonl.partial",
+    "result": "/home/tianlin/SoccerMaster/reports/commentary_qformer_oracle_steering_pilot_48_20260818/result.json",
+    "review_packet": "/home/tianlin/SoccerMaster/reports/commentary_qformer_oracle_steering_pilot_48_20260818/paired_review_packet.json"
+  },
+  "readonly_assets": {
+    "llama_root": "/remote-home/share/huggingface/Meta-Llama-3-8B-Instruct",
+    "bert_root": "/remote-home/share/huggingface/bert-base-uncased",
+    "siglip2_root": "/remote-home/haolinyang/sports/Soccer-Backbone/pretrained_models/google/siglip2-large-patch16-512",
+    "visual_backbone": "/remote-home/haolinyang/sports/Soccer-Backbone/outputs/pretrain_large_512_multitask_aug_consine_part_temporal_early_freeze_text_lr_5e-5_cap_cls_weight_1_extra_7000/epoch_19/backbone.pt",
+    "generation_checkpoint": "/remote-home/haolinyang/sports/dirty_code/UniSoccer/output/large_512_multitask_w_1_epoch_19_train_matchtime_eval_matchtime_half_lr_bf16/model_save_11.pth",
+    "word_world": "/remote-home/haolinyang/sports/UniSoccer/words_world/match_time.pkl",
+    "decoder_runtime": "/home/tianlin/SoccerMaster/experiments/commentary_generation/cached_prefix_experiments.py"
+  },
+  "source_sha256": {
+    "cpu_preparer": "bc5fa0ea25a7cd696a5ec73d102df8c690dfa56d8c8813daaf1dcce507aa0593",
+    "gpu_worker": "ae15d70f0f0d1a5a367b81a12680a433af9787d7b5a9edc2dbea306d6c2e2529",
+    "continuation": "a7e4cf8fde9ccb05938e859e58138c608fe4089152913dfbd817a2bb2daa882f",
+    "pilot_design_config": "adb0edb53a5ae1c3317ccc0428be948371abe57f7bf2b8e6ed765232e8e0abe0",
+    "decoder_runtime": "2d48bfd72504527df6acc2bfcd3b4bdf0ad9659bf9c781816f116e3cfd63350f"
+  },
+  "environment": {
+    "PYTHONDONTWRITEBYTECODE": "1",
+    "PYTHONPATH": "/home/tianlin/SoccerMaster/models/deformable_detr/ops/build/lib.linux-x86_64-cpython-310:/home/tianlin/SoccerMaster",
+    "LD_LIBRARY_PATH": "/home/tianlin/SoccerMaster/.local_envs/SoccerMaster-repro/lib/python3.10/site-packages/torch/lib:/home/tianlin/SoccerMaster/.local_envs/SoccerMaster-repro/lib",
+    "HF_HUB_OFFLINE": "1",
+    "TRANSFORMERS_OFFLINE": "1",
+    "HF_DATASETS_OFFLINE": "1",
+    "HF_HUB_DISABLE_TELEMETRY": "1",
+    "TOKENIZERS_PARALLELISM": "false",
+    "OMP_NUM_THREADS": "1",
+    "MKL_NUM_THREADS": "1"
+  },
+  "availability": {
+    "candidate_gpu_indices": [0, 1, 2, 3, 4, 5, 6, 7],
+    "minimum_free_mib": 70000,
+    "maximum_utilization_percent": 5,
+    "allowed_compute_pids": [],
+    "confirmation_delay_seconds": 60,
+    "poll_seconds": 1800,
+    "selection": "lowest_stable_eligible_physical_index"
+  },
+  "steering": {
+    "stable_tasks": [
+      "event:shot_attempt",
+      "event:possession_sequence",
+      "event:set_piece",
+      "action:shoot",
+      "action:cross",
+      "action:pass",
+      "action:dribble",
+      "action:save",
+      "result:saved",
+      "result:play_stopped",
+      "phase:stopped",
+      "phase:replay"
+    ],
+    "minimum_train_count_per_class_per_fold": 4,
+    "doses": [0.5, 1.0],
+    "residual_cap_fraction": 0.5,
+    "control": "cyclic task-direction mismatch rescaled per sample to the alpha=1.0 oracle residual norm",
+    "no_eligible_task_policy": "leave all four conditions identical and exclude the clip from intervention-effect denominators"
+  },
+  "conditions": [
+    "cached_qformer_baseline",
+    "norm_matched_cyclic_task_direction_control",
+    "oracle_residual_alpha_0.5",
+    "oracle_residual_alpha_1.0"
+  ],
+  "generation": {
+    "max_new_tokens": 128,
+    "num_beams": 5,
+    "do_sample": false,
+    "min_length": 5,
+    "repetition_penalty": 1.0,
+    "length_penalty": 1,
+    "renormalize_logits": true
+  },
+  "timeouts_seconds": {
+    "cpu_prepare": 900,
+    "gpu_generation": 10800
+  },
+  "automatic_scope_if_later_armed": [
+    "wait_for_exact_attribute_watcher_stage3_ready_state",
+    "run_one_cpu_fold_local_residual_preparation",
+    "wait_for_one_twice_confirmed_idle_h800",
+    "run_one_48_clip_four_condition_inference_only_generation",
+    "stop_at_review_required"
+  ],
+  "failure_policy": "stop_without_retry_or_gpu_switch_after_worker_start",
+  "explicitly_forbidden": [
+    "visual_encoder_forward",
+    "qformer_forward",
+    "main_model_training",
+    "backward",
+    "optimizer_or_scheduler",
+    "checkpoint_write_or_overwrite",
+    "automatic_retry",
+    "gpu_coexistence_with_any_compute_pid",
+    "holdout_evaluation",
+    "automatic_result_claim_or_next_stage"
+  ]
+}

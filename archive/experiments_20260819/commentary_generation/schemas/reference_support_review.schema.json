@@ -1,0 +1,14 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Reference Support Review",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["dataset_index", "match_id", "verdict", "confidence", "reason"],
+  "properties": {
+    "dataset_index": {"type": "integer", "minimum": 0},
+    "match_id": {"type": "string", "minLength": 1},
+    "verdict": {"enum": ["accurate", "partial", "wrong", "uncertain"]},
+    "confidence": {"enum": ["high", "medium", "low"]},
+    "reason": {"type": "string", "minLength": 1}
+  }
+}

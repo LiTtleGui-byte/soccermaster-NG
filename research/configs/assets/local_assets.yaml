@@ -1,0 +1,35 @@
+# Canonical local asset names for new experiments. Historical manifests keep
+# their original paths so that old evidence remains reproducible.
+schema_version: 1
+workspace: /home/tianlin/SoccerMaster
+
+code:
+  soccermaster: /home/tianlin/SoccerMaster
+  soccerfactory:
+    tracklab: /home/tianlin/SoccerMaster/baseline/code/soccerfactory/tracklab
+    sn_gamestate: /home/tianlin/SoccerMaster/baseline/code/soccerfactory/sn-gamestate
+    refiner: /home/tianlin/SoccerMaster/baseline/code/soccerfactory/refiner
+  adapters: /home/tianlin/SoccerMaster/research/src/soccermaster/integrations/soccerfactory
+
+checkpoints:
+  soccermaster:
+    official_high_resolution_epoch_19: /home/tianlin/SoccerMaster/assets/checkpoints/official/soccermaster/epoch_19
+  soccerfactory:
+    detector: /home/tianlin/SoccerMaster/assets/checkpoints/official/soccerfactory/pretrained_models/yolo/yolo_v8x6_person_lr_default_best.pt
+    reid: /home/tianlin/SoccerMaster/assets/checkpoints/official/soccerfactory/pretrained_models/reid/prtreid-soccernet-baseline.pth.tar
+    reid_backbone: /home/tianlin/SoccerMaster/assets/checkpoints/official/soccerfactory/pretrained_models/reid/hrnetv2_w32_imagenet_pretrained.pth
+    calibration_keypoints: /home/tianlin/SoccerMaster/assets/checkpoints/official/soccerfactory/pretrained_models/calibration/SV_kp
+    calibration_lines: /home/tianlin/SoccerMaster/assets/checkpoints/official/soccerfactory/pretrained_models/calibration/SV_lines
+    legibility: /home/tianlin/SoccerMaster/assets/checkpoints/official/soccerfactory/pretrained_models/legibility/legibility_resnet34_soccer_20240215.pth
+    jersey_ocr: /home/tianlin/SoccerMaster/assets/checkpoints/official/soccerfactory/pretrained_models/jn/Qwen2.5-VL-7B-Instruct
+    refiner: /home/tianlin/SoccerMaster/assets/checkpoints/official/soccerfactory/refiner/best_model.pth
+
+datasets:
+  sngs10004:
+    frames: /home/tianlin/SoccerMaster/assets/data/SN-GSR-2024/SoccerNetGS/sn500/SNGS-10004/img1
+    raw_video: /home/tianlin/SoccerMaster/assets/data/soccernet/raw/sngs10004/1_720p.mkv
+    camera_labels: /home/tianlin/SoccerMaster/assets/data/soccernet/cameras/sngs10004/Labels-cameras.json
+    clip_mapping: /home/tianlin/SoccerMaster/assets/data/SN-GSR-2024/SoccerNetGS/sn_2_clip.json
+
+external_owned:
+  commentary_bundle: /mnt/nas/tianlin/SoccerMasterAssets/commentary_generation_epoch11_20260817

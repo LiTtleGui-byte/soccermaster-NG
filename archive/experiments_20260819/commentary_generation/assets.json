@@ -1,0 +1,228 @@
+{
+  "schema_version": 2,
+  "status": "single_sample_inference_passed",
+  "python": "/home/tianlin/SoccerMaster/.local_envs/SoccerMaster-repro/bin/python",
+  "required_distributions": {
+    "accelerate": "1.8.1",
+    "decord": "0.6.0",
+    "peft": "0.13.2",
+    "pycocoevalcap": "1.2",
+    "torch": "2.4.1",
+    "transformers": "4.51.3"
+  },
+  "assets": [
+    {
+      "name": "llama_root",
+      "path": "/remote-home/share/huggingface/Meta-Llama-3-8B-Instruct",
+      "kind": "directory"
+    },
+    {
+      "name": "llama_config",
+      "path": "/remote-home/share/huggingface/Meta-Llama-3-8B-Instruct/config.json",
+      "kind": "file",
+      "size": 654,
+      "sha256": "61f3de03a16ca8046b05dc777bce72717022bc8522152eee61a69072272ef54b"
+    },
+    {
+      "name": "llama_tokenizer",
+      "path": "/remote-home/share/huggingface/Meta-Llama-3-8B-Instruct/tokenizer.json",
+      "kind": "file",
+      "size": 9085698,
+      "sha256": "e134af98b985517b4f068e3755ae90d4e9cd2d45d328325dc503f1c6b2d06cc7"
+    },
+    {
+      "name": "llama_tokenizer_config",
+      "path": "/remote-home/share/huggingface/Meta-Llama-3-8B-Instruct/tokenizer_config.json",
+      "kind": "file",
+      "size": 50977,
+      "sha256": "da0e3a7cce6e4d787e85eb1c24d548420e0d7fe2c7a214e192795c46e40d75bb"
+    },
+    {
+      "name": "bert_root",
+      "path": "/remote-home/share/huggingface/bert-base-uncased",
+      "kind": "directory"
+    },
+    {
+      "name": "bert_config",
+      "path": "/remote-home/share/huggingface/bert-base-uncased/config.json",
+      "kind": "file",
+      "size": 570,
+      "sha256": "7160e1553ad2ca51d8c1cb066be533db31826e12d173824c1bb0cb1a4f187d20"
+    },
+    {
+      "name": "siglip2_root",
+      "path": "/remote-home/haolinyang/sports/Soccer-Backbone/pretrained_models/google/siglip2-large-patch16-512",
+      "kind": "directory"
+    },
+    {
+      "name": "visual_backbone",
+      "path": "/remote-home/haolinyang/sports/Soccer-Backbone/outputs/pretrain_large_512_multitask_aug_consine_part_temporal_early_freeze_text_lr_5e-5_cap_cls_weight_1_extra_7000/epoch_19/backbone.pt",
+      "kind": "file",
+      "size": 1435281181,
+      "large_file_hash_deferred": true
+    },
+    {
+      "name": "generation_checkpoint",
+      "path": "/remote-home/haolinyang/sports/dirty_code/UniSoccer/output/large_512_multitask_w_1_epoch_19_train_matchtime_eval_matchtime_half_lr_bf16/model_save_11.pth",
+      "kind": "file",
+      "size": 17615455530,
+      "large_file_hash_deferred": true
+    },
+    {
+      "name": "matchtime_word_world",
+      "path": "/remote-home/haolinyang/sports/UniSoccer/words_world/match_time.pkl",
+      "kind": "file",
+      "size": 9092,
+      "sha256": "654f03e1d4678cd0c3e8ca587af027e4bc14489e94e90bd30ad856242dab2d94"
+    },
+    {
+      "name": "matchtime_train_annotations",
+      "path": "/remote-home/haolinyang/sports/UniSoccer/train_data/video_clip_json/MatchTime/classification_train.json",
+      "kind": "file",
+      "size": 11318394
+    },
+    {
+      "name": "matchtime_test_annotations",
+      "path": "/remote-home/haolinyang/sports/UniSoccer/train_data/video_clip_json/MatchTime/classification_test.json",
+      "kind": "file",
+      "size": 1541678
+    },
+    {
+      "name": "matchtime_train_video_root",
+      "path": "/mnt/nas2/homes/jiayuanrao/UniSoccer_training_videos/SoccerNetv2/MatchTime/train",
+      "kind": "directory"
+    },
+    {
+      "name": "matchtime_test_video_root",
+      "path": "/mnt/nas2/homes/jiayuanrao/UniSoccer_training_videos/SoccerNetv2/MatchTime/SN-Caption-test-align",
+      "kind": "directory"
+    },
+    {
+      "name": "checkpoint_load_log",
+      "path": "/home/tianlin/SoccerMaster/reports/audits/commentary_checkpoint_load.log",
+      "kind": "file",
+      "size": 13847,
+      "sha256": "85dc00c0a9b2bde2fd6b43d29487df8d380e43a47e103b9a029e3ee7d7fe6525"
+    },
+    {
+      "name": "single_sample_inference_log",
+      "path": "/home/tianlin/SoccerMaster/reports/audits/commentary_infer_one.log",
+      "kind": "file",
+      "size": 11004,
+      "sha256": "b1021589f0d5806159c56ab2860a2de02c53402142beca45b3851186d29fbe0e"
+    },
+    {
+      "name": "single_sample_inference_result",
+      "path": "/home/tianlin/SoccerMaster/reports/audits/commentary_infer_one_result.json",
+      "kind": "file",
+      "size": 6076,
+      "sha256": "ee115aa29e27aca2b2bd4599ad2a3fafda8cbdda85569a65724f634813125b99"
+    }
+  ],
+  "tokenizer_contract": {
+    "initial_length": 128256,
+    "final_length": 128261,
+    "bos_token_id": 128000,
+    "eos_token_id": 128009,
+    "padding_token_id_used_by_legacy_dataset": 128001,
+    "added_tokens": {
+      "[PLAYER]": 128256,
+      "[TEAM]": 128257,
+      "[COACH]": 128258,
+      "[REFEREE]": 128259,
+      "([TEAM])": 128260
+    }
+  },
+  "verification": {
+    "checkpoint_load": {
+      "date": "2026-08-13",
+      "status": "passed",
+      "checkpoint_epoch": 11,
+      "checkpoint_state_key_count": 953,
+      "model_state_key_count": 953,
+      "model_parameter_count": 8418890760,
+      "missing_keys": [],
+      "unexpected_keys": [],
+      "seven_components_loaded": true,
+      "elapsed_seconds": 534.38,
+      "peak_rss_kib": 37208656,
+      "device": "cpu",
+      "gpu_used": false,
+      "forward_executed": false,
+      "generate_executed": false,
+      "training_executed": false
+    },
+    "matchtime_train_coverage": {
+      "annotation_records": 24027,
+      "unique_video_paths": 23425,
+      "present_regular_unique": 23425,
+      "missing_unique": 0,
+      "total_unique_bytes": 144499033648,
+      "coverage_percent": 100.0
+    },
+    "matchtime_test_coverage": {
+      "annotation_records": 3256,
+      "unique_video_paths": 3251,
+      "present_regular_unique": 3251,
+      "missing_unique": 0,
+      "total_unique_bytes": 19389988464,
+      "coverage_percent": 100.0
+    },
+    "representative_decode": {
+      "test_opencv_first_frame": "passed",
+      "train_decord_middle_30_frames": "passed",
+      "train_decord_output_shape": [30, 3, 224, 398],
+      "train_decord_dtype": "torch.uint8",
+      "device": "cpu"
+    },
+    "single_sample_inference_entry": {
+      "path": "/home/tianlin/SoccerMaster/experiments/commentary_generation/infer_one.py",
+      "status": "passed",
+      "date": "2026-08-13",
+      "sample_index": 0,
+      "batch_size": 1,
+      "num_frames": 30,
+      "sample_mode": "middle",
+      "seed": 42,
+      "physical_gpu": 7,
+      "dataloader_created": false,
+      "checkpoint_loaded": true,
+      "checkpoint_epoch": 11,
+      "checkpoint_state_key_count": 953,
+      "missing_keys": [],
+      "unexpected_keys": [],
+      "forward_executed": true,
+      "generate_executed": true,
+      "training_executed": false,
+      "gpu_used": true,
+      "elapsed_seconds": 160.7,
+      "forward_and_generate_seconds": 2.088,
+      "peak_rss_kib": 37644280,
+      "gpu_peak_memory_allocated_bytes": 19506608128,
+      "gpu_peak_memory_reserved_bytes": 20004732928,
+      "reference_commentary": "[PLAYER] ([TEAM]) gets on the end of a pass on the edge of the box but his shot is blocked.",
+      "generated_commentary": "[PLAYER] ([TEAM]) sends a pass into the box, but the opposition's defence is alert to the danger and intercepts the ball."
+    }
+  },
+  "resolved_blockers": [
+    {
+      "id": "matchtime_video_root_missing",
+      "resolution": "Legacy symlink targets are missing, but complete train and test roots were located under /mnt/nas2/homes/jiayuanrao/UniSoccer_training_videos/SoccerNetv2/MatchTime and verified read-only."
+    },
+    {
+      "id": "audited_single_sample_inference_entry_missing",
+      "resolution": "A fixed batch-size-1 local entry was created at experiments/commentary_generation/infer_one.py and passed static side-effect review without importing or running the model."
+    }
+  ],
+  "known_blockers": [],
+  "known_risks": [
+    {
+      "id": "generation_attention_mask_implicit",
+      "description": "Historical inputs_embeds generation does not pass an explicit attention_mask; Transformers sets pad_token_id to EOS 128001 and warns that the mask cannot be inferred. This must be analyzed before scaled evaluation and cannot be silently changed in the historical baseline."
+    },
+    {
+      "id": "generation_is_stochastic",
+      "description": "The historical generation configuration combines num_beams=5 with do_sample=True, so fixed seed does not prove cross-device or cross-version textual determinism."
+    }
+  ]
+}

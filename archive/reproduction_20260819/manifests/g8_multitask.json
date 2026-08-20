@@ -1,0 +1,102 @@
+{
+  "schema_version": 1,
+  "gate": "G8",
+  "description": "Small two-rank multi-task protocol: five heads, frozen vision/text backbone, no test split.",
+  "source_roots": {
+    "gsr": "/remote-home/haolinyang/sports/Soccer-Backbone/datasets/SN-GSR-2024",
+    "caption": "/remote-home/haolinyang/sports/Soccer-Backbone/datasets/VideoCaption"
+  },
+  "model": {
+    "config": "configs/pretrain_large_512_multitask_aug_consine_part_temporal_early_freeze_text_lr_5e-5_cap_cls_weight_1_extra_7000_high_resolution.yaml",
+    "siglip2": "/remote-home/haolinyang/sports/Soccer-Backbone/pretrained_models/google/siglip2-large-patch16-512",
+    "checkpoint": "/remote-home/haolinyang/sports/Soccer-Backbone/outputs/pretrain_large_512_multitask_aug_consine_part_temporal_early_freeze_text_lr_5e-5_cap_cls_weight_1_extra_7000_high_resolution/epoch_19",
+    "ckpt_type": "soccer_master",
+    "load_heads": true
+  },
+  "detection": {
+    "dataset": "SoccerNetGS",
+    "train_source_split": "train",
+    "valid_source_split": "train",
+    "validation_role": "held-out train sequence; no official valid or test split is accessed",
+    "frame_count": 30,
+    "train": [
+      {"sequence": "SNGS-060", "start_frame_zero_based": 0, "end_frame_exclusive": 30},
+      {"sequence": "SNGS-060", "start_frame_zero_based": 180, "end_frame_exclusive": 210},
+      {"sequence": "SNGS-060", "start_frame_zero_based": 360, "end_frame_exclusive": 390},
+      {"sequence": "SNGS-060", "start_frame_zero_based": 540, "end_frame_exclusive": 570},
+      {"sequence": "SNGS-062", "start_frame_zero_based": 0, "end_frame_exclusive": 30},
+      {"sequence": "SNGS-062", "start_frame_zero_based": 180, "end_frame_exclusive": 210},
+      {"sequence": "SNGS-062", "start_frame_zero_based": 360, "end_frame_exclusive": 390},
+      {"sequence": "SNGS-062", "start_frame_zero_based": 540, "end_frame_exclusive": 570}
+    ],
+    "valid": [
+      {"sequence": "SNGS-061", "start_frame_zero_based": 90, "end_frame_exclusive": 120},
+      {"sequence": "SNGS-061", "start_frame_zero_based": 270, "end_frame_exclusive": 300},
+      {"sequence": "SNGS-061", "start_frame_zero_based": 450, "end_frame_exclusive": 480},
+      {"sequence": "SNGS-061", "start_frame_zero_based": 630, "end_frame_exclusive": 660}
+    ]
+  },
+  "caption": {
+    "dataset": "SoccerReplay-1988",
+    "video_subdirectory": "video_clip/SoccerReplay-1988-high-resolution",
+    "label_sha256": {
+      "train": "7dc57c841217c1c5280bb1f5e70dd2e56454b94d6dcb2e7fd3e7e54078484aa1",
+      "valid": "0a4e5b3d49d6f2e5c0560b6e5efb475edb91776197fae6d262be1c58f4ba8340"
+    },
+    "train": [
+      {"class_index": 0, "label": "var", "index_and_bytes": [[470, 6507971], [1196, 4849044]]},
+      {"class_index": 1, "label": "end of half game", "index_and_bytes": [[0, 4680855], [42, 5338893]]},
+      {"class_index": 2, "label": "clearance", "index_and_bytes": [[8, 5324667], [9, 6210616]]},
+      {"class_index": 3, "label": "second yellow card", "index_and_bytes": [[134, 7941764], [418, 5154580]]},
+      {"class_index": 4, "label": "injury", "index_and_bytes": [[34, 5543233], [119, 4952835]]},
+      {"class_index": 5, "label": "ball possession", "index_and_bytes": [[67, 5342905], [82, 6333067]]},
+      {"class_index": 6, "label": "throw in", "index_and_bytes": [[227, 6890230], [250, 5908913]]},
+      {"class_index": 7, "label": "show added time", "index_and_bytes": [[5, 6889042], [77, 6771105]]}
+    ],
+    "valid": [
+      {"class_index": 0, "label": "var", "index_and_bytes": [[33, 5823958]]},
+      {"class_index": 1, "label": "end of half game", "index_and_bytes": [[0, 6445549]]},
+      {"class_index": 2, "label": "clearance", "index_and_bytes": [[8, 6147022]]},
+      {"class_index": 3, "label": "second yellow card", "index_and_bytes": [[297, 6955981]]},
+      {"class_index": 4, "label": "injury", "index_and_bytes": [[130, 6099490]]},
+      {"class_index": 5, "label": "ball possession", "index_and_bytes": [[103, 8315793]]},
+      {"class_index": 6, "label": "throw in", "index_and_bytes": [[913, 5983706]]},
+      {"class_index": 7, "label": "show added time", "index_and_bytes": [[4, 7071435]]}
+    ]
+  },
+  "training_contract": {
+    "seed": 42,
+    "world_size": 2,
+    "epochs": 2,
+    "steps_per_epoch": 4,
+    "detection_batch_size": 1,
+    "caption_batch_size": 2,
+    "num_workers": 0,
+    "num_frames": 30,
+    "image_size": 512,
+    "dtype": "float32",
+    "determinism_policy": "enabled_warn_only_for_cuda_ops_without_deterministic_implementation",
+    "task_order": ["SoccerNetGSR_Detection", "VideoCaption"],
+    "heads": ["SoccerNetGSR_Detection", "LinesDetection", "KeypointsDetection", "VideoCaption", "CaptionClassification"],
+    "frozen_scope": ["vision backbone", "text encoder"],
+    "trainable_scope": "all five task heads",
+    "optimizer": "AdamW",
+    "scheduler": "CosineAnnealingLR stepped once per epoch",
+    "video_caption_loss_weight": 4.0,
+    "weight_decay": 0.0001,
+    "gradient_clip_max_norm": 0.1,
+    "resume_probe_after_optimizer_step": 3,
+    "checkpoint_protocol": "temporary directory, manifest validation, COMPLETE marker, atomic rename",
+    "success": {
+      "all_fixed_samples_processed": true,
+      "no_test_split": true,
+      "all_five_heads_have_finite_nonzero_gradients": true,
+      "all_five_heads_update": true,
+      "frozen_backbone_and_text_unchanged": true,
+      "rank_parameters_equal_after_step": true,
+      "video_caption_gather_shapes_equal": true,
+      "exact_resume_includes_task_cursor": true,
+      "valid_metric_structure_complete": true
+    }
+  }
+}

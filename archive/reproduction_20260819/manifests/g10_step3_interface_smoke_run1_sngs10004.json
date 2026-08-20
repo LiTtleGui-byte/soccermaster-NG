@@ -1,0 +1,57 @@
+{
+  "schema_version": 1,
+  "gate": "G10-B",
+  "stage": "step3_interface_smoke_run1_prepared",
+  "description": "CPU-only static review and preparation of an empty-pipeline TrackLab load/save smoke. This manifest does not authorize or execute Step 3.",
+  "python": "/remote-home/haolinyang/anaconda3/envs/tracklab2/bin/python",
+  "sequence": "SNGS-10004",
+  "video_id": "10004",
+  "frame_count": 255,
+  "detection_rows": 3176,
+  "unique_track_ids": 49,
+  "historical_step3_config": "/remote-home/haolinyang/sports/soccernet/sn-gamestate/sn_gamestate/configs/gsr_step_3_sn500_1000.yaml",
+  "apply_camera_params_source": "/remote-home/haolinyang/sports/soccernet/sn-gamestate/sn_gamestate/calibration/bbox2pitch.py",
+  "input_state": {
+    "path": "/home/tianlin/SoccerMaster/.runtime/g10/sngs10004_refiner_probe/run2/output/refined_sn-gamestate.pklz",
+    "bytes": 38952351,
+    "sha256": "76eec06718b9f5c0e24e4d881a80af8be0b942c20f97f5d9d63b29f5c20a6041",
+    "members_exact": ["10004.pkl", "10004_image.pkl"],
+    "immutable": true
+  },
+  "prepared_config": {
+    "path": "/home/tianlin/SoccerMaster/reproduction/configs/g10/g10_step3_interface_sngs10004_run1.yaml",
+    "pipeline": [],
+    "purpose": "TrackLab state load/save compatibility only; no Step-3 transformation"
+  },
+  "historical_pipeline": [
+    "reid", "pitch", "calibration", "apply_camera_params", "legibility",
+    "jersey_number_detect", "role", "remove_outside", "tracklet_agg",
+    "concat_tracklets_by_jn", "concat_tracklets_by_reid", "tracklet_agg",
+    "team", "team_side"
+  ],
+  "refiner_overwrite_risk": {
+    "refiner_changed_column": "bbox_pitch",
+    "historical_writer": "apply_camera_params",
+    "writer_output_column": "bbox_pitch",
+    "verdict": "historical_step3_would_recompute_the_refiner_output"
+  },
+  "post_refiner_candidate_pipeline": [
+    "remove_outside", "tracklet_agg", "concat_tracklets_by_jn",
+    "concat_tracklets_by_reid", "tracklet_agg", "team", "team_side"
+  ],
+  "outputs": {
+    "future_hydra_dir": "/home/tianlin/SoccerMaster/.runtime/g10/sngs10004_step3_interface/run1",
+    "future_state": "/home/tianlin/SoccerMaster/.runtime/g10/sngs10004_step3_interface/run1/states/sn-gamestate.pklz",
+    "preflight_dir": "/home/tianlin/SoccerMaster/reports/g10/20260819_step3_static_preflight",
+    "result": "/home/tianlin/SoccerMaster/reports/g10/20260819_step3_static_preflight/result.json",
+    "readme": "/home/tianlin/SoccerMaster/reports/g10/20260819_step3_static_preflight/README.md"
+  },
+  "execution": {
+    "authorized": false,
+    "gpu_required_for_prepared_interface_smoke": false,
+    "training": false,
+    "evaluation": false,
+    "visualization": false,
+    "overwrite": false
+  }
+}
