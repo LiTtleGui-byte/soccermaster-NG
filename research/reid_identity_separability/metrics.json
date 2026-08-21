@@ -1,0 +1,226 @@
+{
+  "status": "completed",
+  "data_root": "/remote-home/haolinyang/datasets/SN-GSR-2024/SoccerNetGS/valid",
+  "checkpoint": "/home/tianlin/SoccerMaster/assets/checkpoints/official/soccerfactory/pretrained_models/reid/prtreid-soccernet-baseline.pth.tar",
+  "video_count": 59,
+  "videos": [
+    "SNGS-021",
+    "SNGS-022",
+    "SNGS-023",
+    "SNGS-024",
+    "SNGS-025",
+    "SNGS-026",
+    "SNGS-027",
+    "SNGS-028",
+    "SNGS-029",
+    "SNGS-030",
+    "SNGS-031",
+    "SNGS-032",
+    "SNGS-033",
+    "SNGS-034",
+    "SNGS-035",
+    "SNGS-036",
+    "SNGS-037",
+    "SNGS-038",
+    "SNGS-039",
+    "SNGS-040",
+    "SNGS-041",
+    "SNGS-042",
+    "SNGS-043",
+    "SNGS-044",
+    "SNGS-045",
+    "SNGS-046",
+    "SNGS-047",
+    "SNGS-048",
+    "SNGS-049",
+    "SNGS-050",
+    "SNGS-051",
+    "SNGS-052",
+    "SNGS-053",
+    "SNGS-054",
+    "SNGS-055",
+    "SNGS-056",
+    "SNGS-057",
+    "SNGS-058",
+    "SNGS-059",
+    "SNGS-078",
+    "SNGS-079",
+    "SNGS-080",
+    "SNGS-081",
+    "SNGS-082",
+    "SNGS-083",
+    "SNGS-084",
+    "SNGS-085",
+    "SNGS-086",
+    "SNGS-087",
+    "SNGS-088",
+    "SNGS-089",
+    "SNGS-090",
+    "SNGS-091",
+    "SNGS-092",
+    "SNGS-093",
+    "SNGS-094",
+    "SNGS-095",
+    "SNGS-096",
+    "SNGS-201"
+  ],
+  "crop_count": 645670,
+  "track_instance_count": 1237,
+  "gpu_ids": [
+    0,
+    1,
+    2,
+    3,
+    4,
+    5,
+    6,
+    7
+  ],
+  "pair_sampling": {
+    "within_video_only": true,
+    "without_replacement": true,
+    "pairs_per_category_per_video": 10000,
+    "seed": 20260820
+  },
+  "strongsort": {
+    "metric": "L2-normalized Euclidean distance / 2 for one global part",
+    "matching_threshold": 0.5,
+    "config": "baseline/code/soccerfactory/tracklab/tracklab/configs/modules/track/bpbreid_strong_sort.yaml"
+  },
+  "groups": {
+    "same_id": {
+      "cosine": {
+        "count": 580675,
+        "mean": 0.12595301866531372,
+        "median": 0.09352082014083862,
+        "p10": 0.039903032779693606,
+        "p90": 0.26047219038009645
+      },
+      "euclidean": {
+        "count": 580675,
+        "mean": 1.3798623085021973,
+        "median": 1.297919511795044,
+        "p10": 0.8753278017044067,
+        "p90": 2.0164388179779054
+      },
+      "strongsort": {
+        "count": 580675,
+        "mean": 0.23450927436351776,
+        "median": 0.21624165773391724,
+        "p10": 0.14124983549118042,
+        "p90": 0.3608824133872986,
+        "fraction_at_or_below_matching_threshold": 0.9861626555302019
+      }
+    },
+    "different_id_same_team": {
+      "cosine": {
+        "count": 584900,
+        "mean": 0.2383350282907486,
+        "median": 0.19026991724967957,
+        "p10": 0.1053821861743927,
+        "p90": 0.47624828219413756
+      },
+      "euclidean": {
+        "count": 584900,
+        "mean": 1.956652045249939,
+        "median": 1.8759453296661377,
+        "p10": 1.382331120967865,
+        "p90": 2.7211379766464234
+      },
+      "strongsort": {
+        "count": 584900,
+        "mean": 0.33184242248535156,
+        "median": 0.3084395229816437,
+        "p10": 0.2295454114675522,
+        "p90": 0.487979656457901,
+        "fraction_at_or_below_matching_threshold": 0.9176611386561806
+      }
+    },
+    "different_id_different_team": {
+      "cosine": {
+        "count": 585600,
+        "mean": 0.32610949873924255,
+        "median": 0.26394787430763245,
+        "p10": 0.15816667675971985,
+        "p90": 0.5614800035953521
+      },
+      "euclidean": {
+        "count": 585600,
+        "mean": 2.3109591007232666,
+        "median": 2.258864402770996,
+        "p10": 1.7598980903625487,
+        "p90": 2.924789261817932
+      },
+      "strongsort": {
+        "count": 585600,
+        "mean": 0.3920668065547943,
+        "median": 0.363282173871994,
+        "p10": 0.2812176436185837,
+        "p90": 0.5298490285873413,
+        "fraction_at_or_below_matching_threshold": 0.8120747950819672
+      }
+    }
+  },
+  "discrimination": {
+    "same_vs_all_different": {
+      "cosine": {
+        "roc_auc": 0.8452971858999768,
+        "eer": 0.22658146833674897,
+        "eer_distance_threshold": 0.15969955921173096,
+        "best_youden_distance_threshold": 0.13796764612197876,
+        "best_youden_false_positive_rate": 0.14280991029474582,
+        "best_youden_false_negative_rate": 0.28790459379170796
+      },
+      "euclidean": {
+        "roc_auc": 0.8696578186925332,
+        "eer": 0.20123121171693883,
+        "eer_distance_threshold": 1.7005021572113037,
+        "best_youden_distance_threshold": 1.6286367177963257,
+        "best_youden_false_positive_rate": 0.15604100811618965,
+        "best_youden_false_negative_rate": 0.23767167520557975
+      },
+      "strongsort": {
+        "roc_auc": 0.8452971854173967,
+        "eer": 0.22658104116887198,
+        "eer_distance_threshold": 0.28257694840431213,
+        "best_youden_distance_threshold": 0.26264774799346924,
+        "best_youden_false_positive_rate": 0.1428107646304998,
+        "best_youden_false_negative_rate": 0.28790459379170796
+      }
+    },
+    "same_vs_same_team_different": {
+      "cosine": {
+        "roc_auc": 0.7975971104589423,
+        "eer": 0.2682298475924168,
+        "eer_distance_threshold": 0.14416682720184326,
+        "best_youden_distance_threshold": 0.12086641788482666,
+        "best_youden_false_positive_rate": 0.15917421781501112,
+        "best_youden_false_negative_rate": 0.35380204072846255
+      },
+      "euclidean": {
+        "roc_auc": 0.8175619700037959,
+        "eer": 0.2493507512064928,
+        "eer_distance_threshold": 1.6084458827972412,
+        "best_youden_distance_threshold": 1.521071195602417,
+        "best_youden_false_positive_rate": 0.18228586083091128,
+        "best_youden_false_negative_rate": 0.305797563180781
+      },
+      "strongsort": {
+        "roc_auc": 0.7975971093930977,
+        "eer": 0.26823070243939917,
+        "eer_distance_threshold": 0.2684836983680725,
+        "best_youden_distance_threshold": 0.24585603177547455,
+        "best_youden_false_positive_rate": 0.15930073516840484,
+        "best_youden_false_negative_rate": 0.35367460283290997
+      }
+    }
+  },
+  "configured_threshold": {
+    "threshold": 0.5,
+    "same_id_false_negative_rate": 0.01383734446979808,
+    "same_team_different_id_false_positive_rate": 0.9176611386561806,
+    "all_different_id_false_positive_rate": 0.8648363947031183
+  },
+  "pairs_csv": "research/reid_identity_separability/pairs.csv",
+  "elapsed_seconds": 56.714351177215576
+}

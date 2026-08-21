@@ -1,0 +1,6 @@
+# Large, reproducible local artifacts. Keep the reviewable summaries and figures in Git.
+embeddings/
+pairs.csv
+smoke_sngs095/
+.prtreid_runtime/
+*.log

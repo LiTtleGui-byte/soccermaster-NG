@@ -1,0 +1,131 @@
+{
+  "status": "completed",
+  "stage": "extract",
+  "data_root": "/remote-home/haolinyang/datasets/SN-GSR-2024/SoccerNetGS/valid",
+  "checkpoint": "/home/tianlin/SoccerMaster/assets/checkpoints/official/soccerfactory/pretrained_models/reid/prtreid-soccernet-baseline.pth.tar",
+  "reid_config": "/home/tianlin/SoccerMaster/baseline/code/soccerfactory/sn-gamestate/sn_gamestate/configs/modules/reid/prtreid.yaml",
+  "device": "cuda:0",
+  "physical_gpu_id": 4,
+  "batch_size": 64,
+  "shard_index": 4,
+  "num_shards": 8,
+  "videos": [
+    {
+      "video_id": "SNGS-025",
+      "crops": 11632,
+      "tracks": 21,
+      "embedding_shape": [
+        11632,
+        256
+      ],
+      "embedding_norm_mean": 3.127082109451294,
+      "embedding_norm_min": 2.0621016025543213,
+      "embedding_norm_max": 3.8017780780792236,
+      "visibility_values": [
+        1.0
+      ],
+      "output": "research/reid_identity_separability/embeddings/SNGS-025.npz"
+    },
+    {
+      "video_id": "SNGS-033",
+      "crops": 6753,
+      "tracks": 22,
+      "embedding_shape": [
+        6753,
+        256
+      ],
+      "embedding_norm_mean": 3.132455587387085,
+      "embedding_norm_min": 1.8023253679275513,
+      "embedding_norm_max": 3.9714913368225098,
+      "visibility_values": [
+        1.0
+      ],
+      "output": "research/reid_identity_separability/embeddings/SNGS-033.npz"
+    },
+    {
+      "video_id": "SNGS-041",
+      "crops": 10280,
+      "tracks": 21,
+      "embedding_shape": [
+        10280,
+        256
+      ],
+      "embedding_norm_mean": 2.661787986755371,
+      "embedding_norm_min": 1.6940181255340576,
+      "embedding_norm_max": 3.776632070541382,
+      "visibility_values": [
+        1.0
+      ],
+      "output": "research/reid_identity_separability/embeddings/SNGS-041.npz"
+    },
+    {
+      "video_id": "SNGS-049",
+      "crops": 13955,
+      "tracks": 21,
+      "embedding_shape": [
+        13955,
+        256
+      ],
+      "embedding_norm_mean": 2.7249674797058105,
+      "embedding_norm_min": 1.7385084629058838,
+      "embedding_norm_max": 4.085188865661621,
+      "visibility_values": [
+        1.0
+      ],
+      "output": "research/reid_identity_separability/embeddings/SNGS-049.npz"
+    },
+    {
+      "video_id": "SNGS-057",
+      "crops": 12593,
+      "tracks": 21,
+      "embedding_shape": [
+        12593,
+        256
+      ],
+      "embedding_norm_mean": 2.735262155532837,
+      "embedding_norm_min": 1.9023821353912354,
+      "embedding_norm_max": 4.335909843444824,
+      "visibility_values": [
+        1.0
+      ],
+      "output": "research/reid_identity_separability/embeddings/SNGS-057.npz"
+    },
+    {
+      "video_id": "SNGS-083",
+      "crops": 10592,
+      "tracks": 22,
+      "embedding_shape": [
+        10592,
+        256
+      ],
+      "embedding_norm_mean": 3.0053675174713135,
+      "embedding_norm_min": 2.03953218460083,
+      "embedding_norm_max": 4.0429301261901855,
+      "visibility_values": [
+        1.0
+      ],
+      "output": "research/reid_identity_separability/embeddings/SNGS-083.npz"
+    },
+    {
+      "video_id": "SNGS-091",
+      "crops": 11579,
+      "tracks": 22,
+      "embedding_shape": [
+        11579,
+        256
+      ],
+      "embedding_norm_mean": 3.0335898399353027,
+      "embedding_norm_min": 1.7350358963012695,
+      "embedding_norm_max": 3.7726783752441406,
+      "visibility_values": [
+        1.0
+      ],
+      "output": "research/reid_identity_separability/embeddings/SNGS-091.npz"
+    }
+  ],
+  "video_count": 7,
+  "crop_count": 77384,
+  "elapsed_seconds": 3100.142829179764,
+  "model_eval": true,
+  "torch_no_grad": true
+}

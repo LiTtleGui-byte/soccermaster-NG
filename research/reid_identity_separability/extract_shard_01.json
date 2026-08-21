@@ -1,0 +1,147 @@
+{
+  "status": "completed",
+  "stage": "extract",
+  "data_root": "/remote-home/haolinyang/datasets/SN-GSR-2024/SoccerNetGS/valid",
+  "checkpoint": "/home/tianlin/SoccerMaster/assets/checkpoints/official/soccerfactory/pretrained_models/reid/prtreid-soccernet-baseline.pth.tar",
+  "reid_config": "/home/tianlin/SoccerMaster/baseline/code/soccerfactory/sn-gamestate/sn_gamestate/configs/modules/reid/prtreid.yaml",
+  "device": "cuda:0",
+  "physical_gpu_id": 1,
+  "batch_size": 64,
+  "shard_index": 1,
+  "num_shards": 8,
+  "videos": [
+    {
+      "video_id": "SNGS-022",
+      "crops": 9108,
+      "tracks": 21,
+      "embedding_shape": [
+        9108,
+        256
+      ],
+      "embedding_norm_mean": 3.2107231616973877,
+      "embedding_norm_min": 1.7376213073730469,
+      "embedding_norm_max": 3.9031105041503906,
+      "visibility_values": [
+        1.0
+      ],
+      "output": "research/reid_identity_separability/embeddings/SNGS-022.npz"
+    },
+    {
+      "video_id": "SNGS-030",
+      "crops": 10286,
+      "tracks": 19,
+      "embedding_shape": [
+        10286,
+        256
+      ],
+      "embedding_norm_mean": 3.1639912128448486,
+      "embedding_norm_min": 1.9678303003311157,
+      "embedding_norm_max": 3.903848171234131,
+      "visibility_values": [
+        1.0
+      ],
+      "output": "research/reid_identity_separability/embeddings/SNGS-030.npz"
+    },
+    {
+      "video_id": "SNGS-038",
+      "crops": 9977,
+      "tracks": 15,
+      "embedding_shape": [
+        9977,
+        256
+      ],
+      "embedding_norm_mean": 3.122983455657959,
+      "embedding_norm_min": 1.8194704055786133,
+      "embedding_norm_max": 3.8195929527282715,
+      "visibility_values": [
+        1.0
+      ],
+      "output": "research/reid_identity_separability/embeddings/SNGS-038.npz"
+    },
+    {
+      "video_id": "SNGS-046",
+      "crops": 11957,
+      "tracks": 21,
+      "embedding_shape": [
+        11957,
+        256
+      ],
+      "embedding_norm_mean": 2.7317261695861816,
+      "embedding_norm_min": 1.7188706398010254,
+      "embedding_norm_max": 4.808250904083252,
+      "visibility_values": [
+        1.0
+      ],
+      "output": "research/reid_identity_separability/embeddings/SNGS-046.npz"
+    },
+    {
+      "video_id": "SNGS-054",
+      "crops": 10236,
+      "tracks": 22,
+      "embedding_shape": [
+        10236,
+        256
+      ],
+      "embedding_norm_mean": 2.6358039379119873,
+      "embedding_norm_min": 1.666838526725769,
+      "embedding_norm_max": 4.086491107940674,
+      "visibility_values": [
+        1.0
+      ],
+      "output": "research/reid_identity_separability/embeddings/SNGS-054.npz"
+    },
+    {
+      "video_id": "SNGS-080",
+      "crops": 9887,
+      "tracks": 19,
+      "embedding_shape": [
+        9887,
+        256
+      ],
+      "embedding_norm_mean": 3.0636332035064697,
+      "embedding_norm_min": 1.7961359024047852,
+      "embedding_norm_max": 3.762075185775757,
+      "visibility_values": [
+        1.0
+      ],
+      "output": "research/reid_identity_separability/embeddings/SNGS-080.npz"
+    },
+    {
+      "video_id": "SNGS-088",
+      "crops": 12047,
+      "tracks": 21,
+      "embedding_shape": [
+        12047,
+        256
+      ],
+      "embedding_norm_mean": 3.023169755935669,
+      "embedding_norm_min": 1.8720924854278564,
+      "embedding_norm_max": 3.900446653366089,
+      "visibility_values": [
+        1.0
+      ],
+      "output": "research/reid_identity_separability/embeddings/SNGS-088.npz"
+    },
+    {
+      "video_id": "SNGS-096",
+      "crops": 14262,
+      "tracks": 23,
+      "embedding_shape": [
+        14262,
+        256
+      ],
+      "embedding_norm_mean": 3.0058062076568604,
+      "embedding_norm_min": 1.8551344871520996,
+      "embedding_norm_max": 3.752293348312378,
+      "visibility_values": [
+        1.0
+      ],
+      "output": "research/reid_identity_separability/embeddings/SNGS-096.npz"
+    }
+  ],
+  "video_count": 8,
+  "crop_count": 87760,
+  "elapsed_seconds": 3126.528800010681,
+  "model_eval": true,
+  "torch_no_grad": true
+}
